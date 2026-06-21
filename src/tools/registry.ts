@@ -9,7 +9,7 @@ import { tool } from 'ai';
 import type { ToolSet } from 'ai';
 import type { ToolResultOutput } from '@ai-sdk/provider-utils';
 import type { NovaTool, ToolTraceSink } from '../types.js';
-import type { ActorContext, PolicyDecision, PolicyRequest } from '../policy/types.js';
+import type { ActorContext, DelegationContext, PolicyDecision, PolicyRequest } from '../policy/types.js';
 import { evaluatePolicy } from '../policy/engine.js';
 import { getPolicyProfile } from '../policy/profiles.js';
 import { redactString } from '../policy/redact.js';
@@ -65,7 +65,11 @@ export class ToolRegistry {
               });
               return denied;
             }
-            const output = await def.execute(input, { toolCallId });
+            const output = await def.execute(input, {
+              toolCallId,
+              actor: options.policy?.actor,
+              delegation: options.policy?.delegation,
+            });
             options.trace?.recordToolExecutionFinish({
               toolName: name,
               toolCallId,
@@ -118,6 +122,7 @@ export interface ToolExecutionPolicyHookOptions {
   enabled?: boolean;
   profileId?: string;
   actor?: ActorContext;
+  delegation?: DelegationContext;
   hook?: ToolPolicyHook;
   approvalProvided?: boolean;
 }
@@ -127,6 +132,7 @@ function defaultPolicyOptions(options?: ToolExecutionPolicyHookOptions): ToolExe
     enabled: options?.enabled ?? true,
     profileId: options?.profileId ?? 'readonly',
     actor: options?.actor,
+    delegation: options?.delegation,
     hook: options?.hook,
     approvalProvided: options?.approvalProvided,
   };
@@ -153,6 +159,7 @@ async function evaluateToolExecutionPolicy(def: NovaTool, input: unknown, option
   const profile = getPolicyProfile(policyOptions.profileId ?? 'readonly');
   const request: PolicyRequest = {
     actor: policyOptions.actor ?? defaultActor(),
+    delegation: policyOptions.delegation,
     profileId: profile.id,
     capability: def.capability ?? (def.readOnly === false ? 'write' : 'read'),
     action: `tool:${def.name}`,

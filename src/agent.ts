@@ -74,6 +74,7 @@ export class NovaAgent {
         enabled: this.config.policy?.enabled ?? true,
         profileId: this.config.policy?.profileId ?? 'readonly',
         actor: this.config.policy?.actor,
+        delegation: this.config.policy?.delegation,
         approvalProvided: this.config.policy?.approvalProvided,
       },
     });
@@ -180,7 +181,7 @@ export class NovaAgent {
       '',
       '## Instructions',
       '- You reason step by step before calling tools.',
-      '- You call tools when you need to read files, write files, or execute commands.',
+      '- You call only currently available tools when you need external context or actions.',
       '- After each tool call, observe the result and decide the next step.',
       '- When you have enough information, provide your final answer.',
       '- Be concise but thorough.',

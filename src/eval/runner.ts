@@ -94,8 +94,10 @@ function getPositionalArgs(): string[] {
 function setupTools(): ToolRegistry {
   const registry = new ToolRegistry();
   registry.register(readFileTool);
-  registry.register(writeFileTool);
-  registry.register(bashTool);
+  if (process.env.NOVA_ENABLE_WRITE_TOOLS === '1' || process.env.NOVA_ENABLE_WRITE_TOOLS === 'true') {
+    registry.register(writeFileTool);
+    registry.register(bashTool);
+  }
   registry.register(globTool);
   registry.register(grepTool);
   registry.register(listDirectoryTool);

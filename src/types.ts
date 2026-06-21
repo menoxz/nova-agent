@@ -4,7 +4,7 @@
 
 import type { z } from 'zod';
 import type { FlexibleSchema, ToolResultOutput } from '@ai-sdk/provider-utils';
-import type { ActorContext, CapabilityCategory, ToolRiskLevel } from './policy/types.js';
+import type { ActorContext, CapabilityCategory, DelegationContext, ToolRiskLevel } from './policy/types.js';
 
 // ─── LLM Provider ────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ export interface NovaTool {
   capability?: CapabilityCategory;
   readOnly?: boolean;
   riskLevel?: ToolRiskLevel;
-  execute: (input: any, options?: { toolCallId?: string }) => Promise<string | ToolResultOutput>;
+  execute: (input: any, options?: { toolCallId?: string; actor?: ActorContext; delegation?: DelegationContext }) => Promise<string | ToolResultOutput>;
 }
 
 // ─── Agent ───────────────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ export interface AgentConfig {
     enabled?: boolean;
     profileId?: string;
     actor?: ActorContext;
+    delegation?: DelegationContext;
     approvalProvided?: boolean;
   };
 }

@@ -1,5 +1,22 @@
 # Project Status
 
+## Sub-agent Orchestration V1 — 2026-06-21
+
+Status: implemented locally.
+
+### Delivered
+
+- Added `src/subagents/` module for bounded delegated workers: roles, registry, contracts, delegation, DAG task graph, context caps/redaction, budgets, worker wrapper, orchestrator, sanitized lifecycle trace, smoke test, and exports.
+- Added required roles: researcher, architect, builder, reviewer, security, qa, docs, refactor.
+- Enforced effective authority as parent grant ∩ role default ∩ policy profile, with no default write/shell grants and no recursive spawning in V1.
+- Propagated `ActorContext` and `DelegationContext` through `AgentConfig.policy`, `ToolRegistry`, and worker tool execution.
+- Extended policy child-escalation checks to include delegated resources/paths.
+- Added `subagents:smoke`, `eval:subagents`, and docs under `docs/subagents/`.
+
+### Verification run
+
+- See latest implementation report for exact command output and exit codes.
+
 ## Policy/Permissions V1 — 2026-06-21
 
 Status: implemented and verified locally.

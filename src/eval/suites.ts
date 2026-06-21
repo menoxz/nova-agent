@@ -8,6 +8,7 @@ export const evalSuites = {
   policy: ['policy-core-v1'],
   mcp: ['mcp-readonly-denylist'],
   lsp: ['lsp-readonly-metadata'],
+  subagents: ['subagents-v1-safety-values'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

@@ -14,6 +14,14 @@ function candidatePaths(request: PolicyRequest): string[] {
   return [request.path, ...(request.paths ?? [])].filter((path): path is string => typeof path === 'string' && Boolean(path.trim()));
 }
 
+function resourceAllowsPath(resource: string, path: string): boolean {
+  if (resource === '*') return true;
+  const resourceCheck = resolvePolicyPath(resource, 'delegation resource', undefined);
+  const pathCheck = resolvePolicyPath(path, 'delegation path', undefined);
+  if (!resourceCheck.ok || !pathCheck.ok) return false;
+  return pathCheck.path === resourceCheck.path || pathCheck.path.startsWith(`${resourceCheck.path}${process.platform === 'win32' ? '\\' : '/'}`);
+}
+
 export const defaultPolicyRules: PolicyRule[] = [
   {
     id: 'future-autonomous-not-default',
@@ -30,6 +38,14 @@ export const defaultPolicyRules: PolicyRule[] = [
       if (!request.delegation?.capabilities?.length) return decision('deny', 'child-exceeds-parent', 'sub-agent delegation has no granted capabilities');
       if (!request.delegation.capabilities.includes(request.capability)) return decision('deny', 'child-exceeds-parent', `sub-agent requested capability outside parent delegation: ${request.capability}`);
       if (request.toolName && request.delegation.tools?.length && !request.delegation.tools.includes(request.toolName)) return decision('deny', 'child-exceeds-parent', `sub-agent requested tool outside parent delegation: ${request.toolName}`);
+      const paths = candidatePaths(request);
+      if (paths.length) {
+        const resources = request.delegation.resources ?? [];
+        if (!resources.length) return decision('deny', 'child-exceeds-parent', 'sub-agent delegation has no granted resources');
+        for (const path of paths) {
+          if (!resources.some((resource) => resourceAllowsPath(resource, path))) return decision('deny', 'child-exceeds-parent', 'sub-agent requested path outside delegated resources');
+        }
+      }
       return undefined;
     },
   },
