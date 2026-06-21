@@ -88,6 +88,14 @@
   - Tests d'intégration pour la boucle ReAct
   - CI/CD avec GitHub Actions
 
+- [x] **LSP (Language Server Protocol) V1**
+  - [x] Serveur LSP stdio read-only (`src/lsp/server.ts`)
+  - [x] Hover, completion, diagnostics, document symbols, workspace symbols
+  - [x] Commandes LSP read-only uniquement; pas de `WorkspaceEdit`, shell ou write
+  - [x] Metadata Nova sûre: scripts, outils/resources/prompts connus, docs, eval suites/scenarios, policy
+  - [x] Smoke protocol (`npm run lsp:smoke`) et eval mock (`npm run eval:lsp`)
+  - [ ] V1.1: extraction metadata plus riche, setup clients, tests unitaires policy/metadata
+
 - [ ] **Sécurité**
   - Sandbox d'exécution pour les commandes bash
   - Validation des chemins de fichiers

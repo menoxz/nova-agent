@@ -18,6 +18,15 @@ npm run mcp:stdio
 # Smoke test MCP local
 npm run mcp:smoke
 
+# Lancer le serveur LSP stdio read-only
+npm run lsp:stdio
+
+# Smoke test LSP local
+npm run lsp:smoke
+
+# Eval LSP mock
+npm run eval:lsp
+
 # MCP Inspector
 npx @modelcontextprotocol/inspector npm run mcp:stdio
 
@@ -42,7 +51,7 @@ LLM_MODEL=deepseek-v4-flash
 ```env
 LLM_PROVIDER=openai
 LLM_BASE_URL=https://api.openai.com/v1
-LLM_API_KEY=sk-...
+LLM_API_KEY=<your-api-key>
 LLM_MODEL=gpt-4o
 ```
 
@@ -50,7 +59,7 @@ LLM_MODEL=gpt-4o
 ```env
 LLM_PROVIDER=openrouter
 LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_API_KEY=sk-...
+LLM_API_KEY=<your-api-key>
 LLM_MODEL=openmodel/deepseek-v4-flash
 ```
 
@@ -58,7 +67,7 @@ LLM_MODEL=openmodel/deepseek-v4-flash
 ```env
 LLM_PROVIDER=deepseek
 LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_API_KEY=sk-...
+LLM_API_KEY=<your-api-key>
 LLM_MODEL=deepseek-chat
 ```
 

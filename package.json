@@ -12,6 +12,8 @@
     "start": "tsx src/index.ts",
     "mcp:stdio": "tsx src/mcp/server.ts",
     "mcp:smoke": "tsx src/mcp/smoke.ts",
+    "lsp:stdio": "tsx src/lsp/server.ts --stdio",
+    "lsp:smoke": "tsx src/lsp/smoke.ts",
     "typecheck": "tsc --noEmit",
     "trace:summary": "tsx src/trace/summary_cli.ts",
     "trace:summary:json": "tsx src/trace/summary_cli.ts --json",
@@ -20,6 +22,7 @@
     "eval:mock": "tsx src/eval/runner.ts --mode mock",
     "eval:core": "tsx src/eval/runner.ts --suite core --mode mock",
     "eval:mcp": "tsx src/eval/runner.ts --suite mcp --mode mock",
+    "eval:lsp": "tsx src/eval/runner.ts --suite lsp --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },
@@ -42,6 +45,8 @@
     "fast-xml-parser": "^5.9.3",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^6.0.227",
+    "vscode-languageserver": "^10.0.0",
+    "vscode-languageserver-textdocument": "^1.0.12",
     "zod": "^3.24.0"
   },
   "devDependencies": {

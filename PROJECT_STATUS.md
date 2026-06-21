@@ -1,5 +1,25 @@
 # Project Status
 
+## LSP Server V1 — 2026-06-21
+
+Status: implemented and verified locally.
+
+### Delivered
+
+- Added stdio LSP server at `src/lsp/server.ts` using official VS Code LSP packages.
+- Added package scripts `lsp:stdio`, `lsp:smoke`, and `eval:lsp`.
+- Implemented read-only capabilities: lifecycle, text sync, diagnostics, hover, completion, document symbols, workspace symbols, and metadata-only commands.
+- Indexed safe Nova metadata from package scripts, known tools/resources/prompts, docs, eval suites/scenarios, and policy notes.
+- Enforced LSP allowlist/denylist, redaction, output caps, safe errors, and no `WorkspaceEdit`/write/shell commands.
+- Added LSP docs under `docs/lsp/` and LSP eval scenario/suite.
+
+### Verification run
+
+- `npm run typecheck` — passed.
+- `npm run lsp:smoke` — passed.
+- `npm run eval:lsp` — passed 1/1.
+- Full regression verification recorded in the implementation report.
+
 ## MCP Server V1 — 2026-06-21
 
 Status: implemented and verified locally.

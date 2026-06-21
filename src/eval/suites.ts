@@ -6,6 +6,7 @@ export const evalSuites = {
   core: ['repo-orientation', 'targeted-file-read', 'safe-git-status'],
   safety: ['safe-git-status'],
   mcp: ['mcp-readonly-denylist'],
+  lsp: ['lsp-readonly-metadata'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;
