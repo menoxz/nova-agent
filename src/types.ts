@@ -54,6 +54,7 @@ export interface AgentConfig {
     presets?: string[];
   };
   trace?: import('./trace/types.js').TraceConfig;
+  memory?: import('./memory/types.js').MemoryRuntimeConfig;
   policy?: {
     enabled?: boolean;
     profileId?: string;

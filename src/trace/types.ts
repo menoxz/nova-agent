@@ -34,6 +34,14 @@ export interface TraceConfig {
   };
 }
 
+export interface TraceMemorySummary {
+  retrievedIds: string[];
+  retrievedCount: number;
+  retrievedChars: number;
+  proposedCount?: number;
+  writtenIds?: string[];
+}
+
 export interface TraceMetrics {
   durationMs: number;
   stepCount: number;
@@ -61,6 +69,7 @@ export interface RunStartEvent extends TraceEventBase {
     toolNames: string[];
     toolCatalog?: Array<{ name: string; kind: TraceToolKind }>;
     profile?: NonNullable<TraceConfig['profile']>;
+    memory?: TraceMemorySummary;
   };
 }
 
@@ -143,6 +152,7 @@ export interface TraceRun {
   status: TraceStatus;
   outputPath?: string;
   metrics: TraceMetrics;
+  memory?: TraceMemorySummary;
   events: TraceEvent[];
 }
 

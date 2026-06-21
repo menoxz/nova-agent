@@ -39,8 +39,13 @@
 - [ ] **search_web** — recherche web via API
 - [ ] **git_status / git_diff** — intégration Git
 - [ ] **Mémoire persistante**
-  - Sauvegarder/charger la conversation depuis un fichier JSON
-  - Option: base vectorielle avec RAG pour mémoire long-terme
+  - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
+  - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
+  - [x] Scopes project/workspace/profile/session/user/subagent/capability sans mémoire globale incontrôlée
+  - [x] Retrieval policy-gated avec wrapper de contexte non fiable et budgets tokens
+  - [x] Write pipeline: propose, validate, secret scan, raw artifact reject, redact, dedupe/hash, approval, persist, audit
+  - [x] Smoke/eval Memory V1
+  - [ ] Option future: base vectorielle/RAG après baseline JSON déterministe
 - [ ] **Mode streaming** — `streamText()` pour voir le raisonnement en temps réel
 
 - [ ] **Mode streaming**

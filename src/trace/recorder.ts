@@ -27,6 +27,7 @@ export interface TraceRunContext {
   model: string;
   maxSteps: number;
   toolNames: string[];
+  memory?: import('./types.js').TraceMemorySummary;
 }
 
 function nowIso(): string {
@@ -78,6 +79,7 @@ export class TraceRecorder {
       startedAt: nowIso(),
       status: 'running',
       metrics: initialMetrics(),
+      memory: context.memory,
       events: [],
     };
 
@@ -100,6 +102,7 @@ export class TraceRecorder {
         toolNames: [...context.toolNames].sort(),
         toolCatalog: [...context.toolNames].sort().map((name) => ({ name, kind: DEFAULT_TRACE_TOOL_KIND })),
         profile: this.config.profile,
+        memory: context.memory,
       },
     };
     this.push(event);

@@ -1,4 +1,5 @@
 import type { AgentConfig } from '../types.js';
+import { memoryRuntimeFromProfile } from '../memory/profiles.js';
 import { hashProfile } from './hash.js';
 import { assertValidProfile } from './validate.js';
 import { builtInProfiles, getBuiltInProfile } from './defaults.js';
@@ -54,6 +55,7 @@ export function applyProfileToConfig(config: AgentConfig, profile: ResolvedAgent
     policy: { ...config.policy, profileId: effectivePolicyProfileId },
     toolConstraints: { allowed: [...profile.tools.allowed], denied: [...profile.tools.denied], presets: [...profile.tools.presets] },
     profile: { id: profile.identity.id, version: profile.identity.version, name: profile.identity.name, hash: profile.hash, source: profile.source, mode: profile.trace.mode, policyProfileId: effectivePolicyProfileId },
+    memory: { ...config.memory, profile: memoryRuntimeFromProfile({ ...profile, trace: { ...profile.trace, policyProfileId: effectivePolicyProfileId } }), policyProfileId: effectivePolicyProfileId },
     trace: { ...config.trace, profile: { ...profile.trace, policyProfileId: effectivePolicyProfileId } },
   };
 }

@@ -66,6 +66,7 @@ export interface EvalReport {
     source: 'builtin' | 'custom' | 'imported';
     mode: 'root' | 'subagent' | 'tool_worker';
   };
+  memory?: import('../memory/types.js').MemoryTraceSummary;
   summary: {
     total: number;
     passed: number;

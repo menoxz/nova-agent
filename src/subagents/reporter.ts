@@ -47,6 +47,14 @@ export function createSubagentReport(input: { task: SubagentTask; role: Subagent
       included: input.context.resources.map((resource) => resource.safePath),
       omissions: input.context.omissions,
     },
+    memoryProposals: summarized.findings.map((finding) => ({
+      type: 'finding',
+      collection: 'subagent_findings',
+      scope: { kind: 'subagent', subagentRole: input.role },
+      content: { title: `Subagent ${input.role} finding`, summary: finding.slice(0, 1_000), tags: ['subagent', input.role] },
+      source: { kind: 'subagent', createdFrom: 'subagent-report' },
+      quality: { confidence: status === 'passed' ? 0.7 : 0.4, importance: 0.4 },
+    })),
     steps: input.steps,
   };
 }

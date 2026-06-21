@@ -15,6 +15,10 @@ npm run typecheck
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
 
+# Smoke/eval Memory/Knowledge V1
+npm run memory:smoke
+npm run eval:memory
+
 # Eval Agent Profiles V1 mock
 npm run eval:profiles
 
@@ -83,6 +87,21 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_API_KEY=<your-api-key>
 LLM_MODEL=deepseek-chat
 ```
+
+## Memory/Knowledge V1
+
+The implementation is under `src/memory/` and the design/acceptance docs are under `docs/memory/`:
+
+- `README.md`: goals, types, scopes, built-in collections, acceptance summary.
+- `ARCHITECTURE.md`: components, data flow, integration with profiles/agent/subagents/policy/eval/MCP/LSP.
+- `PERSISTENCE.md`: `.nova/memory` layout, schemas, hashes, migrations, atomic writes, index rebuild, import/export.
+- `SECURITY.md`: no secrets/raw artifacts, prompt injection/poisoning defenses, safe audit/import/export.
+- `RETRIEVAL.md`: when to retrieve, ranking, token budgets, stale handling, profile scope, policy gates, untrusted wrapper.
+- `LIFECYCLE.md`: write pipeline, retention, TTL, confidence decay, consolidation, archive/delete.
+- `EVAL.md`: smoke/eval acceptance criteria.
+- `BACKLOG_V1_1.md`: post-V1 enhancements.
+
+Do not manually place secrets, raw `.nova/traces`, raw `.nova/evals`, raw `.nova/reports`, `.env`, or private-key material under `.nova/memory`.
 
 ## Ajouter un Outil
 

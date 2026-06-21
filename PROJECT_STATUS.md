@@ -1,5 +1,28 @@
 # Project Status
 
+## Memory/Knowledge V1 — 2026-06-21
+
+Status: implemented locally.
+
+### Documented scope
+
+- Added complete Memory/Knowledge V1 documentation under `docs/memory/` covering architecture, persistence, security, retrieval, lifecycle, eval acceptance, and V1.1 backlog.
+- Defined memory types: semantic, episodic, procedural, profile, decision, and finding.
+- Defined scoped local persistence under `.nova/memory` with `_index.json`, item files, collections, archive, import/export, schema versioning, migrations, hashes/fingerprints, atomic writes, and index rebuild.
+- Defined retrieval and write policies with profile/policy gates, untrusted context wrapper, token budget, stale handling, secret scanning, raw artifact rejection, redaction, approval, and metadata-only audit.
+- Captured integrations with Agent Profiles, NovaAgent, Subagents, Policy/Permissions, Trace/Eval, and future MCP/LSP.
+
+### Delivered
+
+- Added `src/memory/` V1 module for scoped local JSON persistence under `.nova/memory`, schema validation, atomic writes, rebuildable metadata index, audit JSONL, lifecycle/archive, safe import/export, policy-gated retrieval/write, redaction, and smoke coverage.
+- Preserved `ConversationMemory` while adding optional long-term memory prompt injection through an untrusted bounded context block.
+- Integrated memory metadata with AgentConfig/Profile resolution, trace/eval summaries, and subagent report memory proposals without auto-persisting subagent findings.
+- Added `memory:smoke` and `eval:memory` scripts and memory eval suite.
+
+### Verification run
+
+- See latest implementation report for exact command output and exit codes.
+
 ## Agent Profiles V1 — 2026-06-21
 
 Status: implemented locally.

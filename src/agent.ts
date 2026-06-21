@@ -16,6 +16,7 @@ import { ToolRegistry } from './tools/registry.js';
 import { ConversationMemory, userMessage, toolResultMessage } from './memory/conversation.js';
 import { createModel } from './llm/provider.js';
 import { createTraceRecorder } from './trace/recorder.js';
+import { memoryConfigFromAgentConfig, retrieveMemoryForPrompt, injectMemoryIntoSystemPrompt, type MemoryRetrievalResult } from './memory/index.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -60,13 +61,20 @@ export class NovaAgent {
     const steps: StepDisplay[] = [];
     const maxSteps = this.config.maxSteps ?? 15;
 
-    // Build system prompt from soul + tools
-    const systemPrompt = this.buildSystemPrompt();
+    let retrievedMemory: MemoryRetrievalResult | undefined;
+    try {
+      retrievedMemory = await retrieveMemoryForPrompt(input, memoryConfigFromAgentConfig(this.config));
+    } catch {
+      retrievedMemory = undefined;
+    }
+    // Build system prompt from soul + tools + bounded untrusted memory context
+    const systemPrompt = injectMemoryIntoSystemPrompt(this.buildSystemPrompt(), retrievedMemory ?? { cards: [], contextBlock: '', omitted: {}, summary: { retrievedIds: [], retrievedCount: 0, retrievedChars: 0 } });
     const trace = createTraceRecorder({
       input,
       model: this.config.llm.model,
       maxSteps,
         toolNames: this.tools.list(this.config.toolConstraints).map((t) => t.name),
+        memory: retrievedMemory?.summary,
       }, this.config.trace);
     const toolSet = this.tools.toAITools({
       trace,

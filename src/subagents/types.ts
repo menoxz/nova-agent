@@ -84,6 +84,7 @@ export interface SubagentReport {
   verification?: { independent: boolean; producerTaskId?: string; method: string };
   budget: { toolCalls: number; durationMs: number; outputChars: number; exhausted: boolean };
   context: { included: string[]; omissions: ContextOmission[] };
+  memoryProposals?: import('../memory/types.js').MemoryProposal[];
   steps?: StepDisplay[];
 }
 

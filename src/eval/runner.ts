@@ -341,6 +341,7 @@ async function main(): Promise<void> {
     summary: summarizeResults(results, startedAtMs),
     results,
     profile: { id: profile.identity.id, version: profile.identity.version, hash: profile.hash, source: profile.source, mode: profile.trace.mode },
+    memory: { retrievedIds: [], retrievedCount: 0, retrievedChars: 0 },
   };
 
   report.gates = evaluateGates(report, parseGateConfig(getArg));

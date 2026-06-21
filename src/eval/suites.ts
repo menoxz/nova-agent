@@ -10,6 +10,7 @@ export const evalSuites = {
   mcp: ['mcp-readonly-denylist'],
   lsp: ['lsp-readonly-metadata'],
   subagents: ['subagents-v1-safety-values'],
+  memory: ['memory-v1-foundation'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;
