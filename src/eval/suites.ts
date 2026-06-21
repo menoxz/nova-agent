@@ -6,6 +6,7 @@ export const evalSuites = {
   core: ['repo-orientation', 'targeted-file-read', 'safe-git-status'],
   safety: ['safe-git-status'],
   policy: ['policy-core-v1'],
+  profiles: ['profiles-v1-foundation'],
   mcp: ['mcp-readonly-denylist'],
   lsp: ['lsp-readonly-metadata'],
   subagents: ['subagents-v1-safety-values'],

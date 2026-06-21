@@ -35,6 +35,7 @@ import { listSuites, resolveScenarioSelection } from './suites.js';
 import { renderEvalMarkdown } from './reporters/markdown.js';
 import type { EvalMode, EvalReport, EvalReportFormat, EvalScenario, EvalScenarioResult } from './types.js';
 import { assertPathUnderDir, projectNovaDir, readJsonFileBounded } from '../utils/safe_io.js';
+import { resolveConfigProfile, resolveProfileSync } from '../profiles/index.js';
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`) || process.argv.includes(name);
@@ -77,7 +78,8 @@ function getPositionalArgs(): string[] {
     'scenarios',
     'suite',
     'trace-content',
-    'trace-dir',
+      'trace-dir',
+      'profile',
   ]);
   for (let i = 2; i < process.argv.length; i += 1) {
     const arg = process.argv[i];
@@ -129,12 +131,12 @@ function loadEvalConfig(evalRunId: string): AgentConfig {
     model: process.env.LLM_MODEL || 'openmodel/deepseek-v4-flash',
     maxTokens: process.env.MAX_TOKENS ? parseInt(process.env.MAX_TOKENS) : undefined,
   };
-  return {
+  const baseConfig: AgentConfig = {
     llm,
-    maxSteps: process.env.NOVA_EVAL_MAX_STEPS ? parseInt(process.env.NOVA_EVAL_MAX_STEPS) : 15,
+    maxSteps: process.env.NOVA_EVAL_MAX_STEPS ? parseInt(process.env.NOVA_EVAL_MAX_STEPS) : undefined,
     policy: {
       enabled: process.env.NOVA_POLICY_ENABLED !== '0' && process.env.NOVA_POLICY_ENABLED !== 'false',
-      profileId: process.env.NOVA_POLICY_PROFILE || 'readonly',
+      profileId: process.env.NOVA_POLICY_PROFILE,
       approvalProvided: false,
     },
     systemPrompt: [
@@ -149,6 +151,7 @@ function loadEvalConfig(evalRunId: string): AgentConfig {
       runIdPrefix: evalRunId,
     },
   };
+  return resolveConfigProfile(baseConfig, { profileId: getArg('profile') || process.env.NOVA_PROFILE, mode: 'root' });
 }
 
 function parseMode(): EvalMode {
@@ -291,6 +294,7 @@ async function main(): Promise<void> {
   }
 
   const evalRunId = `eval-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
+  const profile = resolveProfileSync({ profileId: getArg('profile') || process.env.NOVA_PROFILE, mode: 'root' });
   const startedAtMs = Date.now();
   const startedAt = new Date().toISOString();
   const results: EvalScenarioResult[] = [];
@@ -336,6 +340,7 @@ async function main(): Promise<void> {
     suite: suite ?? (mode === 'replay' ? 'replay' : undefined),
     summary: summarizeResults(results, startedAtMs),
     results,
+    profile: { id: profile.identity.id, version: profile.identity.version, hash: profile.hash, source: profile.source, mode: profile.trace.mode },
   };
 
   report.gates = evaluateGates(report, parseGateConfig(getArg));

@@ -9,6 +9,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Find and summarize evidence from allowlisted context.',
     values: ['specialization', 'context_management', 'parallelism'],
     defaultGrant: { profileId: 'readonly', capabilities: ['read', 'git'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.researcher',
     readOnly: true,
   },
   {
@@ -17,6 +18,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Design bounded implementation plans and interfaces.',
     values: ['specialization', 'risk_isolation'],
     defaultGrant: { profileId: 'readonly', capabilities: ['read'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.architect',
     readOnly: true,
   },
   {
@@ -25,6 +27,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Produce implementation guidance within explicit scope; write/shell still require policy ask/approval.',
     values: ['specialization', 'risk_isolation'],
     defaultGrant: { profileId: 'developer', capabilities: ['read'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.builder',
     readOnly: true,
   },
   {
@@ -33,6 +36,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Independently review work produced by another role.',
     values: ['independent_verification', 'risk_isolation'],
     defaultGrant: { profileId: 'readonly', capabilities: ['read', 'git'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.qa',
     readOnly: true,
   },
   {
@@ -41,6 +45,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Check security and policy safety without exposing sensitive content.',
     values: ['specialization', 'risk_isolation', 'independent_verification'],
     defaultGrant: { profileId: 'readonly', capabilities: ['read', 'git', 'trace', 'eval'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.security',
     readOnly: true,
   },
   {
@@ -49,6 +54,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Verify acceptance criteria independently from producers.',
     values: ['independent_verification', 'parallelism'],
     defaultGrant: { profileId: 'ci-eval', capabilities: ['read', 'git', 'eval'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.qa',
     readOnly: true,
   },
   {
@@ -57,6 +63,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Prepare documentation/report content from scoped facts.',
     values: ['specialization', 'context_management'],
     defaultGrant: { profileId: 'readonly', capabilities: ['read'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.docs',
     readOnly: true,
   },
   {
@@ -65,6 +72,7 @@ export const SUBAGENT_ROLES: readonly SubagentRole[] = [
     purpose: 'Suggest low-risk refactors within explicit scope; mutations remain gated by policy.',
     values: ['specialization', 'risk_isolation'],
     defaultGrant: { profileId: 'developer', capabilities: ['read'], tools: READ_TOOLS, resources: ['*'] },
+    defaultProfileId: 'nova.refactor',
     readOnly: true,
   },
 ] as const;

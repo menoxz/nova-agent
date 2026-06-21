@@ -23,6 +23,15 @@ export interface TraceConfig {
   includeErrorStack?: boolean;
   /** Optional prefix for generated run IDs. */
   runIdPrefix?: string;
+  /** Optional resolved agent profile attribution. */
+  profile?: {
+    profileId: string;
+    profileVersion: string;
+    profileHash: string;
+    source: 'builtin' | 'custom' | 'imported';
+    mode: 'root' | 'subagent' | 'tool_worker';
+    policyProfileId?: string;
+  };
 }
 
 export interface TraceMetrics {
@@ -51,6 +60,7 @@ export interface RunStartEvent extends TraceEventBase {
     maxSteps: number;
     toolNames: string[];
     toolCatalog?: Array<{ name: string; kind: TraceToolKind }>;
+    profile?: NonNullable<TraceConfig['profile']>;
   };
 }
 

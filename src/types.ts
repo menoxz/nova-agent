@@ -39,6 +39,20 @@ export interface AgentConfig {
   llm: LLMConfig;
   systemPrompt: string;
   maxSteps?: number;
+  profile?: {
+    id: string;
+    version: string;
+    name: string;
+    hash: string;
+    source: 'builtin' | 'custom' | 'imported';
+    mode: 'root' | 'subagent' | 'tool_worker';
+    policyProfileId?: string;
+  };
+  toolConstraints?: {
+    allowed?: string[];
+    denied?: string[];
+    presets?: string[];
+  };
   trace?: import('./trace/types.js').TraceConfig;
   policy?: {
     enabled?: boolean;
@@ -46,6 +60,7 @@ export interface AgentConfig {
     actor?: ActorContext;
     delegation?: DelegationContext;
     approvalProvided?: boolean;
+    allowProfilePolicyOverride?: boolean;
   };
 }
 

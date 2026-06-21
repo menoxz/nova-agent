@@ -32,6 +32,15 @@ import { skillTool } from './tools/builtin/skill.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { LLMConfig, AgentConfig, StepDisplay } from './types.js';
+import { resolveConfigProfile } from './profiles/index.js';
+
+function getArg(name: string): string | undefined {
+  const directIndex = process.argv.indexOf(`--${name}`);
+  if (directIndex >= 0) return process.argv[directIndex + 1];
+  const prefix = `--${name}=`;
+  const prefixed = process.argv.find((arg) => arg.startsWith(prefix));
+  return prefixed ? prefixed.slice(prefix.length) : undefined;
+}
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -52,13 +61,13 @@ function loadConfig(): AgentConfig {
     soulContent = 'You are Nova, an autonomous AI agent. Follow your principles and use tools effectively.';
   }
 
-  return {
+  const baseConfig: AgentConfig = {
     llm,
     systemPrompt: soulContent,
-    maxSteps: 15,
+    maxSteps: process.env.NOVA_MAX_STEPS ? parseInt(process.env.NOVA_MAX_STEPS) : undefined,
     policy: {
       enabled: process.env.NOVA_POLICY_ENABLED !== '0' && process.env.NOVA_POLICY_ENABLED !== 'false',
-      profileId: process.env.NOVA_POLICY_PROFILE || 'readonly',
+      profileId: process.env.NOVA_POLICY_PROFILE,
       approvalProvided: false,
     },
     trace: {
@@ -69,6 +78,7 @@ function loadConfig(): AgentConfig {
       includeErrorStack: process.env.NOVA_TRACE_DEBUG_STACKS === '1' || process.env.NOVA_TRACE_DEBUG_STACKS === 'true',
     },
   };
+  return resolveConfigProfile(baseConfig, { profileId: getArg('profile') || process.env.NOVA_PROFILE, mode: 'root' });
 }
 
 function setupTools(): ToolRegistry {
@@ -148,7 +158,12 @@ async function main() {
   const agent = new NovaAgent(config, tools);
 
   // Single prompt mode
-  const prompt = process.argv.slice(2).join(' ');
+  const prompt = process.argv.slice(2).filter((arg, index, args) => {
+    if (arg === '--profile') return false;
+    if (args[index - 1] === '--profile') return false;
+    if (arg.startsWith('--profile=')) return false;
+    return true;
+  }).join(' ');
   if (prompt) {
     console.log(chalk.cyan('  You: ') + prompt);
     console.log('');

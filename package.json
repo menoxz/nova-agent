@@ -15,6 +15,7 @@
     "lsp:stdio": "tsx src/lsp/server.ts --stdio",
     "lsp:smoke": "tsx src/lsp/smoke.ts",
     "typecheck": "tsc --noEmit",
+    "profiles:smoke": "tsx src/profiles/smoke.ts",
     "policy:smoke": "tsx src/policy/smoke.ts",
     "subagents:smoke": "tsx src/subagents/smoke.ts",
     "trace:summary": "tsx src/trace/summary_cli.ts",
@@ -26,6 +27,7 @@
     "eval:mcp": "tsx src/eval/runner.ts --suite mcp --mode mock",
     "eval:lsp": "tsx src/eval/runner.ts --suite lsp --mode mock",
     "eval:policy": "tsx src/eval/runner.ts --suite policy --mode mock",
+    "eval:profiles": "tsx src/eval/runner.ts --suite profiles --mode mock --profile nova.qa",
     "eval:subagents": "tsx src/eval/runner.ts --suite subagents --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"

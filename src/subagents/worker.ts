@@ -8,6 +8,7 @@ import { buildScopedContext } from './context.js';
 import { createDelegationContext, deriveEffectiveGrant } from './delegation.js';
 import { createSubagentReport } from './reporter.js';
 import { getSubagentRole } from './registry.js';
+import { applyProfileToConfig, resolveProfileSync } from '../profiles/index.js';
 import type { WorkerRunInput, WorkerRunResult } from './types.js';
 
 const FORBIDDEN_CHILD_TOOL_NAMES = /(?:^|[_:-])(subagent|subagents|orchestrator|delegate|delegation)(?:$|[_:-])/i;
@@ -53,7 +54,8 @@ export class SubagentWorker {
     const budget = createBudgetState(input.task.budget);
     const context = input.context ?? await buildScopedContext({ root: input.root, allowlist: input.task.scope ?? [], maxTotalBytes: budget.maxOutputChars });
     const childTools = scopedRegistry(this.tools, grant.tools, budget, (reason) => ({ decision: 'deny', ruleId: 'subagent-worker', reason, safeMessage: reason }));
-    const childConfig: AgentConfig = {
+    const childProfile = resolveProfileSync({ profileId: input.task.profileId ?? input.task.profileMetadata?.id ?? role.defaultProfileId, mode: 'subagent' });
+    const childConfig: AgentConfig = applyProfileToConfig({
       ...this.baseConfig,
       maxSteps: Math.min(this.baseConfig.maxSteps ?? 15, budget.maxToolCalls + 2),
       systemPrompt: [
@@ -70,7 +72,7 @@ export class SubagentWorker {
         delegation,
         approvalProvided: false,
       },
-    };
+    }, childProfile);
     const prompt = [input.task.prompt, '', 'Use only allowlisted tools/context. Produce the mandatory structured report content.'].join('\n');
     let steps: StepDisplay[];
     try {

@@ -66,8 +66,8 @@ export class NovaAgent {
       input,
       model: this.config.llm.model,
       maxSteps,
-      toolNames: this.tools.list().map((t) => t.name),
-    }, this.config.trace);
+        toolNames: this.tools.list(this.config.toolConstraints).map((t) => t.name),
+      }, this.config.trace);
     const toolSet = this.tools.toAITools({
       trace,
       policy: {
@@ -77,6 +77,7 @@ export class NovaAgent {
         delegation: this.config.policy?.delegation,
         approvalProvided: this.config.policy?.approvalProvided,
       },
+      constraints: this.config.toolConstraints,
     });
 
     // Add user message to memory
@@ -170,12 +171,20 @@ export class NovaAgent {
    * Build the system prompt from soul.md principles + tool descriptions
    */
   private buildSystemPrompt(): string {
+    const outputContract = this.config.profile ? [
+      '## Profile Trace Attribution',
+      `- profile: ${this.config.profile.id}@${this.config.profile.version}`,
+      `- source: ${this.config.profile.source}`,
+      `- mode: ${this.config.profile.mode}`,
+      '',
+    ].join('\n') : '';
     const blocks: string[] = [
       this.config.systemPrompt,
+      outputContract,
       '',
       '## Available Tools',
       '',
-      this.tools.list().map(t => {
+      this.tools.list(this.config.toolConstraints).map(t => {
         return `### ${t.name}\n${t.description}`;
       }).join('\n\n'),
       '',

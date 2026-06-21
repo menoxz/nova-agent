@@ -54,7 +54,7 @@ export class TraceRecorder {
   public readonly runId: string;
 
   private readonly startedAtMs = Date.now();
-  private readonly config: Required<Omit<TraceConfig, 'runIdPrefix'>> & Pick<TraceConfig, 'runIdPrefix'>;
+  private readonly config: Required<Omit<TraceConfig, 'runIdPrefix' | 'profile'>> & Pick<TraceConfig, 'runIdPrefix' | 'profile'>;
   private readonly run: TraceRun;
   private seq = 0;
 
@@ -67,6 +67,7 @@ export class TraceRecorder {
       writeJsonlIndex: config.writeJsonlIndex ?? true,
       includeErrorStack: config.includeErrorStack ?? false,
       runIdPrefix: config.runIdPrefix,
+      profile: config.profile,
     };
 
     const idPrefix = this.config.runIdPrefix ? `${this.config.runIdPrefix}-` : '';
@@ -98,6 +99,7 @@ export class TraceRecorder {
         maxSteps: context.maxSteps,
         toolNames: [...context.toolNames].sort(),
         toolCatalog: [...context.toolNames].sort().map((name) => ({ name, kind: DEFAULT_TRACE_TOOL_KIND })),
+        profile: this.config.profile,
       },
     };
     this.push(event);

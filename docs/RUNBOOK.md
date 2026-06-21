@@ -12,6 +12,12 @@ npx tsx src/index.ts "Ta question ici"
 # Vérifier le typage
 npm run typecheck
 
+# Smoke test Agent Profiles V1
+npm run profiles:smoke
+
+# Eval Agent Profiles V1 mock
+npm run eval:profiles
+
 # Lancer le serveur MCP stdio read-only
 npm run mcp:stdio
 
@@ -49,6 +55,7 @@ LLM_PROVIDER=openmodel       # openmodel | openai | anthropic | openrouter
 LLM_BASE_URL=https://api.openmodel.ai/v1
 LLM_API_KEY=ta-clé-api
 LLM_MODEL=deepseek-v4-flash
+NOVA_PROFILE=nova.general      # optional: nova.security, nova.builder, nova.qa, etc.
 ```
 
 ## Changer de Provider

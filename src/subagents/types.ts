@@ -20,6 +20,7 @@ export interface SubagentRole {
   purpose: string;
   values: SubagentValue[];
   defaultGrant: AuthorityGrant;
+  defaultProfileId?: string;
   readOnly: boolean;
 }
 
@@ -65,6 +66,8 @@ export interface SubagentTask {
   dependsOn?: string[];
   scope?: string[];
   requestedGrant?: Partial<AuthorityGrant>;
+  profileId?: string;
+  profileMetadata?: import('../profiles/types.js').AgentProfileMetadata;
   budget?: Partial<SubagentBudget>;
   producerTaskId?: string;
   securitySensitive?: boolean;

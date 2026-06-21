@@ -59,6 +59,13 @@ export interface EvalReport {
   endedAt: string;
   mode: EvalMode;
   suite?: string;
+  profile?: {
+    id: string;
+    version: string;
+    hash: string;
+    source: 'builtin' | 'custom' | 'imported';
+    mode: 'root' | 'subagent' | 'tool_worker';
+  };
   summary: {
     total: number;
     passed: number;

@@ -70,6 +70,7 @@ nova-agent/
 | [mcp/README.md](mcp/README.md) | Serveur MCP stdio V1, outils read-only, sécurité et setup client |
 | [lsp/README.md](lsp/README.md) | Serveur LSP stdio V1 read-only, capacités, sécurité, diagnostics et smoke test |
 | [subagents/README.md](subagents/README.md) | Sub-agent Orchestration V1: rôles bornés, délégation, contexte, DAG, sécurité |
+| [profiles/README.md](profiles/README.md) | Agent Profiles V1: agents spécialisés persistants, résolution runtime, sécurité, built-ins |
 | [READ_FILE_MULTIMODAL.md](READ_FILE_MULTIMODAL.md) | Design et limites de `read_file` multimodal |
 | [READ_PDF.md](READ_PDF.md) | Design, paramètres, tests et limites de `read_pdf` |
 | [READ_DOCX.md](READ_DOCX.md) | Design, paramètres, tests et limites de `read_docx` |

@@ -35,16 +35,19 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
-  list(): NovaTool[] {
-    return Array.from(this.tools.values());
+  list(constraints?: ToolConstraints): NovaTool[] {
+    return Array.from(this.tools.entries())
+      .filter(([name]) => toolAllowedByConstraints(name, constraints))
+      .map(([, toolDef]) => toolDef);
   }
 
   /**
    * Convert Nova tools to Vercel AI SDK tool set for generateText()
    */
-  toAITools(options: { trace?: ToolTraceSink; policy?: ToolExecutionPolicyHookOptions } = {}): ToolSet {
+  toAITools(options: { trace?: ToolTraceSink; policy?: ToolExecutionPolicyHookOptions; constraints?: ToolConstraints } = {}): ToolSet {
     const aiTools: ToolSet = {};
     for (const [name, def] of this.tools) {
+      if (!toolAllowedByConstraints(name, options.constraints)) continue;
       aiTools[name] = tool({
         description: def.description,
         inputSchema: def.inputSchema,
@@ -114,6 +117,21 @@ export class ToolRegistry {
     }
     return lines.join('\n');
   }
+}
+
+export interface ToolConstraints {
+  allowed?: string[];
+  denied?: string[];
+  presets?: string[];
+}
+
+function toolAllowedByConstraints(name: string, constraints?: ToolConstraints): boolean {
+  if (!constraints) return true;
+  const denied = new Set(constraints.denied ?? []);
+  if (denied.has(name)) return false;
+  const allowed = constraints.allowed ?? [];
+  if (allowed.length > 0 && !allowed.includes(name)) return false;
+  return true;
 }
 
 export type ToolPolicyHook = (request: PolicyRequest) => PolicyDecision | Promise<PolicyDecision>;

@@ -1,5 +1,21 @@
 # Project Status
 
+## Agent Profiles V1 — 2026-06-21
+
+Status: implemented locally.
+
+### Delivered
+
+- Added `src/profiles/` foundation module with schema, validation, defaults, catalogue, loading, resolving, migration, import/export, hashing, audit metadata, security checks, smoke test, and exports.
+- Added nine built-ins: `nova.general`, `nova.researcher`, `nova.architect`, `nova.builder`, `nova.security`, `nova.qa`, `nova.docs`, `nova.refactor`, and `nova.product`.
+- Extended `AgentConfig`, trace run-start config, eval reports, and subagent roles/workers with profile metadata and profile resolution.
+- Added CLI/eval support for `--profile`/`NOVA_PROFILE`, profile-gated tool constraints, and `profiles:smoke` / `eval:profiles` scripts.
+- Added profile docs under `docs/profiles/`.
+
+### Verification run
+
+- See latest implementation report for exact command output and exit codes.
+
 ## Sub-agent Orchestration V1 — 2026-06-21
 
 Status: implemented locally.

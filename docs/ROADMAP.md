@@ -64,7 +64,8 @@
 
 - [ ] **Configuration avancée**
   - Fichier de config YAML/JSON
-  - Profils (dev, prod, test)
+  - [x] Agent Profiles V1 foundation (`src/profiles`, built-ins, runtime resolution, smoke/eval)
+  - [ ] Future product/env profiles (dev, prod, test) layered on top of Agent Profiles
 
 ## 🚀 Itération 4 — Production
 
