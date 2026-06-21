@@ -29,6 +29,7 @@ Ce fichier est optionnel. S'il est absent, Nova conserve les defaults intégrés
   },
   "streaming": {
     "enabled": true,
+    "mode": "normal",
     "showTokens": true,
     "showTools": true,
     "showThinking": true,
@@ -94,7 +95,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 - `policy.enabled/profileId`
 - `trace.*`
 - `context.*`
-- `streaming.enabled/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs`
+- `streaming.enabled/mode/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs`
 - `memory.*`
 - `session.*`
 - `session.conversation.*`

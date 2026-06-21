@@ -39,16 +39,22 @@ export class StreamingCliRenderer {
     this.startedAt = Date.now();
     this.completionTokens = 0;
     this.toolCalls = 0;
-    console.log('');
-    console.log(chalk.cyanBright.bold('╭─ Nova streaming run'));
-    console.log(chalk.gray(`│ model ${event.model}`));
-    if (event.sessionId || event.runId) console.log(chalk.gray(`│ session ${event.sessionId ?? 'none'} · run ${event.runId ?? 'none'}`));
-    if (typeof event.estimatedPromptTokens === 'number') console.log(chalk.gray(`│ prompt ~${event.estimatedPromptTokens} tokens`));
-    console.log(chalk.cyanBright('╰────────────────────────────────────────'));
-    if (this.config.showMetrics) this.timer = setInterval(() => this.renderLiveMetrics(), this.config.refreshMs);
+    if (this.config.mode === 'compact') {
+      console.log(chalk.cyanBright('◇ Nova streaming…'));
+    } else {
+      console.log('');
+      console.log(chalk.cyanBright.bold('╭─ Nova streaming run'));
+      console.log(chalk.gray(`│ model ${event.model}`));
+      if (event.sessionId || event.runId) console.log(chalk.gray(`│ session ${event.sessionId ?? 'none'} · run ${event.runId ?? 'none'}`));
+      if (this.config.mode === 'verbose') console.log(chalk.gray(`│ event ${event.eventId} · seq ${event.sequence}`));
+      if (typeof event.estimatedPromptTokens === 'number') console.log(chalk.gray(`│ prompt ~${event.estimatedPromptTokens} tokens`));
+      console.log(chalk.cyanBright('╰────────────────────────────────────────'));
+    }
+    if (this.shouldLiveUpdateMetrics()) this.timer = setInterval(() => this.renderLiveMetrics(), this.config.refreshMs);
   }
 
   private status(message: string): void {
+    if (this.config.mode === 'compact') return;
     console.log(chalk.gray(`\n◇ ${redactString(message, 200)}`));
   }
 
@@ -90,14 +96,16 @@ export class StreamingCliRenderer {
     this.toolCalls += 1;
     if (!this.config.showTools) return;
     const input = inputPreview ? ` ${chalk.dim(inputPreview)}` : '';
-    console.log(chalk.blue(`\n\n🔧 ${toolName}`) + input);
+    if (this.config.mode === 'compact') console.log(chalk.blue(`\n🔧 ${toolName}`));
+    else console.log(chalk.blue(`\n\n🔧 ${toolName}`) + input);
   }
 
   private toolResult(toolName: string, outputPreview: string, ok: boolean): void {
     if (!this.config.showTools) return;
     const icon = ok ? '✓' : '✖';
     const color = ok ? chalk.green : chalk.red;
-    console.log(color(`${icon} ${toolName}`) + chalk.dim(` ${redactString(outputPreview, 300)}`));
+    const preview = this.config.mode === 'verbose' ? ` ${redactString(outputPreview, 500)}` : this.config.mode === 'normal' ? ` ${redactString(outputPreview, 160)}` : '';
+    console.log(color(`${icon} ${toolName}`) + chalk.dim(preview));
   }
 
   private finish(event: Extract<StreamingEvent, { type: 'finish' }>): void {
@@ -105,11 +113,17 @@ export class StreamingCliRenderer {
     if (this.answerStarted) console.log('');
     if (!this.answerStarted && event.text.trim()) console.log(chalk.magentaBright('\n✦ ') + redactString(event.text, 4_000));
     const cost = event.metrics.cost;
+    if (this.config.mode === 'compact') {
+      const costText = this.config.showCost && cost ? ` · ~${cost.totalCost.toFixed(8)} ${cost.currency}` : '';
+      console.log(chalk.gray(`\nsummary: ${formatDuration(event.elapsedMs)} · ${event.metrics.completionTokens ?? event.metrics.totalTokens ?? 0} tok · ${event.toolCallCount} tools${costText}`));
+      return;
+    }
     console.log(chalk.cyanBright('\n╭─ Summary'));
     console.log(chalk.gray(`│ duration ${formatDuration(event.elapsedMs)} · output ${event.metrics.completionTokens ?? event.metrics.totalTokens ?? 0} tok · ${event.metrics.responseTokensPerSecond} tok/s`));
     if (typeof event.metrics.promptTokens === 'number' || typeof event.metrics.totalTokens === 'number') console.log(chalk.gray(`│ usage prompt=${event.metrics.promptTokens ?? '?'} completion=${event.metrics.completionTokens ?? '?'} total=${event.metrics.totalTokens ?? '?'}`));
     if (this.config.showCost && cost) console.log(chalk.gray(`│ cost ~${cost.totalCost.toFixed(8)} ${cost.currency} (${cost.pricingSource})`));
     console.log(chalk.gray(`│ tools ${event.toolCallCount}`));
+    if (this.config.mode === 'verbose') console.log(chalk.gray(`│ finalEvent ${event.eventId} · seq ${event.sequence}`));
     console.log(chalk.cyanBright('╰────────'));
   }
 
@@ -127,6 +141,10 @@ export class StreamingCliRenderer {
   private metrics(elapsedMs: number, completionTokens: number, cost?: number, currency?: string): void {
     const costText = typeof cost === 'number' && currency ? ` · ~${cost.toFixed(8)} ${currency}` : '';
     this.lastMetricsLine = `${this.metricLine(elapsedMs, completionTokens)}${costText}`;
+  }
+
+  private shouldLiveUpdateMetrics(): boolean {
+    return this.config.showMetrics && this.config.mode === 'verbose' && Boolean(process.stdout.isTTY);
   }
 
   private metricLine(elapsedMs: number, completionTokens: number): string {

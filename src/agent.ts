@@ -23,6 +23,7 @@ import { createApprovalPolicyHook } from './approval/index.js';
 import { estimateTokens } from './tokens/metrics.js';
 import { safePreview, estimatedLiveCost } from './streaming/utils.js';
 import type { AgentRunOptions } from './streaming/types.js';
+import { RuntimeEventEmitter } from './streaming/events.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -70,7 +71,8 @@ export class NovaAgent {
     let activeSession: SessionRecord | undefined;
     let activeRun: RunRecord | undefined;
     const activeRunRef: { sessionId?: string; runId?: string } = {};
-    const emit = async (event: import('./streaming/types.js').StreamingEvent) => { await options.onEvent?.(event); };
+    let eventEmitter = new RuntimeEventEmitter();
+    const emit = async (payload: import('./streaming/types.js').StreamingEventPayload, eventOptions?: Parameters<RuntimeEventEmitter['create']>[1]) => { await options.onEvent?.(eventEmitter.create(payload, eventOptions)); };
 
     if (this.config.session?.enabled) {
       try {
@@ -91,6 +93,7 @@ export class NovaAgent {
         });
         activeRunRef.sessionId = activeRun.sessionId;
         activeRunRef.runId = activeRun.id;
+        eventEmitter = new RuntimeEventEmitter({ sessionId: activeRun.sessionId, runId: activeRun.id });
         await new CurrentSessionStore(this.config.session).set({ sessionId: activeRun.sessionId, runId: activeRun.id, source: 'agent', validate: false }).catch(() => undefined);
       } catch {
         sessionManager = undefined;
@@ -108,7 +111,7 @@ export class NovaAgent {
     });
     const systemPrompt = context.systemPrompt;
     const estimatedPromptTokens = estimateTokens(`${systemPrompt}\n${JSON.stringify(this.memory.getMessages())}\n${input}`);
-    if (options.streaming) await emit({ type: 'start', timestamp: new Date().toISOString(), sessionId: activeRun?.sessionId, runId: activeRun?.id, model: this.config.llm.model, estimatedPromptTokens });
+    if (options.streaming) await emit({ type: 'start', model: this.config.llm.model, estimatedPromptTokens });
     if (sessionManager && activeRun) {
       await sessionManager.recordEvent(activeRun.sessionId, activeRun.id, 'context_built', 'Context Builder completed', { usedTokens: context.budget.usedTokens, remainingTokens: context.budget.remainingTokens, retrievedMemory: context.memorySummary.retrievedCount }).catch(() => undefined);
     }
@@ -189,7 +192,7 @@ export class NovaAgent {
         pricing: this.config.llm.pricing,
       });
       if (options.streaming) {
-        await emit({ type: 'finish', timestamp: new Date().toISOString(), text: finalText, metrics: tokenMetrics, elapsedMs: Date.now() - responseStartedAt, toolCallCount: steps.filter((step) => step.type === 'tool_call').length });
+        await emit({ type: 'finish', text: finalText, metrics: tokenMetrics, elapsedMs: Date.now() - responseStartedAt, toolCallCount: steps.filter((step) => step.type === 'tool_call').length });
       }
       trace?.recordFinalAnswer(finalText, tokenMetrics);
       this.memory.add({
@@ -222,7 +225,7 @@ export class NovaAgent {
       return steps;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      if (options.streaming) await emit({ type: 'error', timestamp: new Date().toISOString(), message: errorMsg, elapsedMs: 0 });
+      if (options.streaming) await emit({ type: 'error', message: errorMsg, elapsedMs: 0 });
       trace?.recordError(err);
       steps.push({
         type: 'answer',
@@ -242,7 +245,7 @@ export class NovaAgent {
     }
   }
 
-  private async runStreaming(input: { systemPrompt: string; messages: any[]; toolSet: ToolSet; maxSteps: number; responseStartedAt: number; estimatedPromptTokens: number; onStepFinish: (step: any) => void; emit: (event: import('./streaming/types.js').StreamingEvent) => Promise<void> }) {
+  private async runStreaming(input: { systemPrompt: string; messages: any[]; toolSet: ToolSet; maxSteps: number; responseStartedAt: number; estimatedPromptTokens: number; onStepFinish: (step: any) => void; emit: (event: import('./streaming/types.js').StreamingEventPayload) => Promise<void> }) {
     let completionText = '';
     let reasoningText = '';
     let reasoningStarted = false;
@@ -254,29 +257,29 @@ export class NovaAgent {
       stopWhen: stepCountIs(input.maxSteps),
       onStepFinish: input.onStepFinish,
       onFinish: async (event) => {
-        if (event.reasoningText) await input.emit({ type: 'reasoning_end', timestamp: new Date().toISOString(), text: event.reasoningText });
+        if (event.reasoningText) await input.emit({ type: 'reasoning_end', text: event.reasoningText });
       },
       onChunk: async ({ chunk }) => {
         const elapsedMs = Date.now() - input.responseStartedAt;
         if (chunk.type === 'text-delta') {
           completionText += chunk.text;
           const completionTokens = estimateTokens(completionText);
-          await input.emit({ type: 'token', timestamp: new Date().toISOString(), text: chunk.text, completionTokens, elapsedMs });
+          await input.emit({ type: 'token', text: chunk.text, completionTokens, elapsedMs });
           const cost = estimatedLiveCost(input.estimatedPromptTokens, completionTokens, this.config.llm.pricing);
-          if (cost) await input.emit({ type: 'metrics', timestamp: new Date().toISOString(), metrics: { promptTokens: input.estimatedPromptTokens, completionTokens, totalTokens: input.estimatedPromptTokens + completionTokens, source: 'estimated', responseDurationMs: elapsedMs, responseTokensPerSecond: completionTokens / Math.max(1, elapsedMs / 1000), cost } });
+          if (cost) await input.emit({ type: 'metrics', metrics: { promptTokens: input.estimatedPromptTokens, completionTokens, totalTokens: input.estimatedPromptTokens + completionTokens, source: 'estimated', responseDurationMs: elapsedMs, responseTokensPerSecond: completionTokens / Math.max(1, elapsedMs / 1000), cost } });
         } else if (chunk.type === 'reasoning-delta') {
           if (!reasoningStarted) {
             reasoningStarted = true;
-            await input.emit({ type: 'reasoning_start', timestamp: new Date().toISOString(), id: chunk.id });
+            await input.emit({ type: 'reasoning_start', id: chunk.id });
           }
           reasoningText += chunk.text;
-          await input.emit({ type: 'reasoning_delta', timestamp: new Date().toISOString(), id: chunk.id, text: chunk.text, elapsedMs });
+          await input.emit({ type: 'reasoning_delta', id: chunk.id, text: chunk.text, elapsedMs });
         } else if (chunk.type === 'tool-input-start') {
-          await input.emit({ type: 'status', timestamp: new Date().toISOString(), message: `tool input streaming: ${chunk.toolName}` });
+          await input.emit({ type: 'status', message: `tool input streaming: ${chunk.toolName}` });
         } else if (chunk.type === 'tool-call') {
-          await input.emit({ type: 'tool_call', timestamp: new Date().toISOString(), toolCallId: chunk.toolCallId, toolName: chunk.toolName, inputPreview: safePreview(chunk.input) });
+          await input.emit({ type: 'tool_call', toolCallId: chunk.toolCallId, toolName: chunk.toolName, inputPreview: safePreview(chunk.input) });
         } else if (chunk.type === 'tool-result') {
-          await input.emit({ type: 'tool_result', timestamp: new Date().toISOString(), toolCallId: chunk.toolCallId, toolName: chunk.toolName, outputPreview: safePreview(chunk.output), ok: true });
+          await input.emit({ type: 'tool_result', toolCallId: chunk.toolCallId, toolName: chunk.toolName, outputPreview: safePreview(chunk.output), ok: true });
         }
       },
     });

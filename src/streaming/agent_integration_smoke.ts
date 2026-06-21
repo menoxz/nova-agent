@@ -5,6 +5,7 @@ import { NovaAgent } from '../agent.js';
 import type { AgentConfig } from '../types.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { StreamingEvent } from './types.js';
+import type { StreamingEventPayload } from './types.js';
 
 async function main(): Promise<void> {
   const config: AgentConfig = {
@@ -31,12 +32,11 @@ async function main(): Promise<void> {
     runStreaming: (input: {
       responseStartedAt: number;
       estimatedPromptTokens: number;
-      emit: (event: StreamingEvent) => Promise<void>;
+      emit: (event: StreamingEventPayload) => Promise<void>;
     }) => Promise<{ text: PromiseLike<string>; totalUsage: PromiseLike<unknown> }>;
   }).runStreaming = async (input) => {
     await input.emit({
       type: 'token',
-      timestamp: new Date().toISOString(),
       text: 'streamed final answer',
       completionTokens: 5,
       elapsedMs: Date.now() - input.responseStartedAt,

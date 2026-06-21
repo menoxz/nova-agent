@@ -1,6 +1,6 @@
-# Streaming UX V1
+# Streaming UX V1.1
 
-Streaming UX V1 ajoute une expérience CLI temps réel sans supprimer le fallback non-streaming.
+Streaming UX V1.1 ajoute une expérience CLI temps réel sans supprimer le fallback non-streaming, et formalise une couche d'événements prête pour un futur TUI.
 
 ## UX CLI
 
@@ -15,6 +15,12 @@ En mode streaming, Nova affiche :
 
 Les blocs thinking sont `collapsed` par défaut. Nova n'invente pas et n'extrait pas de chain-of-thought privée.
 
+Modes CLI :
+
+- `compact` : header et summary minimalistes, peu de bruit, adapté scripts/logs ;
+- `normal` : rendu lisible par défaut ;
+- `verbose` : ajoute détails d'événements et métriques live si stdout est un TTY.
+
 ## Activation
 
 CLI :
@@ -22,12 +28,17 @@ CLI :
 ```bash
 nova --stream "résume le projet"
 nova --no-stream "résume le projet"
+nova --stream-compact "résume le projet"
+nova --stream-verbose "résume le projet"
+nova --stream-mode=compact --thinking=hidden "résume le projet"
+nova --no-stream-metrics --no-stream-tools "résume le projet"
 ```
 
 Variables d'environnement :
 
 ```bash
 NOVA_STREAMING=true
+NOVA_STREAMING_MODE=normal # compact|normal|verbose
 NOVA_STREAMING_SHOW_TOKENS=true
 NOVA_STREAMING_SHOW_TOOLS=true
 NOVA_STREAMING_SHOW_THINKING=true
@@ -44,6 +55,7 @@ Config projet `.nova/config.json` :
   "schemaVersion": 1,
   "streaming": {
     "enabled": true,
+    "mode": "normal",
     "showTokens": true,
     "showTools": true,
     "showThinking": true,
@@ -57,13 +69,37 @@ Config projet `.nova/config.json` :
 
 ## Architecture
 
-- `src/streaming/types.ts` définit `StreamingConfig`, `AgentRunOptions` et `StreamingEvent`.
+- `src/streaming/types.ts` définit `StreamingConfig`, `AgentRunOptions`, `StreamingEventPayload` et `RuntimeStreamingEvent`.
+- `src/streaming/events.ts` enveloppe les payloads en événements TUI-ready : `schemaVersion`, `eventId`, `sequence`, `timestamp`, `source`, `severity`, `sessionId`, `runId`.
 - `NovaAgent.run(input, options)` accepte `streaming` et `onEvent`.
 - La branche streaming utilise AI SDK `streamText()` avec `onChunk`/`onStepFinish`.
 - La branche fallback conserve `generateText()` et retourne toujours `StepDisplay[]`.
 - Le renderer CLI `StreamingCliRenderer` consomme les événements et redacted les previews via `redactString`/`redactUnknown`.
 
 Les intégrations context/session/run/approval/trace/conversation/token metrics restent dans `NovaAgent.run` après le résultat final.
+
+## Event layer TUI-ready
+
+Chaque événement streaming est un objet discriminé et séquencé. Le CLI consomme aujourd'hui ces événements, et un futur TUI pourra réutiliser le même flux sans relire stdout.
+
+Exemple simplifié :
+
+```json
+{
+  "schemaVersion": 1,
+  "eventId": "evt_xxx_1",
+  "sequence": 1,
+  "timestamp": "2026-06-21T00:00:00.000Z",
+  "source": "llm",
+  "severity": "info",
+  "sessionId": "...",
+  "runId": "...",
+  "type": "token",
+  "text": "Bonjour",
+  "completionTokens": 2,
+  "elapsedMs": 120
+}
+```
 
 ## Sécurité
 
