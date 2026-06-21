@@ -13,3 +13,6 @@ export * from './audit.js';
 export * from './migrations.js';
 export * from './profiles.js';
 export * from './prompt.js';
+export * from './editable_store.js';
+export * from './user_profile.js';
+export * from './organization_profile.js';

@@ -16,7 +16,10 @@ import { ToolRegistry } from './tools/registry.js';
 import { ConversationMemory, userMessage, toolResultMessage } from './memory/conversation.js';
 import { createModel } from './llm/provider.js';
 import { createTraceRecorder } from './trace/recorder.js';
-import { memoryConfigFromAgentConfig, retrieveMemoryForPrompt, injectMemoryIntoSystemPrompt, type MemoryRetrievalResult } from './memory/index.js';
+import { buildAgentContext } from './context/index.js';
+import { extractTokenUsage, responseTokenMetrics } from './tokens/index.js';
+import { ConversationStore, CurrentSessionStore, SessionRunManager, type RunRecord, type SessionRecord } from './session/index.js';
+import { createApprovalPolicyHook } from './approval/index.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -60,22 +63,57 @@ export class NovaAgent {
   async run(input: string): Promise<StepDisplay[]> {
     const steps: StepDisplay[] = [];
     const maxSteps = this.config.maxSteps ?? 15;
+    let sessionManager: SessionRunManager | undefined;
+    let activeSession: SessionRecord | undefined;
+    let activeRun: RunRecord | undefined;
+    const activeRunRef: { sessionId?: string; runId?: string } = {};
 
-    let retrievedMemory: MemoryRetrievalResult | undefined;
-    try {
-      retrievedMemory = await retrieveMemoryForPrompt(input, memoryConfigFromAgentConfig(this.config));
-    } catch {
-      retrievedMemory = undefined;
+    if (this.config.session?.enabled) {
+      try {
+        sessionManager = new SessionRunManager(this.config.session);
+        activeSession = await sessionManager.getOrCreateSession({
+          title: this.config.session.title ?? 'Nova interactive session',
+          objective: input,
+          profileId: this.config.profile?.id,
+          projectId: this.config.session.projectId,
+          userId: this.config.session.userId,
+          tags: ['agent-run'],
+        });
+        activeRun = await sessionManager.startRun({
+          sessionId: activeSession.id,
+          objective: input,
+          input,
+          budget: this.config.session.defaultBudget,
+        });
+        activeRunRef.sessionId = activeRun.sessionId;
+        activeRunRef.runId = activeRun.id;
+        await new CurrentSessionStore(this.config.session).set({ sessionId: activeRun.sessionId, runId: activeRun.id, source: 'agent', validate: false }).catch(() => undefined);
+      } catch {
+        sessionManager = undefined;
+        activeSession = undefined;
+        activeRun = undefined;
+      }
     }
-    // Build system prompt from soul + tools + bounded untrusted memory context
-    const systemPrompt = injectMemoryIntoSystemPrompt(this.buildSystemPrompt(), retrievedMemory ?? { cards: [], contextBlock: '', omitted: {}, summary: { retrievedIds: [], retrievedCount: 0, retrievedChars: 0 } });
+
+    const runConfig: AgentConfig = activeSession ? { ...this.config, session: { ...this.config.session, defaultSessionId: activeSession.id } } : this.config;
+    const context = await buildAgentContext({
+      input,
+      baseSystemPrompt: this.buildSystemPrompt(),
+      config: runConfig,
+      tools: this.tools.list(this.config.toolConstraints),
+    });
+    const systemPrompt = context.systemPrompt;
+    if (sessionManager && activeRun) {
+      await sessionManager.recordEvent(activeRun.sessionId, activeRun.id, 'context_built', 'Context Builder completed', { usedTokens: context.budget.usedTokens, remainingTokens: context.budget.remainingTokens, retrievedMemory: context.memorySummary.retrievedCount }).catch(() => undefined);
+    }
     const trace = createTraceRecorder({
       input,
       model: this.config.llm.model,
       maxSteps,
-        toolNames: this.tools.list(this.config.toolConstraints).map((t) => t.name),
-        memory: retrievedMemory?.summary,
-      }, this.config.trace);
+      toolNames: this.tools.list(this.config.toolConstraints).map((t) => t.name),
+      memory: context.memorySummary,
+      context: context.budget,
+    }, this.config.trace);
     const toolSet = this.tools.toAITools({
       trace,
       policy: {
@@ -84,6 +122,7 @@ export class NovaAgent {
         actor: this.config.policy?.actor,
         delegation: this.config.policy?.delegation,
         approvalProvided: this.config.policy?.approvalProvided,
+        hook: this.config.session?.enabled ? createApprovalPolicyHook(this.config.session, activeRunRef) : undefined,
       },
       constraints: this.config.toolConstraints,
     });
@@ -93,6 +132,7 @@ export class NovaAgent {
     const messages = this.memory.getMessages();
 
     try {
+      const responseStartedAt = Date.now();
       const result = await generateText({
         model: this.model,
         system: systemPrompt,
@@ -149,7 +189,14 @@ export class NovaAgent {
 
       // Add assistant's final response to memory
       const finalText = result.text || '(no response)';
-      trace?.recordFinalAnswer(finalText);
+      const tokenMetrics = responseTokenMetrics({
+        usage: extractTokenUsage(result),
+        promptText: `${systemPrompt}\n${JSON.stringify(messages)}`,
+        completionText: finalText,
+        responseDurationMs: Date.now() - responseStartedAt,
+        pricing: this.config.llm.pricing,
+      });
+      trace?.recordFinalAnswer(finalText, tokenMetrics);
       this.memory.add({
         role: 'assistant',
         content: [{ type: 'text', text: finalText }],
@@ -161,7 +208,22 @@ export class NovaAgent {
         content: finalText,
       });
 
-      await trace?.finish('success');
+      const traceResult = await trace?.finish('success');
+      if (sessionManager && activeRun) {
+        const finishedRun = await sessionManager.finishRun(activeRun.sessionId, activeRun.id, {
+          status: 'succeeded',
+          summary: finalText,
+          tokenMetrics,
+          toolCalls: steps.filter((step) => step.type === 'tool_call').length,
+          observability: {
+            traceRunId: trace?.runId,
+            tracePath: traceResult?.outputPath,
+            memory: context.memorySummary,
+            context: context.budget,
+          },
+        }).catch(() => undefined);
+        if (finishedRun) await new ConversationStore(runConfig.session).addTurn({ sessionId: activeRun.sessionId, run: finishedRun, userInput: input, assistantText: finalText, toolCallCount: steps.filter((step) => step.type === 'tool_call').length }).catch(() => undefined);
+      }
       return steps;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -170,7 +232,16 @@ export class NovaAgent {
         type: 'answer',
         content: chalk.red(`\n✖ Error: ${errorMsg}`),
       });
-      await trace?.finish('error');
+      const traceResult = await trace?.finish('error');
+      if (sessionManager && activeRun) {
+        const finishedRun = await sessionManager.finishRun(activeRun.sessionId, activeRun.id, {
+          status: 'failed',
+          summary: errorMsg,
+          toolCalls: steps.filter((step) => step.type === 'tool_call').length,
+          observability: { traceRunId: trace?.runId, tracePath: traceResult?.outputPath, memory: context.memorySummary, context: context.budget },
+        }).catch(() => undefined);
+        if (finishedRun) await new ConversationStore(runConfig.session).addTurn({ sessionId: activeRun.sessionId, run: finishedRun, userInput: input, assistantText: errorMsg, toolCallCount: steps.filter((step) => step.type === 'tool_call').length }).catch(() => undefined);
+      }
       return steps;
     }
   }
@@ -190,11 +261,11 @@ export class NovaAgent {
       this.config.systemPrompt,
       outputContract,
       '',
-      '## Available Tools',
+      '## Tool Access',
       '',
-      this.tools.list(this.config.toolConstraints).map(t => {
-        return `### ${t.name}\n${t.description}`;
-      }).join('\n\n'),
+      '- Tool schemas are provided by the runtime; use only currently available tools when needed.',
+      '- Dynamic Context Builder may include a compact capability summary when it is useful.',
+      '- Do not assume unavailable skills, MCP servers, or tools exist unless present in runtime context.',
       '',
       '## Instructions',
       '- You reason step by step before calling tools.',

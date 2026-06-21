@@ -42,6 +42,25 @@ export interface TraceMemorySummary {
   writtenIds?: string[];
 }
 
+export interface TraceContextSummary {
+  maxTokens: number;
+  usedTokens: number;
+  remainingTokens: number;
+  blocks: Array<{
+    id: string;
+    trust: string;
+    estimatedTokens: number;
+    originalEstimatedTokens?: number;
+    included: boolean;
+    reason: string;
+    omittedReason?: string;
+    compacted?: boolean;
+    compactedReason?: string;
+  }>;
+  omitted: Record<string, number>;
+  suggestions?: Array<{ kind: string; name: string; score: number; injected: boolean; reason: string; matched: string[] }>;
+}
+
 export interface TraceMetrics {
   durationMs: number;
   stepCount: number;
@@ -51,6 +70,18 @@ export interface TraceMetrics {
   toolExecutionCount: number;
   errorCount: number;
   finalAnswerChars: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  responseDurationMs?: number;
+  responseTokensPerSecond?: number;
+  tokenMeasurementSource?: string;
+  costCurrency?: string;
+  inputCost?: number;
+  outputCost?: number;
+  totalCost?: number;
+  pricingSource?: string;
+  pricingUnit?: string;
 }
 
 export interface TraceEventBase {
@@ -70,6 +101,7 @@ export interface RunStartEvent extends TraceEventBase {
     toolCatalog?: Array<{ name: string; kind: TraceToolKind }>;
     profile?: NonNullable<TraceConfig['profile']>;
     memory?: TraceMemorySummary;
+    context?: TraceContextSummary;
   };
 }
 
@@ -124,6 +156,7 @@ export interface FinalAnswerEvent extends TraceEventBase {
   type: 'final_answer';
   text?: string;
   charCount: number;
+  tokenMetrics?: import('../tokens/types.js').ResponseTokenMetrics;
 }
 
 export interface ErrorEvent extends TraceEventBase {
@@ -153,6 +186,7 @@ export interface TraceRun {
   outputPath?: string;
   metrics: TraceMetrics;
   memory?: TraceMemorySummary;
+  context?: TraceContextSummary;
   events: TraceEvent[];
 }
 

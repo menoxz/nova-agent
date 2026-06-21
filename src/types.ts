@@ -5,6 +5,7 @@
 import type { z } from 'zod';
 import type { FlexibleSchema, ToolResultOutput } from '@ai-sdk/provider-utils';
 import type { ActorContext, CapabilityCategory, DelegationContext, ToolRiskLevel } from './policy/types.js';
+export type { LlmPricingConfig, TokenCostEstimate, TokenUsageMeasurement, ResponseTokenMetrics } from './tokens/types.js';
 
 // ─── LLM Provider ────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export interface LLMConfig {
   apiKey: string;
   model: string;
   maxTokens?: number;
+  pricing?: import('./tokens/types.js').LlmPricingConfig;
 }
 
 // ─── Tool System ─────────────────────────────────────────────────────────────
@@ -55,6 +57,8 @@ export interface AgentConfig {
   };
   trace?: import('./trace/types.js').TraceConfig;
   memory?: import('./memory/types.js').MemoryRuntimeConfig;
+  context?: import('./context/types.js').ContextBuilderConfig;
+  session?: import('./session/types.js').SessionRuntimeConfig;
   policy?: {
     enabled?: boolean;
     profileId?: string;

@@ -28,6 +28,7 @@ export interface TraceRunContext {
   maxSteps: number;
   toolNames: string[];
   memory?: import('./types.js').TraceMemorySummary;
+  context?: import('./types.js').TraceContextSummary;
 }
 
 function nowIso(): string {
@@ -80,6 +81,7 @@ export class TraceRecorder {
       status: 'running',
       metrics: initialMetrics(),
       memory: context.memory,
+      context: context.context,
       events: [],
     };
 
@@ -103,6 +105,7 @@ export class TraceRecorder {
         toolCatalog: [...context.toolNames].sort().map((name) => ({ name, kind: DEFAULT_TRACE_TOOL_KIND })),
         profile: this.config.profile,
         memory: context.memory,
+        context: context.context,
       },
     };
     this.push(event);
@@ -172,13 +175,28 @@ export class TraceRecorder {
     this.push(event);
   }
 
-  recordFinalAnswer(text: string): void {
+  recordFinalAnswer(text: string, tokenMetrics?: import('../tokens/types.js').ResponseTokenMetrics): void {
     const event: FinalAnswerEvent = {
       ...this.eventBase('final_answer'),
       text: this.config.includeContent ? redactString(text, this.config.contentMaxChars) : undefined,
       charCount: text.length,
+      tokenMetrics,
     };
     this.run.metrics.finalAnswerChars = text.length;
+    if (tokenMetrics) {
+      this.run.metrics.promptTokens = tokenMetrics.promptTokens;
+      this.run.metrics.completionTokens = tokenMetrics.completionTokens;
+      this.run.metrics.totalTokens = tokenMetrics.totalTokens;
+      this.run.metrics.responseDurationMs = tokenMetrics.responseDurationMs;
+      this.run.metrics.responseTokensPerSecond = tokenMetrics.responseTokensPerSecond;
+      this.run.metrics.tokenMeasurementSource = tokenMetrics.source;
+      this.run.metrics.costCurrency = tokenMetrics.cost?.currency;
+      this.run.metrics.inputCost = tokenMetrics.cost?.inputCost;
+      this.run.metrics.outputCost = tokenMetrics.cost?.outputCost;
+      this.run.metrics.totalCost = tokenMetrics.cost?.totalCost;
+      this.run.metrics.pricingSource = tokenMetrics.cost?.pricingSource;
+      this.run.metrics.pricingUnit = tokenMetrics.cost?.pricingUnit;
+    }
     this.push(event);
   }
 

@@ -64,8 +64,8 @@ function scopeCompatible(kind: MemoryScopeKind, ctx: MemoryQueryContext): boolea
   if (ctx.requestedScopes?.length && !ctx.requestedScopes.includes(kind)) return false;
   const profileScope = ctx.profile?.memory?.scope;
   if (profileScope === 'session') return kind === 'session';
-  if (profileScope === 'project') return ['session', 'project', 'profile', 'capability', 'subagent'].includes(kind);
-  if (profileScope === 'workspace') return ['session', 'project', 'workspace', 'profile', 'capability', 'subagent'].includes(kind);
+  if (profileScope === 'project') return ['session', 'project', 'profile', 'capability', 'subagent', 'user'].includes(kind);
+  if (profileScope === 'workspace') return ['session', 'project', 'workspace', 'profile', 'capability', 'subagent', 'user'].includes(kind);
   return kind === 'session' || kind === (ctx.defaultScope ?? 'project');
 }
 

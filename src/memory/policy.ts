@@ -3,7 +3,19 @@ import { getPolicyProfile } from '../policy/profiles.js';
 import type { PolicyDecision } from '../policy/types.js';
 import type { MemoryAction, MemoryQueryContext, MemoryRuntimeConfig, MemoryScope } from './types.js';
 
-const SENSITIVE_COLLECTIONS = new Set(['user_profile', 'security_findings', 'secrets', 'credentials', 'auth_tokens']);
+const SENSITIVE_COLLECTIONS = new Set([
+  'user_profile',
+  'user_preferences',
+  'organization_profile',
+  'organization_policies',
+  'organization_stack',
+  'organization_glossary',
+  'organization_constraints',
+  'security_findings',
+  'secrets',
+  'credentials',
+  'auth_tokens',
+]);
 
 export function defaultMemoryActor(config: MemoryRuntimeConfig) {
   return config.actor ?? { actorId: 'nova-memory', actorType: 'root_agent' as const, sessionId: config.sessionId };

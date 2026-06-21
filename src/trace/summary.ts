@@ -17,6 +17,10 @@ export interface TraceSummary {
   averageDurationMs: number;
   averageToolCalls: number;
   averageSteps: number;
+  averageTokensPerSecond: number;
+  averageTotalTokens: number;
+  totalEstimatedCost: number;
+  costCurrency?: string;
   mostUsedTools: Array<{ toolName: string; count: number }>;
   insights: TraceInsight[];
   recentRuns: Array<{
@@ -26,6 +30,10 @@ export interface TraceSummary {
     durationMs: number;
     toolCallCount: number;
     stepCount: number;
+    totalTokens?: number;
+    responseTokensPerSecond?: number;
+    totalCost?: number;
+    costCurrency?: string;
     outputPath?: string;
   }>;
 }
@@ -70,6 +78,8 @@ export async function summarizeTraces(options: { traceDir?: string; limit?: numb
   const average = (values: number[]) => values.length ? Math.round(sum(values) / values.length) : 0;
 
   const analysis = analyzeTraceRuns(runs);
+  const costRuns = runs.filter((run) => typeof run.metrics.totalCost === 'number');
+  const costCurrency = costRuns.map((run) => run.metrics.costCurrency).find((value): value is string => Boolean(value));
 
   return {
     directory,
@@ -79,6 +89,10 @@ export async function summarizeTraces(options: { traceDir?: string; limit?: numb
     averageDurationMs: average(runs.map((run) => run.metrics.durationMs)),
     averageToolCalls: average(runs.map((run) => run.metrics.toolCallCount)),
     averageSteps: average(runs.map((run) => run.metrics.stepCount)),
+    averageTokensPerSecond: average(runs.map((run) => run.metrics.responseTokensPerSecond ?? 0).filter((value) => value > 0)),
+    averageTotalTokens: average(runs.map((run) => run.metrics.totalTokens ?? 0).filter((value) => value > 0)),
+    totalEstimatedCost: Number(sum(costRuns.map((run) => run.metrics.totalCost ?? 0)).toFixed(8)),
+    costCurrency,
     mostUsedTools: Array.from(toolCounts.entries())
       .map(([toolName, count]) => ({ toolName, count }))
       .sort((a, b) => b.count - a.count || a.toolName.localeCompare(b.toolName))
@@ -91,6 +105,10 @@ export async function summarizeTraces(options: { traceDir?: string; limit?: numb
       durationMs: run.metrics.durationMs,
       toolCallCount: run.metrics.toolCallCount,
       stepCount: run.metrics.stepCount,
+      totalTokens: run.metrics.totalTokens,
+      responseTokensPerSecond: run.metrics.responseTokensPerSecond,
+      totalCost: run.metrics.totalCost,
+      costCurrency: run.metrics.costCurrency,
       outputPath: run.outputPath,
     })),
   };

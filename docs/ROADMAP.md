@@ -38,6 +38,13 @@
 
 - [ ] **search_web** — recherche web via API
 - [ ] **git_status / git_diff** — intégration Git
+- [x] **Context Builder V1** — composition du contexte agent avec mémoire user/org éditable, mémoire projet, capacités tools/skills/MCP, budget token et justifications (`docs/context-builder.md`, `src/context`)
+- [x] **Session + Run Manager V1 foundations** — sessions/runs persistés localement, planner minimal, budgets/coûts, approvals et rapports metadata-only (`docs/session-run-manager.md`, `src/session`)
+- [x] **Approval Manager V1 foundations** — policy ask -> approval request, approvals list/approve/deny, CLI runtime minimale sans auto-exécution risquée (`docs/approval-manager.md`, `src/approval`)
+- [x] **Run Replay/Resume V1** — replay/report metadata-only, reprise contrôlée par run enfant planifié, aucune ré-exécution automatique d'action approuvée (`docs/run-replay-resume.md`, `src/session/replay.ts`, `src/session/resume.ts`)
+- [x] **Conversation Persistence V1** — turns conversationnels redacted par session, compaction déterministe sans LLM, injection contextuelle sûre, CLI show/summary/compact (`docs/conversation-persistence.md`, `src/session/conversation.ts`)
+- [x] **Current Session UX V1** — pointeur courant metadata-only, commandes sessions/runs/conversations sans copier-coller d'IDs, mise à jour agent/resume/use (`docs/current-session-ux.md`, `src/session/current.ts`)
+- [x] **Config File V1** — `.nova/config.json` pour defaults projet/runtime sûrs, validation stricte, merge env/CLI, CLI show/init/validate/explain (`docs/config-file.md`, `src/config`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable

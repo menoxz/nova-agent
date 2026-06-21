@@ -25,6 +25,18 @@ function normalizeMetrics(value: unknown): TraceMetrics {
     toolExecutionCount: asNumber(metrics.toolExecutionCount),
     errorCount: asNumber(metrics.errorCount),
     finalAnswerChars: asNumber(metrics.finalAnswerChars),
+    promptTokens: typeof metrics.promptTokens === 'number' ? metrics.promptTokens : undefined,
+    completionTokens: typeof metrics.completionTokens === 'number' ? metrics.completionTokens : undefined,
+    totalTokens: typeof metrics.totalTokens === 'number' ? metrics.totalTokens : undefined,
+    responseDurationMs: typeof metrics.responseDurationMs === 'number' ? metrics.responseDurationMs : undefined,
+    responseTokensPerSecond: typeof metrics.responseTokensPerSecond === 'number' ? metrics.responseTokensPerSecond : undefined,
+    tokenMeasurementSource: typeof metrics.tokenMeasurementSource === 'string' ? metrics.tokenMeasurementSource : undefined,
+    costCurrency: typeof metrics.costCurrency === 'string' ? metrics.costCurrency : undefined,
+    inputCost: typeof metrics.inputCost === 'number' ? metrics.inputCost : undefined,
+    outputCost: typeof metrics.outputCost === 'number' ? metrics.outputCost : undefined,
+    totalCost: typeof metrics.totalCost === 'number' ? metrics.totalCost : undefined,
+    pricingSource: typeof metrics.pricingSource === 'string' ? metrics.pricingSource : undefined,
+    pricingUnit: typeof metrics.pricingUnit === 'string' ? metrics.pricingUnit : undefined,
   };
 }
 

@@ -11,6 +11,14 @@ export const evalSuites = {
   lsp: ['lsp-readonly-metadata'],
   subagents: ['subagents-v1-safety-values'],
   memory: ['memory-v1-foundation'],
+  context: ['context-builder-v1'],
+  tokens: ['token-management-v1'],
+  session: ['session-run-manager-v1'],
+  approval: ['approval-manager-v1'],
+  'run-replay': ['run-replay-resume-v1'],
+  conversation: ['conversation-persistence-v1'],
+  current: ['current-session-ux-v1'],
+  config: ['config-file-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

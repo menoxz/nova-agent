@@ -1,0 +1,217 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { z } from 'zod';
+import type { AgentConfig } from '../types.js';
+import { containsSecretLike } from '../memory/redaction.js';
+import { assertPathUnderDir, projectNovaDir } from '../utils/safe_io.js';
+
+export const PROJECT_CONFIG_SCHEMA_VERSION = 1 as const;
+export const PROJECT_CONFIG_FILENAME = 'config.json';
+
+const budgetSchema = z.object({
+  maxToolCalls: z.number().int().positive().optional(),
+  maxDurationMs: z.number().int().positive().optional(),
+  maxInputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
+  maxTotalTokens: z.number().int().positive().optional(),
+  maxEstimatedCost: z.number().nonnegative().optional(),
+  currency: z.string().min(1).optional(),
+}).strict();
+
+export const projectConfigSchema = z.object({
+  schemaVersion: z.literal(PROJECT_CONFIG_SCHEMA_VERSION).default(PROJECT_CONFIG_SCHEMA_VERSION),
+  profile: z.string().min(1).optional(),
+  maxSteps: z.number().int().positive().max(100).optional(),
+  llm: z.object({
+    provider: z.string().min(1).optional(),
+    baseUrl: z.string().url().optional(),
+    model: z.string().min(1).optional(),
+    maxTokens: z.number().int().positive().optional(),
+    pricing: z.object({
+      currency: z.string().min(1).optional(),
+      inputCostPer1MTokens: z.number().nonnegative().optional(),
+      outputCostPer1MTokens: z.number().nonnegative().optional(),
+      source: z.string().min(1).optional(),
+    }).strict().optional(),
+  }).strict().optional(),
+  policy: z.object({
+    enabled: z.boolean().optional(),
+    profileId: z.string().min(1).optional(),
+  }).strict().optional(),
+  trace: z.object({
+    enabled: z.boolean().optional(),
+    outputDir: z.string().min(1).optional(),
+    includeContent: z.boolean().optional(),
+    contentMaxChars: z.number().int().positive().optional(),
+    writeJsonlIndex: z.boolean().optional(),
+    includeErrorStack: z.boolean().optional(),
+  }).strict().optional(),
+  context: z.object({
+    enabled: z.boolean().optional(),
+    tokenBudget: z.number().int().positive().optional(),
+    userOrgTokenBudget: z.number().int().positive().optional(),
+    memoryTokenBudget: z.number().int().positive().optional(),
+    capabilityTokenBudget: z.number().int().positive().optional(),
+    includeBudgetReport: z.boolean().optional(),
+    includeUserOrgMemory: z.boolean().optional(),
+    includeProjectMemory: z.boolean().optional(),
+    includeCapabilities: z.boolean().optional(),
+    includeConversationSummary: z.boolean().optional(),
+    suggestionThreshold: z.number().min(0).max(1).optional(),
+    maxSkillSuggestions: z.number().int().nonnegative().optional(),
+    maxMcpSuggestions: z.number().int().nonnegative().optional(),
+  }).strict().optional(),
+  memory: z.object({
+    enabled: z.boolean().optional(),
+    memoryRoot: z.string().min(1).optional(),
+    tokenBudget: z.number().int().positive().optional(),
+    policyProfileId: z.string().min(1).optional(),
+    sessionId: z.string().min(1).optional(),
+    defaultScope: z.enum(['project', 'workspace', 'profile', 'session', 'user', 'subagent', 'capability']).optional(),
+    readCollections: z.array(z.string().min(1)).optional(),
+    writeCollections: z.array(z.string().min(1)).optional(),
+  }).strict().optional(),
+  session: z.object({
+    enabled: z.boolean().optional(),
+    sessionsRoot: z.string().min(1).optional(),
+    defaultSessionId: z.string().min(1).optional(),
+    autoCreate: z.boolean().optional(),
+    title: z.string().min(1).max(160).optional(),
+    userId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+    tags: z.array(z.string().min(1)).optional(),
+    defaultBudget: budgetSchema.optional(),
+    conversation: z.object({
+      enabled: z.boolean().optional(),
+      maxTurns: z.number().int().positive().optional(),
+      keepRecentTurns: z.number().int().positive().optional(),
+      maxPreviewChars: z.number().int().positive().optional(),
+      summaryMaxChars: z.number().int().positive().optional(),
+    }).strict().optional(),
+  }).strict().optional(),
+  runs: budgetSchema.optional(),
+  toolConstraints: z.object({
+    allowed: z.array(z.string().min(1)).optional(),
+    denied: z.array(z.string().min(1)).optional(),
+    presets: z.array(z.string().min(1)).optional(),
+  }).strict().optional(),
+}).strict();
+
+export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+
+export interface ProjectConfigLoadResult {
+  path: string;
+  present: boolean;
+  ok: boolean;
+  config?: ProjectConfig;
+  errors: string[];
+}
+
+export function projectConfigPath(projectRoot = process.cwd()): string {
+  const novaDir = projectNovaDir(projectRoot);
+  return assertPathUnderDir(resolve(novaDir, PROJECT_CONFIG_FILENAME), novaDir, 'Project config path');
+}
+
+export function readProjectConfig(projectRoot = process.cwd()): ProjectConfigLoadResult {
+  const path = projectConfigPath(projectRoot);
+  if (!existsSync(path)) return { path, present: false, ok: true, errors: [] };
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as unknown;
+    const secretErrors = findForbiddenSecrets(parsed);
+    const schemaResult = projectConfigSchema.safeParse(parsed);
+    const errors = [
+      ...secretErrors,
+      ...(schemaResult.success ? [] : schemaResult.error.issues.map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)),
+    ];
+    return { path, present: true, ok: errors.length === 0, config: schemaResult.success && errors.length === 0 ? schemaResult.data : undefined, errors };
+  } catch (err) {
+    return { path, present: true, ok: false, errors: [err instanceof Error ? err.message : String(err)] };
+  }
+}
+
+export function requireProjectConfig(projectRoot = process.cwd()): ProjectConfig | undefined {
+  const result = readProjectConfig(projectRoot);
+  if (!result.ok) throw new Error(`Invalid Nova project config at ${result.path}: ${result.errors.join('; ')}`);
+  return result.config;
+}
+
+export function defaultProjectConfig(): ProjectConfig {
+  return {
+    schemaVersion: PROJECT_CONFIG_SCHEMA_VERSION,
+    profile: 'nova.builder',
+    session: { enabled: true, autoCreate: true, title: 'Nova local work', tags: ['local'], conversation: { enabled: true } },
+    policy: { profileId: 'developer' },
+    context: { enabled: true, tokenBudget: 4000, includeConversationSummary: true },
+    memory: { enabled: true },
+    runs: { maxToolCalls: 20, maxTotalTokens: 120000, maxEstimatedCost: 1, currency: 'USD' },
+  };
+}
+
+export function initProjectConfig(projectRoot = process.cwd(), force = false): ProjectConfigLoadResult {
+  const path = projectConfigPath(projectRoot);
+  if (existsSync(path) && !force) return { path, present: true, ok: false, errors: ['config already exists; refusing to overwrite without --force'] };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(defaultProjectConfig(), null, 2)}\n`, 'utf-8');
+  return readProjectConfig(projectRoot);
+}
+
+export function mergeProjectConfig(base: AgentConfig, project?: ProjectConfig): AgentConfig {
+  if (!project) return base;
+  const defaultBudget = { ...(project.runs ?? {}), ...(project.session?.defaultBudget ?? {}) };
+  return {
+    ...base,
+    maxSteps: project.maxSteps ?? base.maxSteps,
+    llm: {
+      ...base.llm,
+      provider: project.llm?.provider ?? base.llm.provider,
+      baseUrl: project.llm?.baseUrl ?? base.llm.baseUrl,
+      model: project.llm?.model ?? base.llm.model,
+      maxTokens: project.llm?.maxTokens ?? base.llm.maxTokens,
+      pricing: { currency: base.llm.pricing?.currency ?? project.llm?.pricing?.currency ?? 'USD', ...base.llm.pricing, ...project.llm?.pricing },
+    },
+    policy: { ...base.policy, ...project.policy },
+    trace: { ...base.trace, ...project.trace },
+    context: { ...base.context, ...project.context },
+    memory: { ...base.memory, ...project.memory },
+    session: {
+      ...base.session,
+      ...project.session,
+      defaultBudget: { ...base.session?.defaultBudget, ...defaultBudget },
+      conversation: { ...base.session?.conversation, ...project.session?.conversation },
+    },
+    toolConstraints: { ...base.toolConstraints, ...project.toolConstraints },
+  };
+}
+
+export function explainProjectConfig(config?: ProjectConfig): string[] {
+  if (!config) return ['No .nova/config.json found. Runtime uses env vars and built-in defaults only.'];
+  const lines = ['Config File V1 loaded from .nova/config.json. Precedence: CLI/env values override project config; secrets/API keys must stay in env.'];
+  if (config.profile) lines.push(`- profile: default agent profile is ${config.profile}.`);
+  if (config.session) lines.push(`- session: enabled=${config.session.enabled ?? 'default'}, title=${config.session.title ?? 'default'}, conversation=${config.session.conversation?.enabled ?? 'default'}.`);
+  if (config.policy) lines.push(`- policy: enabled=${config.policy.enabled ?? 'default'}, profileId=${config.policy.profileId ?? 'default'}.`);
+  if (config.context) lines.push(`- context: enabled=${config.context.enabled ?? 'default'}, tokenBudget=${config.context.tokenBudget ?? 'default'}, conversationSummary=${config.context.includeConversationSummary ?? 'default'}.`);
+  if (config.memory) lines.push(`- memory: enabled=${config.memory.enabled ?? 'default'}, defaultScope=${config.memory.defaultScope ?? 'default'}.`);
+  if (config.runs || config.session?.defaultBudget) lines.push('- runs: default run budgets are applied to session.defaultBudget unless env overrides them.');
+  if (config.toolConstraints) lines.push('- toolConstraints: project defaults constrain available tools; policy still has final authority.');
+  return lines;
+}
+
+export function sanitizeConfigForDisplay(config: AgentConfig): AgentConfig & { llm: AgentConfig['llm'] & { apiKey: string } } {
+  return { ...config, llm: { ...config.llm, apiKey: config.llm.apiKey ? '[REDACTED:env]' : '' } };
+}
+
+function findForbiddenSecrets(value: unknown, path: string[] = []): string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string') return containsSecretLike(value) ? [`${path.join('.') || '<root>'}: secret-like value is not allowed in .nova/config.json`] : [];
+  if (Array.isArray(value)) return value.flatMap((item, index) => findForbiddenSecrets(item, [...path, String(index)]));
+  if (typeof value !== 'object') return [];
+  const errors: string[] = [];
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (/^(api[_-]?key|secret|password|passwd|credential|authorization|auth[_-]?token|access[_-]?token|refresh[_-]?token|private[_-]?key)$/i.test(key)) {
+      errors.push(`${[...path, key].join('.')}: secret key is not allowed in .nova/config.json`);
+      continue;
+    }
+    errors.push(...findForbiddenSecrets(child, [...path, key]));
+  }
+  return errors;
+}

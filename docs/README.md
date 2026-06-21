@@ -72,6 +72,14 @@ nova-agent/
 | [subagents/README.md](subagents/README.md) | Sub-agent Orchestration V1: rôles bornés, délégation, contexte, DAG, sécurité |
 | [profiles/README.md](profiles/README.md) | Agent Profiles V1: agents spécialisés persistants, résolution runtime, sécurité, built-ins |
 | [memory/README.md](memory/README.md) | Memory/Knowledge V1 plan: scopes, persistence, retrieval, lifecycle, security, evals |
+| [context-builder.md](context-builder.md) | Context Builder V1: mémoire user/org éditable, politique d'injection, budget token, skills/MCP |
+| [token-management.md](token-management.md) | Token Management V1: estimation, vitesse tokens/seconde, compaction, auto-suggestion skills/MCP |
+| [session-run-manager.md](session-run-manager.md) | Session + Run Manager V1: sessions, runs, planner minimal, budgets, approvals, observabilité |
+| [approval-manager.md](approval-manager.md) | Approval Manager V1: policy ask bridge, approvals persistées, CLI sûre list/approve/deny |
+| [run-replay-resume.md](run-replay-resume.md) | Run Replay/Resume V1: replay metadata-only, reprise par run enfant, aucune auto-exécution risquée |
+| [conversation-persistence.md](conversation-persistence.md) | Conversation Persistence V1: turns redacted par session, compaction déterministe, injection contextuelle sûre |
+| [current-session-ux.md](current-session-ux.md) | Current Session UX V1: pointeur courant metadata-only, commandes sans copier-coller d'IDs |
+| [config-file.md](config-file.md) | Config File V1: `.nova/config.json`, defaults projet sûrs, validation stricte, CLI config |
 | [READ_FILE_MULTIMODAL.md](READ_FILE_MULTIMODAL.md) | Design et limites de `read_file` multimodal |
 | [READ_PDF.md](READ_PDF.md) | Design, paramètres, tests et limites de `read_pdf` |
 | [READ_DOCX.md](READ_DOCX.md) | Design, paramètres, tests et limites de `read_docx` |
