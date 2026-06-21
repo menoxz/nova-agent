@@ -36,6 +36,7 @@ import { resolveConfigProfile } from './profiles/index.js';
 import { ApprovalManager } from './approval/index.js';
 import { ConversationStore, CurrentSessionStore, RunReplayManager, RunResumeManager, SessionStore } from './session/index.js';
 import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay } from './config/index.js';
+import { StreamingCliRenderer } from './streaming/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -43,6 +44,21 @@ function getArg(name: string): string | undefined {
   const prefix = `--${name}=`;
   const prefixed = process.argv.find((arg) => arg.startsWith(prefix));
   return prefixed ? prefixed.slice(prefix.length) : undefined;
+}
+
+function hasFlag(name: string): boolean {
+  return process.argv.includes(`--${name}`);
+}
+
+function boolValue(value: string | undefined, fallback: boolean | undefined): boolean | undefined {
+  if (value === undefined) return fallback;
+  return value !== '0' && value !== 'false' && value !== 'no';
+}
+
+function intValue(value: string | undefined, fallback: number | undefined): number | undefined {
+  if (value === undefined) return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 // ─── Configuration ─────────────────────────────────────────────────────────
@@ -103,6 +119,16 @@ function loadConfig(): AgentConfig {
       maxMcpSuggestions: process.env.NOVA_CONTEXT_MAX_MCP_SUGGESTIONS ? parseInt(process.env.NOVA_CONTEXT_MAX_MCP_SUGGESTIONS) : projectConfig?.context?.maxMcpSuggestions,
       includeConversationSummary: process.env.NOVA_CONTEXT_CONVERSATION_SUMMARY ? process.env.NOVA_CONTEXT_CONVERSATION_SUMMARY !== '0' && process.env.NOVA_CONTEXT_CONVERSATION_SUMMARY !== 'false' : projectConfig?.context?.includeConversationSummary,
     },
+    streaming: {
+      enabled: boolValue(process.env.NOVA_STREAMING, projectConfig?.streaming?.enabled),
+      showTokens: boolValue(process.env.NOVA_STREAMING_SHOW_TOKENS, projectConfig?.streaming?.showTokens),
+      showTools: boolValue(process.env.NOVA_STREAMING_SHOW_TOOLS, projectConfig?.streaming?.showTools),
+      showThinking: boolValue(process.env.NOVA_STREAMING_SHOW_THINKING, projectConfig?.streaming?.showThinking),
+      thinkingMode: process.env.NOVA_STREAMING_THINKING_MODE === 'hidden' || process.env.NOVA_STREAMING_THINKING_MODE === 'collapsed' || process.env.NOVA_STREAMING_THINKING_MODE === 'expanded' ? process.env.NOVA_STREAMING_THINKING_MODE : projectConfig?.streaming?.thinkingMode,
+      showMetrics: boolValue(process.env.NOVA_STREAMING_SHOW_METRICS, projectConfig?.streaming?.showMetrics),
+      showCost: boolValue(process.env.NOVA_STREAMING_SHOW_COST, projectConfig?.streaming?.showCost),
+      refreshMs: intValue(process.env.NOVA_STREAMING_REFRESH_MS, projectConfig?.streaming?.refreshMs),
+    },
     memory: {
       ...projectConfig?.memory,
       projectRoot: process.env.NOVA_MEMORY_PROJECT_ROOT,
@@ -143,6 +169,25 @@ function loadConfig(): AgentConfig {
     toolConstraints: projectConfig?.toolConstraints,
   };
   return resolveConfigProfile(baseConfig, { profileId: getArg('profile') || process.env.NOVA_PROFILE || projectConfig?.profile, mode: 'root' });
+}
+
+function shouldStream(config: AgentConfig): boolean {
+  if (hasFlag('no-stream')) return false;
+  if (hasFlag('stream')) return true;
+  return config.streaming?.enabled === true;
+}
+
+function promptArgs(): string[] {
+  const result: string[] = [];
+  const args = process.argv.slice(2);
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--profile') { index += 1; continue; }
+    if (arg.startsWith('--profile=')) continue;
+    if (arg === '--stream' || arg === '--no-stream') continue;
+    result.push(arg);
+  }
+  return result;
 }
 
 function requireValidProjectConfig() {
@@ -319,17 +364,14 @@ async function main() {
   const agent = new NovaAgent(config, tools);
 
   // Single prompt mode
-  const prompt = process.argv.slice(2).filter((arg, index, args) => {
-    if (arg === '--profile') return false;
-    if (args[index - 1] === '--profile') return false;
-    if (arg.startsWith('--profile=')) return false;
-    return true;
-  }).join(' ');
+  const prompt = promptArgs().join(' ');
   if (prompt) {
     console.log(chalk.cyan('  You: ') + prompt);
     console.log('');
-    const steps = await agent.run(prompt);
-    printSteps(steps);
+    const streaming = shouldStream(config);
+    const renderer = streaming ? new StreamingCliRenderer(config.streaming) : undefined;
+    const steps = await agent.run(prompt, { streaming, onEvent: renderer?.handle });
+    if (!streaming) printSteps(steps);
     process.exit(0);
   }
 
@@ -361,14 +403,18 @@ async function main() {
       continue;
     }
 
-    const spin = spinner();
-    spin.start('Nova is thinking...');
+    const streaming = shouldStream(config);
+    const renderer = streaming ? new StreamingCliRenderer(config.streaming) : undefined;
+    const spin = streaming ? undefined : spinner();
+    spin?.start('Nova is thinking...');
 
-    const steps = await agent.run(query);
+    const steps = await agent.run(query, { streaming, onEvent: renderer?.handle });
 
-    spin.stop('Done');
-    console.log('');
-    printSteps(steps);
+    spin?.stop('Done');
+    if (!streaming) {
+      console.log('');
+      printSteps(steps);
+    }
   }
 }
 

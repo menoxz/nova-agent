@@ -61,6 +61,16 @@ export const projectConfigSchema = z.object({
     maxSkillSuggestions: z.number().int().nonnegative().optional(),
     maxMcpSuggestions: z.number().int().nonnegative().optional(),
   }).strict().optional(),
+  streaming: z.object({
+    enabled: z.boolean().optional(),
+    showTokens: z.boolean().optional(),
+    showTools: z.boolean().optional(),
+    showThinking: z.boolean().optional(),
+    thinkingMode: z.enum(['hidden', 'collapsed', 'expanded']).optional(),
+    showMetrics: z.boolean().optional(),
+    showCost: z.boolean().optional(),
+    refreshMs: z.number().int().positive().max(10_000).optional(),
+  }).strict().optional(),
   memory: z.object({
     enabled: z.boolean().optional(),
     memoryRoot: z.string().min(1).optional(),
@@ -142,6 +152,7 @@ export function defaultProjectConfig(): ProjectConfig {
     session: { enabled: true, autoCreate: true, title: 'Nova local work', tags: ['local'], conversation: { enabled: true } },
     policy: { profileId: 'developer' },
     context: { enabled: true, tokenBudget: 4000, includeConversationSummary: true },
+    streaming: { enabled: true, showTokens: true, showTools: true, showThinking: true, thinkingMode: 'collapsed', showMetrics: true, showCost: true },
     memory: { enabled: true },
     runs: { maxToolCalls: 20, maxTotalTokens: 120000, maxEstimatedCost: 1, currency: 'USD' },
   };
@@ -172,6 +183,7 @@ export function mergeProjectConfig(base: AgentConfig, project?: ProjectConfig): 
     policy: { ...base.policy, ...project.policy },
     trace: { ...base.trace, ...project.trace },
     context: { ...base.context, ...project.context },
+    streaming: { ...base.streaming, ...project.streaming },
     memory: { ...base.memory, ...project.memory },
     session: {
       ...base.session,
@@ -190,6 +202,7 @@ export function explainProjectConfig(config?: ProjectConfig): string[] {
   if (config.session) lines.push(`- session: enabled=${config.session.enabled ?? 'default'}, title=${config.session.title ?? 'default'}, conversation=${config.session.conversation?.enabled ?? 'default'}.`);
   if (config.policy) lines.push(`- policy: enabled=${config.policy.enabled ?? 'default'}, profileId=${config.policy.profileId ?? 'default'}.`);
   if (config.context) lines.push(`- context: enabled=${config.context.enabled ?? 'default'}, tokenBudget=${config.context.tokenBudget ?? 'default'}, conversationSummary=${config.context.includeConversationSummary ?? 'default'}.`);
+  if (config.streaming) lines.push(`- streaming: enabled=${config.streaming.enabled ?? 'default'}, tokens=${config.streaming.showTokens ?? 'default'}, tools=${config.streaming.showTools ?? 'default'}, thinking=${config.streaming.thinkingMode ?? (config.streaming.showThinking === false ? 'hidden' : 'default')}.`);
   if (config.memory) lines.push(`- memory: enabled=${config.memory.enabled ?? 'default'}, defaultScope=${config.memory.defaultScope ?? 'default'}.`);
   if (config.runs || config.session?.defaultBudget) lines.push('- runs: default run budgets are applied to session.defaultBudget unless env overrides them.');
   if (config.toolConstraints) lines.push('- toolConstraints: project defaults constrain available tools; policy still has final authority.');

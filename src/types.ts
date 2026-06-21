@@ -59,6 +59,7 @@ export interface AgentConfig {
   memory?: import('./memory/types.js').MemoryRuntimeConfig;
   context?: import('./context/types.js').ContextBuilderConfig;
   session?: import('./session/types.js').SessionRuntimeConfig;
+  streaming?: import('./streaming/types.js').StreamingConfig;
   policy?: {
     enabled?: boolean;
     profileId?: string;

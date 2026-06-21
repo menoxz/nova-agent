@@ -7,7 +7,7 @@
  * Uses Vercel AI SDK v6+ for LLM interaction and tool handling.
  */
 
-import { generateText, stepCountIs } from 'ai';
+import { generateText, streamText, stepCountIs } from 'ai';
 import type { ToolSet } from 'ai';
 import chalk from 'chalk';
 
@@ -20,6 +20,9 @@ import { buildAgentContext } from './context/index.js';
 import { extractTokenUsage, responseTokenMetrics } from './tokens/index.js';
 import { ConversationStore, CurrentSessionStore, SessionRunManager, type RunRecord, type SessionRecord } from './session/index.js';
 import { createApprovalPolicyHook } from './approval/index.js';
+import { estimateTokens } from './tokens/metrics.js';
+import { safePreview, estimatedLiveCost } from './streaming/utils.js';
+import type { AgentRunOptions } from './streaming/types.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -60,13 +63,14 @@ export class NovaAgent {
   /**
    * Run a full interaction: user message → agent loop → final answer
    */
-  async run(input: string): Promise<StepDisplay[]> {
+  async run(input: string, options: AgentRunOptions = {}): Promise<StepDisplay[]> {
     const steps: StepDisplay[] = [];
     const maxSteps = this.config.maxSteps ?? 15;
     let sessionManager: SessionRunManager | undefined;
     let activeSession: SessionRecord | undefined;
     let activeRun: RunRecord | undefined;
     const activeRunRef: { sessionId?: string; runId?: string } = {};
+    const emit = async (event: import('./streaming/types.js').StreamingEvent) => { await options.onEvent?.(event); };
 
     if (this.config.session?.enabled) {
       try {
@@ -103,6 +107,8 @@ export class NovaAgent {
       tools: this.tools.list(this.config.toolConstraints),
     });
     const systemPrompt = context.systemPrompt;
+    const estimatedPromptTokens = estimateTokens(`${systemPrompt}\n${JSON.stringify(this.memory.getMessages())}\n${input}`);
+    if (options.streaming) await emit({ type: 'start', timestamp: new Date().toISOString(), sessionId: activeRun?.sessionId, runId: activeRun?.id, model: this.config.llm.model, estimatedPromptTokens });
     if (sessionManager && activeRun) {
       await sessionManager.recordEvent(activeRun.sessionId, activeRun.id, 'context_built', 'Context Builder completed', { usedTokens: context.budget.usedTokens, remainingTokens: context.budget.remainingTokens, retrievedMemory: context.memorySummary.retrievedCount }).catch(() => undefined);
     }
@@ -133,69 +139,58 @@ export class NovaAgent {
 
     try {
       const responseStartedAt = Date.now();
-      const result = await generateText({
+      const handleStepFinish = (step: any) => {
+        trace?.recordLlmStep({
+          text: step.text,
+          toolCallCount: step.toolCalls?.length ?? 0,
+          toolResultCount: step.toolResults?.length ?? 0,
+        });
+
+        if (step.text && step.toolCalls?.length) {
+          steps.push({ type: 'reasoning', content: step.text });
+        }
+
+        if (step.toolCalls?.length) {
+          for (const tc of step.toolCalls) {
+            trace?.recordToolCall(tc.toolCallId, tc.toolName, tc.input);
+            steps.push({ type: 'tool_call', content: `Calling ${tc.toolName}(${JSON.stringify(tc.input)})`, toolName: tc.toolName, toolArgs: tc.input as Record<string, unknown> });
+          }
+        }
+
+        if (step.toolResults?.length) {
+          for (const tr of step.toolResults) {
+            const outputStr = summarizeToolOutput(tr.output);
+            trace?.recordToolResult(tr.toolCallId, tr.toolName, tr.output);
+            steps.push({ type: 'tool_result', content: outputStr, toolName: tr.toolName, toolResult: outputStr });
+            this.memory.add(toolResultMessage(tr.toolCallId, tr.toolName, tr.output));
+          }
+        }
+      };
+
+      const result = options.streaming ? await this.runStreaming({ systemPrompt, messages, toolSet, maxSteps, responseStartedAt, estimatedPromptTokens, onStepFinish: handleStepFinish, emit }) : await generateText({
         model: this.model,
         system: systemPrompt,
         messages,
         tools: toolSet,
         stopWhen: stepCountIs(maxSteps),
-        onStepFinish: (step) => {
-          trace?.recordLlmStep({
-            text: step.text,
-            toolCallCount: step.toolCalls?.length ?? 0,
-            toolResultCount: step.toolResults?.length ?? 0,
-          });
-
-          // Capture reasoning text ONLY if this step includes tool calls
-          // (otherwise step.text IS the final answer = would cause duplicate display)
-          if (step.text && step.toolCalls?.length) {
-            steps.push({
-              type: 'reasoning',
-              content: step.text,
-            });
-          }
-
-          // Capture tool calls
-          if (step.toolCalls?.length) {
-            for (const tc of step.toolCalls) {
-              trace?.recordToolCall(tc.toolCallId, tc.toolName, tc.input);
-              steps.push({
-                type: 'tool_call',
-                content: `Calling ${tc.toolName}(${JSON.stringify(tc.input)})`,
-                toolName: tc.toolName,
-                toolArgs: tc.input as Record<string, unknown>,
-              });
-            }
-          }
-
-          // Capture tool results
-          if (step.toolResults?.length) {
-            for (const tr of step.toolResults) {
-              const outputStr = summarizeToolOutput(tr.output);
-              trace?.recordToolResult(tr.toolCallId, tr.toolName, tr.output);
-              steps.push({
-                type: 'tool_result',
-                content: outputStr,
-                toolName: tr.toolName,
-                toolResult: outputStr,
-              });
-
-              // Add tool result to memory
-              this.memory.add(toolResultMessage(tr.toolCallId, tr.toolName, tr.output));
-            }
-          }
-        },
+        onStepFinish: handleStepFinish,
       });
 
       // Add assistant's final response to memory
-      const finalText = result.text || '(no response)';
+      const finalText = (await Promise.resolve(result.text)) || '(no response)';
+      const providerUsage = options.streaming
+        ? await Promise.resolve((result as { totalUsage?: PromiseLike<unknown> }).totalUsage).then((usage) => extractTokenUsage({ totalUsage: usage })).catch(() => undefined)
+        : extractTokenUsage(result);
       const tokenMetrics = responseTokenMetrics({
-        usage: extractTokenUsage(result),
+        usage: providerUsage,
         promptText: `${systemPrompt}\n${JSON.stringify(messages)}`,
         completionText: finalText,
         responseDurationMs: Date.now() - responseStartedAt,
         pricing: this.config.llm.pricing,
       });
+      if (options.streaming) {
+        await emit({ type: 'finish', timestamp: new Date().toISOString(), text: finalText, metrics: tokenMetrics, elapsedMs: Date.now() - responseStartedAt, toolCallCount: steps.filter((step) => step.type === 'tool_call').length });
+      }
       trace?.recordFinalAnswer(finalText, tokenMetrics);
       this.memory.add({
         role: 'assistant',
@@ -227,6 +222,7 @@ export class NovaAgent {
       return steps;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      if (options.streaming) await emit({ type: 'error', timestamp: new Date().toISOString(), message: errorMsg, elapsedMs: 0 });
       trace?.recordError(err);
       steps.push({
         type: 'answer',
@@ -244,6 +240,47 @@ export class NovaAgent {
       }
       return steps;
     }
+  }
+
+  private async runStreaming(input: { systemPrompt: string; messages: any[]; toolSet: ToolSet; maxSteps: number; responseStartedAt: number; estimatedPromptTokens: number; onStepFinish: (step: any) => void; emit: (event: import('./streaming/types.js').StreamingEvent) => Promise<void> }) {
+    let completionText = '';
+    let reasoningText = '';
+    let reasoningStarted = false;
+    const result = streamText({
+      model: this.model,
+      system: input.systemPrompt,
+      messages: input.messages,
+      tools: input.toolSet,
+      stopWhen: stepCountIs(input.maxSteps),
+      onStepFinish: input.onStepFinish,
+      onFinish: async (event) => {
+        if (event.reasoningText) await input.emit({ type: 'reasoning_end', timestamp: new Date().toISOString(), text: event.reasoningText });
+      },
+      onChunk: async ({ chunk }) => {
+        const elapsedMs = Date.now() - input.responseStartedAt;
+        if (chunk.type === 'text-delta') {
+          completionText += chunk.text;
+          const completionTokens = estimateTokens(completionText);
+          await input.emit({ type: 'token', timestamp: new Date().toISOString(), text: chunk.text, completionTokens, elapsedMs });
+          const cost = estimatedLiveCost(input.estimatedPromptTokens, completionTokens, this.config.llm.pricing);
+          if (cost) await input.emit({ type: 'metrics', timestamp: new Date().toISOString(), metrics: { promptTokens: input.estimatedPromptTokens, completionTokens, totalTokens: input.estimatedPromptTokens + completionTokens, source: 'estimated', responseDurationMs: elapsedMs, responseTokensPerSecond: completionTokens / Math.max(1, elapsedMs / 1000), cost } });
+        } else if (chunk.type === 'reasoning-delta') {
+          if (!reasoningStarted) {
+            reasoningStarted = true;
+            await input.emit({ type: 'reasoning_start', timestamp: new Date().toISOString(), id: chunk.id });
+          }
+          reasoningText += chunk.text;
+          await input.emit({ type: 'reasoning_delta', timestamp: new Date().toISOString(), id: chunk.id, text: chunk.text, elapsedMs });
+        } else if (chunk.type === 'tool-input-start') {
+          await input.emit({ type: 'status', timestamp: new Date().toISOString(), message: `tool input streaming: ${chunk.toolName}` });
+        } else if (chunk.type === 'tool-call') {
+          await input.emit({ type: 'tool_call', timestamp: new Date().toISOString(), toolCallId: chunk.toolCallId, toolName: chunk.toolName, inputPreview: safePreview(chunk.input) });
+        } else if (chunk.type === 'tool-result') {
+          await input.emit({ type: 'tool_result', timestamp: new Date().toISOString(), toolCallId: chunk.toolCallId, toolName: chunk.toolName, outputPreview: safePreview(chunk.output), ok: true });
+        }
+      },
+    });
+    return result;
   }
 
   /**

@@ -45,6 +45,7 @@
 - [x] **Conversation Persistence V1** — turns conversationnels redacted par session, compaction déterministe sans LLM, injection contextuelle sûre, CLI show/summary/compact (`docs/conversation-persistence.md`, `src/session/conversation.ts`)
 - [x] **Current Session UX V1** — pointeur courant metadata-only, commandes sessions/runs/conversations sans copier-coller d'IDs, mise à jour agent/resume/use (`docs/current-session-ux.md`, `src/session/current.ts`)
 - [x] **Config File V1** — `.nova/config.json` pour defaults projet/runtime sûrs, validation stricte, merge env/CLI, CLI show/init/validate/explain (`docs/config-file.md`, `src/config`)
+- [x] **Streaming UX V1** — expérience CLI live avec tokens, timer, coût estimé, events outils redacted, thinking/reasoning pliable et fallback `generateText()` (`docs/streaming-ux.md`, `src/streaming`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
@@ -53,9 +54,9 @@
   - [x] Write pipeline: propose, validate, secret scan, raw artifact reject, redact, dedupe/hash, approval, persist, audit
   - [x] Smoke/eval Memory V1
   - [ ] Option future: base vectorielle/RAG après baseline JSON déterministe
-- [ ] **Mode streaming** — `streamText()` pour voir le raisonnement en temps réel
+- [x] **Mode streaming** — `streamText()` pour affichage progressif sûr en temps réel
 
-- [ ] **Mode streaming**
+- [x] **Mode streaming**
   - `streamText()` au lieu de `generateText()` pour voir le raisonnement en temps réel
   - Utiliser le streaming pour l'affichage progressif
 

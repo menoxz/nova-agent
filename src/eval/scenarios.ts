@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'streaming-ux-v1',
+    name: 'Streaming UX V1 live CLI experience',
+    description: 'Streaming UX should expose a safe event architecture and CLI renderer for live tokens, timer, token/cost metrics, tool events, collapsed thinking/reasoning, final summary, and non-streaming fallback compatibility.',
+    tags: ['streaming', 'cli', 'tokens', 'tools', 'safety'],
+    prompt: 'Verify Nova Streaming UX V1: streamText event architecture, live CLI header/timer/tokens/cost/tool events, collapsed safe thinking/reasoning blocks, env/config/CLI controls, final summary, and generateText fallback preserving sessions/runs/context/approval/trace/conversation/token metrics. Do not modify files.',
+    expectedAnyTools: ['streaming:smoke', 'tokens:smoke', 'config:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['streaming', 'tokens', 'tools', 'thinking', 'fallback'],
+    mock: {
+      tools: ['streaming:smoke'],
+      finalAnswer: 'Streaming UX V1 adds a streamText-compatible event architecture with a live CLI header, timer, token estimates, tokens/sec, estimated cost, redacted tools events, safe collapsed thinking/reasoning blocks, final summary, env/config/CLI toggles, and a generateText fallback that preserves existing session/run/context/approval/trace/conversation/token metrics integration.',
+    },
+  },
+  {
     id: 'config-file-v1',
     name: 'Config File V1 safe project runtime defaults',
     description: 'Config File V1 should load .nova/config.json with strict validation, reject secrets, merge safe project defaults with env/CLI precedence, and expose show/init/validate/explain without requiring an LLM key.',

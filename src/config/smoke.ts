@@ -37,6 +37,8 @@ async function main(): Promise<void> {
     assert.equal(merged.llm.apiKey, 'real-env-key', 'project config never supplies api key');
     assert.equal(merged.session?.enabled, true, 'project session default merged');
     assert.equal(merged.session?.defaultBudget?.maxToolCalls, 20, 'run budget merged');
+    assert.equal(merged.streaming?.enabled, true, 'streaming defaults merge from project config');
+    assert.equal(merged.streaming?.thinkingMode, 'collapsed', 'streaming thinking defaults are safe/collapsed');
     assert.equal(sanitizeConfigForDisplay(merged).llm.apiKey, '[REDACTED:env]', 'display redacts env key');
 
     await writeFile(projectConfigPath(root), '{"schemaVersion":1,"llm":{"apiKey":"sk-12345678901234567890"}}\n', 'utf-8');
