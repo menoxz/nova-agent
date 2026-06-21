@@ -26,6 +26,8 @@
     "streaming:smoke": "tsx src/streaming/smoke.ts",
     "streaming:agent-smoke": "tsx src/streaming/agent_integration_smoke.ts",
     "streaming:log-smoke": "tsx src/streaming/log_smoke.ts",
+    "cli:smoke": "tsx src/cli/smoke.ts",
+    "batch:smoke": "tsx src/batch/smoke.ts",
     "approval:smoke": "tsx src/approval/smoke.ts",
     "typecheck": "tsc --noEmit",
     "profiles:smoke": "tsx src/profiles/smoke.ts",
@@ -53,6 +55,8 @@
     "eval:config": "tsx src/eval/runner.ts --suite config --mode mock",
     "eval:streaming": "tsx src/eval/runner.ts --suite streaming --mode mock",
     "eval:llm": "tsx src/eval/runner.ts --suite llm --mode mock",
+    "eval:cli": "tsx src/eval/runner.ts --suite cli --mode mock",
+    "eval:batch": "tsx src/eval/runner.ts --suite batch --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },

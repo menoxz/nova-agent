@@ -58,6 +58,20 @@ export type StreamingEvent = RuntimeStreamingEvent;
 export interface AgentRunOptions {
   streaming?: boolean;
   onEvent?: (event: StreamingEvent) => void | Promise<void>;
+  onFinish?: (summary: AgentRunSummary) => void | Promise<void>;
+}
+
+export interface AgentRunSummary {
+  status: 'success' | 'error';
+  text: string;
+  metrics?: ResponseTokenMetrics;
+  toolCallCount: number;
+  sessionId?: string;
+  runId?: string;
+  traceRunId?: string;
+  tracePath?: string;
+  streamingEventLogPath?: string;
+  error?: string;
 }
 
 export const DEFAULT_STREAMING_CONFIG: Required<StreamingConfig> = {

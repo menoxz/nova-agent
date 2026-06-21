@@ -74,6 +74,7 @@ export class NovaAgent {
     let activeSession: SessionRecord | undefined;
     let activeRun: RunRecord | undefined;
     const activeRunRef: { sessionId?: string; runId?: string } = {};
+    let standaloneRunId: string | undefined;
     let eventEmitter = new RuntimeEventEmitter();
     const eventLog = new StreamingEventLogStore(this.config.streaming);
     const emit = async (payload: import('./streaming/types.js').StreamingEventPayload, eventOptions?: Parameters<RuntimeEventEmitter['create']>[1]) => {
@@ -110,7 +111,8 @@ export class NovaAgent {
       }
     }
     if (!activeRun) {
-      eventEmitter = new RuntimeEventEmitter({ runId: `stream_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}` });
+      standaloneRunId = `stream_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
+      eventEmitter = new RuntimeEventEmitter({ runId: standaloneRunId });
     }
 
     const runConfig: AgentConfig = activeSession ? { ...this.config, session: { ...this.config.session, defaultSessionId: activeSession.id } } : this.config;
@@ -240,7 +242,9 @@ export class NovaAgent {
       });
 
       const traceResult = await trace?.finish('success');
+      let streamingEventLogPath: string | undefined;
       if (sessionManager && activeRun) {
+        streamingEventLogPath = eventLog.enabled ? eventLog.pathForLogId(`${activeRun.sessionId}__${activeRun.id}`) : undefined;
         const finishedRun = await sessionManager.finishRun(activeRun.sessionId, activeRun.id, {
           status: 'succeeded',
           summary: finalText,
@@ -249,13 +253,24 @@ export class NovaAgent {
           observability: {
             traceRunId: trace?.runId,
             tracePath: traceResult?.outputPath,
-            streamingEventLogPath: eventLog.enabled ? eventLog.pathForLogId(`${activeRun.sessionId}__${activeRun.id}`) : undefined,
+            streamingEventLogPath,
             memory: context.memorySummary,
             context: context.budget,
           },
         }).catch(() => undefined);
         if (finishedRun) await new ConversationStore(runConfig.session).addTurn({ sessionId: activeRun.sessionId, run: finishedRun, userInput: input, assistantText: finalText, toolCallCount: steps.filter((step) => step.type === 'tool_call').length }).catch(() => undefined);
       }
+      await Promise.resolve(options.onFinish?.({
+        status: 'success',
+        text: finalText,
+        metrics: tokenMetrics,
+        toolCallCount: steps.filter((step) => step.type === 'tool_call').length,
+        sessionId: activeRun?.sessionId,
+        runId: activeRun?.id ?? standaloneRunId,
+        traceRunId: trace?.runId,
+        tracePath: traceResult?.outputPath,
+        streamingEventLogPath: streamingEventLogPath ?? (!activeRun && eventLog.enabled && standaloneRunId ? eventLog.pathForLogId(standaloneRunId) : undefined),
+      })).catch(() => undefined);
       return steps;
     } catch (err) {
       const classified = classifyLlmError(err);
@@ -276,6 +291,17 @@ export class NovaAgent {
         }).catch(() => undefined);
         if (finishedRun) await new ConversationStore(runConfig.session).addTurn({ sessionId: activeRun.sessionId, run: finishedRun, userInput: input, assistantText: errorMsg, toolCallCount: steps.filter((step) => step.type === 'tool_call').length }).catch(() => undefined);
       }
+      await Promise.resolve(options.onFinish?.({
+        status: 'error',
+        text: errorMsg,
+        error: errorMsg,
+        toolCallCount: steps.filter((step) => step.type === 'tool_call').length,
+        sessionId: activeRun?.sessionId,
+        runId: activeRun?.id ?? standaloneRunId,
+        traceRunId: trace?.runId,
+        tracePath: traceResult?.outputPath,
+        streamingEventLogPath: !activeRun && eventLog.enabled && standaloneRunId ? eventLog.pathForLogId(standaloneRunId) : undefined,
+      })).catch(() => undefined);
       return steps;
     }
   }

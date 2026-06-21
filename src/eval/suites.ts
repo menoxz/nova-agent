@@ -21,6 +21,8 @@ export const evalSuites = {
   config: ['config-file-v1'],
   streaming: ['streaming-ux-v1'],
   llm: ['llm-robustness-v1'],
+  cli: ['cli-help-command-ux-v1'],
+  batch: ['batch-mode-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

@@ -38,6 +38,8 @@ import { ConversationStore, CurrentSessionStore, RunReplayManager, RunResumeMana
 import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay } from './config/index.js';
 import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.js';
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
+import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, shouldTreatAsUnknownCommand } from './cli/help.js';
+import { loadBatchItems, runBatch } from './batch/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -216,13 +218,31 @@ function promptArgs(): string[] {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--profile') { index += 1; continue; }
+    if (arg === '--report') { index += 1; continue; }
     if (arg.startsWith('--profile=')) continue;
-    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools') continue;
+    if (arg.startsWith('--report=')) continue;
+    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error') continue;
     if (arg === '--thinking' || arg === '--stream-mode') { index += 1; continue; }
     if (arg.startsWith('--thinking=') || arg.startsWith('--stream-mode=')) continue;
     result.push(arg);
   }
   return result;
+}
+
+function positionalArgs(args: string[]): string[] {
+  const values: string[] = [];
+  const optionsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report']);
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg) continue;
+    if (arg.startsWith('--')) {
+      const name = arg.slice(2).split('=')[0] ?? '';
+      if (optionsWithValues.has(name) && !arg.includes('=')) index += 1;
+      continue;
+    }
+    values.push(arg);
+  }
+  return values;
 }
 
 function requireValidProjectConfig() {
@@ -268,6 +288,7 @@ async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promis
       for (const event of await eventStore.read(rest[0])) renderer.handle(event);
       return true;
     }
+    if (action === 'show' || action === 'read' || action === 'replay') return missingArgument(`nova streaming ${action} <logId>`, 'streaming');
   }
   if (area === 'sessions') {
     if (action === 'list') { console.log(JSON.stringify(await store.listSessions(), null, 2)); return true; }
@@ -280,6 +301,7 @@ async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promis
       return true;
     }
     if (action === 'unset-current') { console.log(JSON.stringify(await currentStore.unset(), null, 2)); return true; }
+    if (action === 'show' || action === 'use') return missingArgument(`nova sessions ${action} <sessionId>`, 'sessions');
   }
   if (area === 'runs') {
     if (action === 'list') { console.log(JSON.stringify(await store.listRuns(rest[0]), null, 2)); return true; }
@@ -313,6 +335,8 @@ async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promis
       console.log(JSON.stringify(await manager.resume({ sessionId: current.sessionId, runId: current.runId, reason: rest.join(' ') || undefined }), null, 2));
       return true;
     }
+    if (action === 'show') return missingArgument('nova runs show <sessionId> <runId>', 'runs');
+    if (action === 'replay' || action === 'report' || action === 'resume') return missingArgument(`nova runs ${action} <sessionId> <runId> [reason]`, 'runs');
   }
   if (area === 'approvals') {
     const manager = new ApprovalManager(sessionConfig);
@@ -321,6 +345,7 @@ async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promis
       console.log(JSON.stringify(await manager.decide({ approvalId: rest[0], decision: action === 'approve' ? 'approved' : 'denied', reason: rest.slice(1).join(' ') || undefined }), null, 2));
       return true;
     }
+    if (action === 'approve' || action === 'deny') return missingArgument(`nova approvals ${action} <approvalId> [reason]`, 'approvals');
   }
   if (area === 'conversations') {
     const conversations = new ConversationStore(sessionConfig);
@@ -328,7 +353,15 @@ async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promis
     if (action === 'summary') { const sessionId = rest[0] ?? (await currentStore.requireCurrent()).sessionId; console.log(JSON.stringify(await conversations.summary(sessionId), null, 2)); return true; }
     if (action === 'compact') { const sessionId = rest[0] ?? (await currentStore.requireCurrent()).sessionId; console.log(JSON.stringify(await conversations.compact(sessionId), null, 2)); return true; }
   }
-  console.error(chalk.red(`Unknown runtime command: ${args.join(' ')}`));
+  console.error(chalk.red(renderUnknownCommand(args, area as Parameters<typeof renderUnknownCommand>[1])));
+  process.exitCode = 1;
+  return true;
+}
+
+function missingArgument(usage: string, topic: Parameters<typeof renderHelp>[0]): true {
+  console.error(chalk.red(`Missing argument. Usage: ${usage}`));
+  console.error('');
+  console.error(renderHelp(topic));
   process.exitCode = 1;
   return true;
 }
@@ -346,8 +379,49 @@ async function handleConfigCommand(args: string[]): Promise<boolean> {
     process.exitCode = result.ok ? 0 : 1;
     return true;
   }
-  console.error(chalk.red(`Unknown config command: ${args.join(' ')}`));
+  console.error(chalk.red(renderUnknownCommand(args, 'config')));
   process.exitCode = 1;
+  return true;
+}
+
+async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<boolean> {
+  if (args[0] !== 'batch') return false;
+  const file = positionalArgs(args.slice(1))[0];
+  if (!file) return missingArgument('nova batch <file> [--stream] [--event-log] [--report <path>] [--continue-on-error]', 'batch');
+  try {
+    await loadBatchItems(file);
+  } catch (err) {
+    console.error(chalk.red(`✖ Batch input error: ${err instanceof Error ? err.message : String(err)}`));
+    console.error('Run nova batch --help for supported .txt/.json formats.');
+    process.exitCode = 1;
+    return true;
+  }
+  if (!config.llm.apiKey) {
+    console.error(chalk.red('✖ Error: LLM_API_KEY not set. Batch mode executes prompts and requires an LLM key.'));
+    process.exitCode = 1;
+    return true;
+  }
+  const tools = setupTools();
+  const report = await runBatch(config, tools, file, {
+    streaming: shouldStream(config),
+    eventLog: hasFlag('event-log'),
+    reportPath: getArg('report'),
+    continueOnError: hasFlag('continue-on-error'),
+  });
+  console.log(JSON.stringify({ batchId: report.batchId, status: report.status, counts: report.counts, reportPath: report.reportPath }, null, 2));
+  process.exitCode = report.status === 'completed' ? 0 : 1;
+  return true;
+}
+
+function handleHelpCommand(args: string[]): boolean {
+  const topic = helpTopicFromArgs(args);
+  if (!topic && args[0] === 'help') {
+    console.error(chalk.red(renderUnknownCommand(args)));
+    process.exitCode = 1;
+    return true;
+  }
+  if (!topic) return false;
+  console.log(renderHelp(topic));
   return true;
 }
 
@@ -394,9 +468,21 @@ function printSteps(steps: StepDisplay[]): void {
 
 async function main() {
   const rawArgs = process.argv.slice(2);
+  if (handleHelpCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
   const config = loadConfig();
   if (await handleRuntimeCommand(config, rawArgs)) return;
+  if (await handleBatchCommand(config, rawArgs)) return;
+  if (shouldTreatAsUnknownCommand(rawArgs)) {
+    console.error(chalk.red(renderUnknownCommand(rawArgs)));
+    process.exitCode = 1;
+    return;
+  }
+  if (rawArgs[0] && !rawArgs[0].startsWith('-') && cliHelpTopics.includes(rawArgs[0] as typeof cliHelpTopics[number])) {
+    console.error(chalk.red(renderUnknownCommand(rawArgs, rawArgs[0] as typeof cliHelpTopics[number])));
+    process.exitCode = 1;
+    return;
+  }
 
   // Check API key
   if (!config.llm.apiKey) {

@@ -2,6 +2,38 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'batch-mode-v1',
+    name: 'Batch Mode V1 sequential prompt files',
+    description: 'Batch mode should run prompt lists from .txt or .json sequentially, produce a structured JSON report, support streaming/event-log/report/continue-on-error options, and stay safe in non-interactive use without scheduler/daemon/TUI/parallelism.',
+    tags: ['batch', 'cli', 'report', 'streaming', 'safety'],
+    prompt: 'Verify Nova Batch Mode V1: nova batch <file> supports .txt prompt-per-line with empty/comment lines ignored and .json array items with id/prompt validation; runs sequentially; writes a structured JSON report with batchId, statuses, durations, previews, metrics and event log/run references when available; supports --stream, --event-log, --report <path>, --continue-on-error; no scheduler, daemon, TUI, parallelism or extra batch retry loop; docs/smoke/eval are updated. Do not modify files.',
+    expectedAnyTools: ['batch:smoke', 'cli:smoke', 'streaming:log-smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['batch', '.txt', '.json', 'report', 'sequential', '--continue-on-error'],
+    mock: {
+      tools: ['batch:smoke'],
+      finalAnswer: 'Batch Mode V1 adds nova batch <file> for sequential .txt and .json prompt files with educational validation, structured JSON reports containing batchId/status/duration/previews/metrics/event-log/run references when available, supports --stream, --event-log, --report and --continue-on-error, and avoids scheduler, daemon, TUI, parallelism and custom batch retry loops.',
+    },
+  },
+  {
+    id: 'cli-help-command-ux-v1',
+    name: 'CLI Help and Command UX V1',
+    description: 'CLI help should be available globally and by domain without requiring an LLM key, document main flags, and return useful educational errors for unknown or incomplete commands without invoking LLM/tools.',
+    tags: ['cli', 'help', 'ux', 'safety'],
+    prompt: 'Verify Nova CLI Help / Command UX V1: nova --help/help work without LLM_API_KEY; domain help exists for streaming/config/runs/sessions/approvals/conversations; main flags such as --profile, --stream, streaming modes and thinking are documented; unknown and incomplete commands show useful guidance without invoking LLM/tools; docs and smoke/eval scripts are updated. Do not modify files.',
+    expectedAnyTools: ['cli:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['help', 'streaming', '--profile', 'LLM_API_KEY', 'unknown'],
+    mock: {
+      tools: ['cli:smoke'],
+      finalAnswer: 'CLI Help / Command UX V1 adds global nova --help and nova help, domain help for streaming/config/runs/sessions/approvals/conversations, documents --profile, --stream, streaming modes and thinking flags, and returns useful unknown/missing command guidance without requiring LLM_API_KEY or invoking LLM/tools.',
+    },
+  },
+  {
     id: 'llm-robustness-v1',
     name: 'LLM Robustness V1 timeout retry diagnostics',
     description: 'LLM calls should support safe timeout/retry/backoff settings, classify provider failures, and surface clean CLI/streaming diagnostics without changing provider/model automatically.',
