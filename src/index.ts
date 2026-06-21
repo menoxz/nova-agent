@@ -36,7 +36,7 @@ import { resolveConfigProfile } from './profiles/index.js';
 import { ApprovalManager } from './approval/index.js';
 import { ConversationStore, CurrentSessionStore, RunReplayManager, RunResumeManager, SessionStore } from './session/index.js';
 import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay } from './config/index.js';
-import { StreamingCliRenderer } from './streaming/index.js';
+import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.js';
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
 
 function getArg(name: string): string | undefined {
@@ -138,6 +138,13 @@ function loadConfig(): AgentConfig {
       showMetrics: boolValue(process.env.NOVA_STREAMING_SHOW_METRICS, projectConfig?.streaming?.showMetrics),
       showCost: boolValue(process.env.NOVA_STREAMING_SHOW_COST, projectConfig?.streaming?.showCost),
       refreshMs: intValue(process.env.NOVA_STREAMING_REFRESH_MS, projectConfig?.streaming?.refreshMs),
+      eventLog: {
+        enabled: boolValue(process.env.NOVA_STREAMING_EVENT_LOG, projectConfig?.streaming?.eventLog?.enabled),
+        root: process.env.NOVA_STREAMING_EVENT_LOG_ROOT || projectConfig?.streaming?.eventLog?.root,
+        includeText: boolValue(process.env.NOVA_STREAMING_EVENT_LOG_INCLUDE_TEXT, projectConfig?.streaming?.eventLog?.includeText),
+        maxTextChars: intValue(process.env.NOVA_STREAMING_EVENT_LOG_MAX_TEXT_CHARS, projectConfig?.streaming?.eventLog?.maxTextChars),
+        maxEvents: intValue(process.env.NOVA_STREAMING_EVENT_LOG_MAX_EVENTS, projectConfig?.streaming?.eventLog?.maxEvents),
+      },
     },
     memory: {
       ...projectConfig?.memory,
@@ -242,10 +249,20 @@ function setupTools(): ToolRegistry {
 
 async function handleRuntimeCommand(config: AgentConfig, args: string[]): Promise<boolean> {
   const [area, action, ...rest] = args;
-  if (!['sessions', 'runs', 'approvals', 'conversations'].includes(area ?? '')) return false;
+  if (!['sessions', 'runs', 'approvals', 'conversations', 'streaming'].includes(area ?? '')) return false;
   const sessionConfig = { ...config.session, enabled: true };
   const store = new SessionStore(sessionConfig);
   const currentStore = new CurrentSessionStore(sessionConfig);
+  if (area === 'streaming') {
+    const eventStore = new StreamingEventLogStore({ ...config.streaming?.eventLog, enabled: true });
+    if (action === 'logs' || action === 'list') { console.log(JSON.stringify(await eventStore.list(), null, 2)); return true; }
+    if ((action === 'show' || action === 'read') && rest[0]) { console.log(JSON.stringify(await eventStore.read(rest[0]), null, 2)); return true; }
+    if (action === 'replay' && rest[0]) {
+      const renderer = new StreamingCliRenderer(streamingConfigForCli({ ...config, streaming: { ...config.streaming, enabled: true } }));
+      for (const event of await eventStore.read(rest[0])) renderer.handle(event);
+      return true;
+    }
+  }
   if (area === 'sessions') {
     if (action === 'list') { console.log(JSON.stringify(await store.listSessions(), null, 2)); return true; }
     if (action === 'show' && rest[0]) { console.log(JSON.stringify(await store.getSession(rest[0]) ?? null, null, 2)); return true; }

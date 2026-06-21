@@ -10,6 +10,7 @@
 import { generateText, streamText, stepCountIs } from 'ai';
 import type { ToolSet } from 'ai';
 import chalk from 'chalk';
+import { randomUUID } from 'node:crypto';
 
 import type { AgentConfig, StepDisplay } from './types.js';
 import { ToolRegistry } from './tools/registry.js';
@@ -24,6 +25,7 @@ import { estimateTokens } from './tokens/metrics.js';
 import { safePreview, estimatedLiveCost } from './streaming/utils.js';
 import type { AgentRunOptions } from './streaming/types.js';
 import { RuntimeEventEmitter } from './streaming/events.js';
+import { StreamingEventLogStore } from './streaming/log.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -72,7 +74,12 @@ export class NovaAgent {
     let activeRun: RunRecord | undefined;
     const activeRunRef: { sessionId?: string; runId?: string } = {};
     let eventEmitter = new RuntimeEventEmitter();
-    const emit = async (payload: import('./streaming/types.js').StreamingEventPayload, eventOptions?: Parameters<RuntimeEventEmitter['create']>[1]) => { await options.onEvent?.(eventEmitter.create(payload, eventOptions)); };
+    const eventLog = new StreamingEventLogStore(this.config.streaming);
+    const emit = async (payload: import('./streaming/types.js').StreamingEventPayload, eventOptions?: Parameters<RuntimeEventEmitter['create']>[1]) => {
+      const event = eventEmitter.create(payload, eventOptions);
+      await eventLog.append(event).catch(() => undefined);
+      await options.onEvent?.(event);
+    };
 
     if (this.config.session?.enabled) {
       try {
@@ -100,6 +107,9 @@ export class NovaAgent {
         activeSession = undefined;
         activeRun = undefined;
       }
+    }
+    if (!activeRun) {
+      eventEmitter = new RuntimeEventEmitter({ runId: `stream_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}` });
     }
 
     const runConfig: AgentConfig = activeSession ? { ...this.config, session: { ...this.config.session, defaultSessionId: activeSession.id } } : this.config;
@@ -216,6 +226,7 @@ export class NovaAgent {
           observability: {
             traceRunId: trace?.runId,
             tracePath: traceResult?.outputPath,
+            streamingEventLogPath: eventLog.enabled ? eventLog.pathForLogId(`${activeRun.sessionId}__${activeRun.id}`) : undefined,
             memory: context.memorySummary,
             context: context.budget,
           },

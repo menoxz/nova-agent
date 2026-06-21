@@ -62,7 +62,14 @@ Config projet `.nova/config.json` :
     "thinkingMode": "collapsed",
     "showMetrics": true,
     "showCost": true,
-    "refreshMs": 250
+    "refreshMs": 250,
+    "eventLog": {
+      "enabled": true,
+      "root": ".nova/streaming/events",
+      "includeText": true,
+      "maxTextChars": 2000,
+      "maxEvents": 20000
+    }
   }
 }
 ```
@@ -71,6 +78,7 @@ Config projet `.nova/config.json` :
 
 - `src/streaming/types.ts` définit `StreamingConfig`, `AgentRunOptions`, `StreamingEventPayload` et `RuntimeStreamingEvent`.
 - `src/streaming/events.ts` enveloppe les payloads en événements TUI-ready : `schemaVersion`, `eventId`, `sequence`, `timestamp`, `source`, `severity`, `sessionId`, `runId`.
+- `src/streaming/log.ts` persiste optionnellement ces événements en JSONL redacted sous `.nova/streaming/events`.
 - `NovaAgent.run(input, options)` accepte `streaming` et `onEvent`.
 - La branche streaming utilise AI SDK `streamText()` avec `onChunk`/`onStepFinish`.
 - La branche fallback conserve `generateText()` et retourne toujours `StepDisplay[]`.
@@ -101,6 +109,26 @@ Exemple simplifié :
 }
 ```
 
+## Event Log / Replay
+
+L'event log est désactivé par défaut et s'active explicitement :
+
+```bash
+NOVA_STREAMING=true NOVA_STREAMING_EVENT_LOG=true npx tsx src/index.ts --stream "résume le projet"
+```
+
+Les logs sont stockés en JSONL sous `.nova/streaming/events/<sessionId>/<runId>.jsonl` quand session/run sont connus, ou sous `standalone` sinon. Chaque ligne contient un événement redacted et un bloc safety attestant que les raw prompts, raw tool inputs et secrets ne sont pas inclus volontairement.
+
+Commandes read-only, sans LLM/tools :
+
+```bash
+nova streaming logs
+nova streaming show <logId>
+nova streaming replay <logId> --stream-compact
+```
+
+Le replay lit uniquement le JSONL et le rend avec `StreamingCliRenderer`; il ne ré-exécute aucun tool et n'appelle aucun LLM.
+
 ## Sécurité
 
 - Pas de stockage de raw prompts, secrets, traces ou inputs outils via Streaming UX.
@@ -113,6 +141,7 @@ Exemple simplifié :
 ```bash
 npm run streaming:smoke
 npm run streaming:agent-smoke
+npm run streaming:log-smoke
 npm run eval:streaming
 npm run typecheck
 ```

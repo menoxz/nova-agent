@@ -35,7 +35,14 @@ Ce fichier est optionnel. S'il est absent, Nova conserve les defaults intégrés
     "showThinking": true,
     "thinkingMode": "collapsed",
     "showMetrics": true,
-    "showCost": true
+    "showCost": true,
+    "eventLog": {
+      "enabled": false,
+      "root": ".nova/streaming/events",
+      "includeText": true,
+      "maxTextChars": 2000,
+      "maxEvents": 20000
+    }
   },
   "memory": { "enabled": true },
   "runs": {
@@ -95,7 +102,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 - `policy.enabled/profileId`
 - `trace.*`
 - `context.*`
-- `streaming.enabled/mode/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs`
+- `streaming.enabled/mode/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs/eventLog.*`
 - `memory.*`
 - `session.*`
 - `session.conversation.*`
@@ -110,5 +117,6 @@ Le schéma est strict : les champs inconnus sont refusés.
 npm run config:smoke
 npm run streaming:smoke
 npm run streaming:agent-smoke
+npm run streaming:log-smoke
 npm run eval:config
 ```

@@ -24,6 +24,7 @@
     "config:smoke": "tsx src/config/smoke.ts",
     "streaming:smoke": "tsx src/streaming/smoke.ts",
     "streaming:agent-smoke": "tsx src/streaming/agent_integration_smoke.ts",
+    "streaming:log-smoke": "tsx src/streaming/log_smoke.ts",
     "approval:smoke": "tsx src/approval/smoke.ts",
     "typecheck": "tsc --noEmit",
     "profiles:smoke": "tsx src/profiles/smoke.ts",

@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     assert.equal(merged.streaming?.enabled, true, 'streaming defaults merge from project config');
     assert.equal(merged.streaming?.mode, 'normal', 'streaming mode defaults to normal');
     assert.equal(merged.streaming?.thinkingMode, 'collapsed', 'streaming thinking defaults are safe/collapsed');
+    assert.equal(merged.streaming?.eventLog?.enabled, false, 'streaming event log is opt-in by default');
     assert.equal(sanitizeConfigForDisplay(merged).llm.apiKey, '[REDACTED:env]', 'display redacts env key');
 
     await writeFile(projectConfigPath(root), '{"schemaVersion":1,"llm":{"apiKey":"sk-12345678901234567890"}}\n', 'utf-8');

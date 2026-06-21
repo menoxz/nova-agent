@@ -4,17 +4,17 @@ export const defaultScenarios: EvalScenario[] = [
   {
     id: 'streaming-ux-v1',
     name: 'Streaming UX V1.1 live CLI and TUI-ready events',
-    description: 'Streaming UX should expose a safe TUI-ready event architecture and CLI renderer for live tokens, timer, token/cost metrics, tool events, compact/normal/verbose modes, collapsed thinking/reasoning, final summary, and non-streaming fallback compatibility.',
+    description: 'Streaming UX should expose a safe TUI-ready event architecture, optional redacted JSONL event logs/replay, and CLI renderer for live tokens, timer, token/cost metrics, tool events, compact/normal/verbose modes, collapsed thinking/reasoning, final summary, and non-streaming fallback compatibility.',
     tags: ['streaming', 'cli', 'tokens', 'tools', 'safety'],
-    prompt: 'Verify Nova Streaming UX V1.1: streamText event architecture with sequenced TUI-ready runtime events, live CLI header/timer/tokens/cost/tool events, compact/normal/verbose modes, collapsed safe thinking/reasoning blocks, env/config/CLI controls, final summary, and generateText fallback preserving sessions/runs/context/approval/trace/conversation/token metrics. Do not modify files.',
-    expectedAnyTools: ['streaming:smoke', 'tokens:smoke', 'config:smoke', 'read_file', 'grep'],
+    prompt: 'Verify Nova Streaming UX/Event Log: streamText event architecture with sequenced TUI-ready runtime events, optional redacted JSONL event logs under .nova, replay/read CLI commands that do not invoke LLM/tools, live CLI header/timer/tokens/cost/tool events, compact/normal/verbose modes, collapsed safe thinking/reasoning blocks, env/config/CLI controls, final summary, and generateText fallback preserving sessions/runs/context/approval/trace/conversation/token metrics. Do not modify files.',
+    expectedAnyTools: ['streaming:smoke', 'streaming:log-smoke', 'tokens:smoke', 'config:smoke', 'read_file', 'grep'],
     forbiddenTools: ['write_file', 'bash'],
     maxToolCalls: 8,
     maxSteps: 8,
-    requiredAnswerIncludes: ['streaming', 'tokens', 'tools', 'thinking', 'fallback', 'TUI'],
+    requiredAnswerIncludes: ['streaming', 'tokens', 'tools', 'thinking', 'fallback', 'TUI', 'JSONL', 'replay'],
     mock: {
-      tools: ['streaming:smoke'],
-      finalAnswer: 'Streaming UX V1.1 adds a streamText-compatible TUI-ready event architecture with sequenced runtime events, a live CLI header, timer, token estimates, tokens/sec, estimated cost, redacted tools events, compact/normal/verbose modes, safe collapsed thinking/reasoning blocks, final summary, env/config/CLI toggles, and a generateText fallback that preserves existing session/run/context/approval/trace/conversation/token metrics integration.',
+      tools: ['streaming:log-smoke'],
+      finalAnswer: 'Streaming UX/Event Log adds a streamText-compatible TUI-ready event architecture with sequenced runtime events, optional redacted JSONL event logs under .nova, replay/read CLI commands that do not invoke LLM/tools, a live CLI header, timer, token estimates, tokens/sec, estimated cost, redacted tools events, compact/normal/verbose modes, safe collapsed thinking/reasoning blocks, final summary, env/config/CLI toggles, and a generateText fallback that preserves existing session/run/context/approval/trace/conversation/token metrics integration.',
     },
   },
   {

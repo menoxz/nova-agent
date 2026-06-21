@@ -15,6 +15,15 @@ export interface StreamingConfig {
   showMetrics?: boolean;
   showCost?: boolean;
   refreshMs?: number;
+  eventLog?: StreamingEventLogConfig;
+}
+
+export interface StreamingEventLogConfig {
+  enabled?: boolean;
+  root?: string;
+  includeText?: boolean;
+  maxTextChars?: number;
+  maxEvents?: number;
 }
 
 export interface RuntimeEventMeta {
@@ -61,8 +70,15 @@ export const DEFAULT_STREAMING_CONFIG: Required<StreamingConfig> = {
   showMetrics: true,
   showCost: true,
   refreshMs: 250,
+  eventLog: {
+    enabled: false,
+    root: '.nova/streaming/events',
+    includeText: true,
+    maxTextChars: 2_000,
+    maxEvents: 20_000,
+  },
 };
 
 export function resolveStreamingConfig(config?: StreamingConfig): Required<StreamingConfig> {
-  return { ...DEFAULT_STREAMING_CONFIG, ...config };
+  return { ...DEFAULT_STREAMING_CONFIG, ...config, eventLog: { ...DEFAULT_STREAMING_CONFIG.eventLog, ...config?.eventLog } };
 }

@@ -95,6 +95,7 @@ export interface RunObservabilityLinks {
   tracePath?: string;
   evalRunId?: string;
   evalReportPath?: string;
+  streamingEventLogPath?: string;
   memory?: import('../memory/types.js').MemoryTraceSummary;
   context?: import('../context/types.js').ContextBudgetTrace;
   subagents?: Array<{ taskId: string; role: string; status: string }>;

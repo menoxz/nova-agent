@@ -71,6 +71,13 @@ export const projectConfigSchema = z.object({
     showMetrics: z.boolean().optional(),
     showCost: z.boolean().optional(),
     refreshMs: z.number().int().positive().max(10_000).optional(),
+    eventLog: z.object({
+      enabled: z.boolean().optional(),
+      root: z.string().min(1).optional(),
+      includeText: z.boolean().optional(),
+      maxTextChars: z.number().int().positive().max(20_000).optional(),
+      maxEvents: z.number().int().positive().max(1_000_000).optional(),
+    }).strict().optional(),
   }).strict().optional(),
   memory: z.object({
     enabled: z.boolean().optional(),
@@ -153,7 +160,7 @@ export function defaultProjectConfig(): ProjectConfig {
     session: { enabled: true, autoCreate: true, title: 'Nova local work', tags: ['local'], conversation: { enabled: true } },
     policy: { profileId: 'developer' },
     context: { enabled: true, tokenBudget: 4000, includeConversationSummary: true },
-    streaming: { enabled: true, mode: 'normal', showTokens: true, showTools: true, showThinking: true, thinkingMode: 'collapsed', showMetrics: true, showCost: true },
+    streaming: { enabled: true, mode: 'normal', showTokens: true, showTools: true, showThinking: true, thinkingMode: 'collapsed', showMetrics: true, showCost: true, eventLog: { enabled: false } },
     memory: { enabled: true },
     runs: { maxToolCalls: 20, maxTotalTokens: 120000, maxEstimatedCost: 1, currency: 'USD' },
   };
@@ -203,7 +210,7 @@ export function explainProjectConfig(config?: ProjectConfig): string[] {
   if (config.session) lines.push(`- session: enabled=${config.session.enabled ?? 'default'}, title=${config.session.title ?? 'default'}, conversation=${config.session.conversation?.enabled ?? 'default'}.`);
   if (config.policy) lines.push(`- policy: enabled=${config.policy.enabled ?? 'default'}, profileId=${config.policy.profileId ?? 'default'}.`);
   if (config.context) lines.push(`- context: enabled=${config.context.enabled ?? 'default'}, tokenBudget=${config.context.tokenBudget ?? 'default'}, conversationSummary=${config.context.includeConversationSummary ?? 'default'}.`);
-  if (config.streaming) lines.push(`- streaming: enabled=${config.streaming.enabled ?? 'default'}, mode=${config.streaming.mode ?? 'default'}, tokens=${config.streaming.showTokens ?? 'default'}, tools=${config.streaming.showTools ?? 'default'}, thinking=${config.streaming.thinkingMode ?? (config.streaming.showThinking === false ? 'hidden' : 'default')}.`);
+  if (config.streaming) lines.push(`- streaming: enabled=${config.streaming.enabled ?? 'default'}, mode=${config.streaming.mode ?? 'default'}, tokens=${config.streaming.showTokens ?? 'default'}, tools=${config.streaming.showTools ?? 'default'}, thinking=${config.streaming.thinkingMode ?? (config.streaming.showThinking === false ? 'hidden' : 'default')}, eventLog=${config.streaming.eventLog?.enabled ?? 'default'}.`);
   if (config.memory) lines.push(`- memory: enabled=${config.memory.enabled ?? 'default'}, defaultScope=${config.memory.defaultScope ?? 'default'}.`);
   if (config.runs || config.session?.defaultBudget) lines.push('- runs: default run budgets are applied to session.defaultBudget unless env overrides them.');
   if (config.toolConstraints) lines.push('- toolConstraints: project defaults constrain available tools; policy still has final authority.');
