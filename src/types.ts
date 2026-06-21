@@ -35,6 +35,19 @@ export interface AgentConfig {
   llm: LLMConfig;
   systemPrompt: string;
   maxSteps?: number;
+  trace?: import('./trace/types.js').TraceConfig;
+}
+
+export interface ToolTraceSink {
+  recordToolExecutionStart: (toolName: string, input: unknown, toolCallId?: string) => void;
+  recordToolExecutionFinish: (input: {
+    toolName: string;
+    toolCallId?: string;
+    durationMs: number;
+    ok: boolean;
+    output?: unknown;
+    error?: unknown;
+  }) => void;
 }
 
 // ─── Step Display ────────────────────────────────────────────────────────────

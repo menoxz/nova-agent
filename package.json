@@ -10,7 +10,18 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "mcp:stdio": "tsx src/mcp/server.ts",
+    "mcp:smoke": "tsx src/mcp/smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "trace:summary": "tsx src/trace/summary_cli.ts",
+    "trace:summary:json": "tsx src/trace/summary_cli.ts --json",
+    "eval:list": "tsx src/eval/runner.ts --list",
+    "eval:smoke": "tsx src/eval/runner.ts --suite smoke --mode mock",
+    "eval:mock": "tsx src/eval/runner.ts --mode mock",
+    "eval:core": "tsx src/eval/runner.ts --suite core --mode mock",
+    "eval:mcp": "tsx src/eval/runner.ts --suite mcp --mode mock",
+    "eval:replay": "tsx src/eval/runner.ts --mode replay",
+    "eval": "tsx src/eval/runner.ts"
   },
   "keywords": [
     "ai",
@@ -23,6 +34,7 @@
     "@ai-sdk/anthropic": "^3.0.85",
     "@ai-sdk/openai": "^3.0.0",
     "@clack/prompts": "^0.9.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^6.0.0",
     "chalk": "^5.4.0",
     "dotenv": "^16.4.0",

@@ -1,0 +1,564 @@
+#!/usr/bin/env node
+
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { spawn } from 'node:child_process';
+import { createReadStream } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { createInterface } from 'node:readline';
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+
+import { defaultScenarios } from '../eval/scenarios.js';
+import { EVAL_SCHEMA_VERSION } from '../eval/schema.js';
+import { evalSuites, listSuites } from '../eval/suites.js';
+import { readDocxTool } from '../tools/builtin/read_docx.js';
+import { readExcelTool } from '../tools/builtin/read_excel.js';
+import { readPdfTool } from '../tools/builtin/read_pdf.js';
+import { webSearchTool } from '../tools/builtin/web_search.js';
+import { TRACE_SCHEMA_VERSION } from '../trace/schema.js';
+import { summarizeTraces } from '../trace/summary.js';
+import { isPathInside } from '../utils/safe_io.js';
+
+const VERSION = '0.1.0';
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const DEFAULT_OUTPUT_MAX_CHARS = 40_000;
+const HARD_OUTPUT_MAX_CHARS = 120_000;
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_DIR_ENTRIES = 300;
+const MAX_SEARCH_FILES = 500;
+const MAX_TEXT_MATCHES = 200;
+const MAX_SEARCH_PATTERN_CHARS = 300;
+const DENIED_MESSAGE = 'Access denied by Nova MCP read-only security policy.';
+
+type ToolPayload = Record<string, unknown>;
+
+type ReadableTool = {
+  name: string;
+  title: string;
+  defaultEnabled: boolean;
+  readOnly: boolean;
+  description: string;
+};
+
+const toolCatalog: ReadableTool[] = [
+  { name: 'nova_tool_catalog', title: 'Nova Tool Catalog', defaultEnabled: true, readOnly: true, description: 'List MCP tools and their safety posture.' },
+  { name: 'nova_read_file', title: 'Read File', defaultEnabled: true, readOnly: true, description: 'Read a policy-approved text file under allowed roots with output caps and redaction.' },
+  { name: 'nova_list_directory', title: 'List Directory', defaultEnabled: true, readOnly: true, description: 'List policy-approved directory entries without exposing denied paths.' },
+  { name: 'nova_search_files', title: 'Search Files', defaultEnabled: true, readOnly: true, description: 'Find policy-approved files by glob-like pattern under allowed roots.' },
+  { name: 'nova_search_text', title: 'Search Text', defaultEnabled: true, readOnly: true, description: 'Search text in policy-approved files with line caps and redaction.' },
+  { name: 'nova_git_status', title: 'Git Status', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git status.' },
+  { name: 'nova_git_diff', title: 'Git Diff', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git diff with redaction and output caps.' },
+  { name: 'nova_git_log', title: 'Git Log', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git log.' },
+  { name: 'nova_doc_read', title: 'Document Read', defaultEnabled: true, readOnly: true, description: 'Read approved PDF/DOCX/XLSX or text documentation files through existing readers where safe.' },
+  { name: 'nova_web_search', title: 'Web Search', defaultEnabled: true, readOnly: true, description: 'Bounded DuckDuckGo-backed search using Nova web_search.' },
+  { name: 'nova_eval_list_scenarios', title: 'Eval Scenarios', defaultEnabled: true, readOnly: true, description: 'List eval scenario metadata without exposing eval reports.' },
+  { name: 'nova_eval_schema_info', title: 'Eval Schema Info', defaultEnabled: true, readOnly: true, description: 'Describe trace/eval schema versions and report locations at a high level.' },
+  { name: 'nova_trace_summarize', title: 'Trace Summary', defaultEnabled: true, readOnly: true, description: 'Return sanitized aggregate trace summaries only; no raw trace contents.' },
+  { name: 'nova_write_file', title: 'Write File', defaultEnabled: false, readOnly: false, description: 'Not registered by default; write scope is intentionally unavailable in V1.' },
+  { name: 'nova_bash', title: 'Bash', defaultEnabled: false, readOnly: false, description: 'Not registered by default; shell execution is intentionally unavailable in V1.' },
+];
+
+const RESOURCE_DEFS = [
+  { name: 'nova_mcp_status', uri: 'nova://docs/status', title: 'Nova MCP Status', description: 'Current MCP phase/status summary.' },
+  { name: 'nova_mcp_readme', uri: 'nova://docs/mcp/readme', title: 'MCP README', description: 'MCP server overview.' },
+  { name: 'nova_mcp_tools', uri: 'nova://docs/mcp/tools', title: 'MCP Tools', description: 'Tool contract and safety annotations.' },
+  { name: 'nova_mcp_security', uri: 'nova://docs/mcp/security', title: 'MCP Security', description: 'Read-only policy and denied surfaces.' },
+  { name: 'nova_mcp_resources', uri: 'nova://docs/mcp/resources', title: 'MCP Resources', description: 'Curated nova:// resources.' },
+  { name: 'nova_mcp_prompts', uri: 'nova://docs/mcp/prompts', title: 'MCP Prompts', description: 'Prompt catalog.' },
+  { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.' },
+  { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.' },
+  { name: 'nova_eval_scenarios_resource', uri: 'nova://eval/scenarios', title: 'Eval Scenarios', description: 'Default eval scenario IDs and tags only.' },
+  { name: 'nova_eval_schema_resource', uri: 'nova://eval/schema', title: 'Eval Schema Info', description: 'Eval and trace schema metadata only.' },
+] as const;
+
+function allowedRoots(): string[] {
+  const extra = (process.env.NOVA_MCP_ALLOWED_ROOTS ?? '')
+    .split(process.platform === 'win32' ? ';' : ':')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return [PROJECT_ROOT, ...extra].map((entry) => resolve(entry));
+}
+
+function normalizeForPolicy(path: string): string {
+  return path.replace(/\\/g, '/');
+}
+
+function hasTraversal(input: string): boolean {
+  return input.split(/[\\/]+/).some((part) => part === '..');
+}
+
+function deniedReason(path: string): string | undefined {
+  const normalized = normalizeForPolicy(path);
+  const parts = normalized.split('/').filter(Boolean);
+  const base = parts.at(-1) ?? '';
+  const lowerParts = parts.map((p) => p.toLowerCase());
+  const lowerBase = base.toLowerCase();
+
+  if (lowerBase === '.env' || lowerBase.startsWith('.env.')) return '.env files are denied';
+  if (lowerParts.includes('node_modules')) return 'node_modules is denied';
+  if (lowerParts.includes('.git')) return '.git internals are denied';
+  if (/\.(pem|key|p12|pfx|ppk|asc|gpg)$/i.test(lowerBase)) return 'private key material extensions are denied';
+  if (/(^|[._-])(secret|token|credential|credentials|api[_-]?key|private[_-]?key|password|passwd)([._-]|$)/i.test(base)) {
+    return 'secret/token/credential-like filenames are denied';
+  }
+  const novaIdx = lowerParts.indexOf('.nova');
+  if (novaIdx >= 0) {
+    const next = lowerParts[novaIdx + 1];
+    if (next === 'traces' || next === 'reports' || next === 'evals') return `.nova/${next} raw artifacts are denied`;
+  }
+  return undefined;
+}
+
+function resolvePolicyPath(inputPath: string, label = 'path'): string {
+  if (!inputPath || !inputPath.trim()) throw new Error(`${label} is required.`);
+  if (inputPath.includes('\0')) throw new Error(`${label} contains a NUL byte.`);
+  if (hasTraversal(inputPath)) throw new Error(`${label} must not contain .. path traversal segments.`);
+  const resolved = isAbsolute(inputPath) ? resolve(inputPath) : resolve(PROJECT_ROOT, inputPath);
+  const roots = allowedRoots();
+  if (!roots.some((root) => isPathInside(resolved, root))) {
+    throw new Error(`${label} is outside the configured allowed roots.`);
+  }
+  const reason = deniedReason(resolved);
+  if (reason) throw new Error(`${DENIED_MESSAGE} Reason: ${reason}`);
+  return resolved;
+}
+
+function safeRelative(path: string): string {
+  const root = allowedRoots().find((candidate) => isPathInside(path, candidate)) ?? PROJECT_ROOT;
+  const rel = relative(root, path);
+  return rel || '.';
+}
+
+function isDeniedChild(path: string): boolean {
+  return Boolean(deniedReason(path));
+}
+
+const SECRET_VALUE_PATTERNS: RegExp[] = [
+  /sk-[A-Za-z0-9_-]{12,}/g,
+  /Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
+  /gh[pousr]_[A-Za-z0-9_]{20,}/g,
+  /github_pat_[A-Za-z0-9_]{20,}/gi,
+  /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  /((?:api[_-]?key|authorization|password|passwd|secret|token|credential)\s*[:=]\s*)([^\s'\"]+)/gi,
+];
+
+function containsPrivateKeyMaterial(text: string): boolean {
+  return /-----BEGIN [A-Z ]*PRIVATE KEY-----|-----BEGIN OPENSSH PRIVATE KEY-----/i.test(text);
+}
+
+function redactText(text: string): string {
+  let safe = text;
+  for (const pattern of SECRET_VALUE_PATTERNS) {
+    safe = safe.replace(pattern, (...args) => {
+      if (args.length > 3 && typeof args[1] === 'string') return `${args[1]}<redacted>`;
+      return '<redacted>';
+    });
+  }
+  return safe;
+}
+
+function clampOutputLimit(value: unknown, fallback = DEFAULT_OUTPUT_MAX_CHARS): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
+  return Math.max(1_000, Math.min(HARD_OUTPUT_MAX_CHARS, n));
+}
+
+function capText(text: string, maxChars: number): { text: string; truncated: boolean; originalChars: number; maxChars: number } {
+  const originalChars = text.length;
+  if (originalChars <= maxChars) return { text, truncated: false, originalChars, maxChars };
+  return { text: `${text.slice(0, maxChars)}\n...(truncated ${originalChars - maxChars} chars)`, truncated: true, originalChars, maxChars };
+}
+
+function textResult(text: string, structuredContent: ToolPayload = {}, isError = false) {
+  return { content: [{ type: 'text' as const, text }], structuredContent, isError };
+}
+
+function safeError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return textResult(`Error: ${redactText(message)}`, { ok: false, error: redactText(message) }, true);
+}
+
+async function readTextFilePolicy(path: string, maxChars: number, offset = 0, limit?: number) {
+  const filePath = resolvePolicyPath(path, 'file path');
+  const fileStat = await stat(filePath);
+  if (!fileStat.isFile()) throw new Error('path is not a file');
+  if (fileStat.size > MAX_FILE_BYTES) throw new Error(`file exceeds MCP text read limit (${fileStat.size} bytes > ${MAX_FILE_BYTES} bytes)`);
+  const raw = await readFile(filePath);
+  if (raw.includes(0)) throw new Error('binary files are not readable through nova_read_file');
+  let text = raw.toString('utf-8');
+  if (containsPrivateKeyMaterial(text)) throw new Error(`${DENIED_MESSAGE} Reason: private key material detected in content`);
+  const lines = text.split(/\r?\n/);
+  const start = Math.max(0, offset);
+  const selected = limit ? lines.slice(start, start + Math.max(1, limit)) : lines.slice(start);
+  text = redactText(selected.join('\n'));
+  const capped = capText(text, maxChars);
+  return {
+    filePath,
+    relPath: safeRelative(filePath),
+    sizeBytes: fileStat.size,
+    totalLines: lines.length,
+    offset: start,
+    returnedLines: selected.length,
+    ...capped,
+  };
+}
+
+function globToRegex(pattern: string): RegExp {
+  const normalized = pattern.replace(/\\/g, '/');
+  const escaped = normalized.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*\//g, '(?:.*/)?')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]');
+  return new RegExp(`^${escaped}$`, 'i');
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasDangerousNestedQuantifier(pattern: string): boolean {
+  // Conservative ReDoS guard for common catastrophic backtracking shapes such as
+  // `(a+)+`, `(.*)*`, `([a-z]+){2,}`, or nested quantified groups.
+  return /\((?:[^()\\]|\\.)*[+*{](?:[^()\\]|\\.)*\)\s*(?:[+*{])/.test(pattern)
+    || /\((?:[^()\\]|\\.)*\.[*+](?:[^()\\]|\\.)*\)\s*(?:[+*{])/.test(pattern);
+}
+
+function buildSearchTextRegex(input: { pattern: string; regex?: boolean; ignoreCase?: boolean }): RegExp {
+  if (input.pattern.length > MAX_SEARCH_PATTERN_CHARS) {
+    throw new Error(`search pattern is too long; maximum is ${MAX_SEARCH_PATTERN_CHARS} characters.`);
+  }
+  const flags = input.ignoreCase ? 'i' : undefined;
+  if (!input.regex) return new RegExp(escapeRegExp(input.pattern), flags);
+  if (hasDangerousNestedQuantifier(input.pattern)) {
+    throw new Error('search regex was rejected by Nova MCP ReDoS safeguards; simplify the pattern or use literal search.');
+  }
+  return new RegExp(input.pattern, flags);
+}
+
+async function walkFiles(root: string, options: { maxFiles: number; includeDirs?: boolean; maxDepth?: number }) {
+  const out: string[] = [];
+  let skippedDenied = 0;
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (out.length >= options.maxFiles || depth > (options.maxDepth ?? 8)) return;
+    let entries: Array<{ name: string; isDirectory: () => boolean; isFile: () => boolean }>;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (out.length >= options.maxFiles) break;
+      const full = join(dir, entry.name);
+      if (isDeniedChild(full)) {
+        skippedDenied++;
+        continue;
+      }
+      if (entry.isDirectory()) {
+        if (options.includeDirs) out.push(full);
+        await walk(full, depth + 1);
+      } else if (entry.isFile()) {
+        out.push(full);
+      }
+    }
+  }
+  await walk(root, 0);
+  return { files: out, skippedDenied };
+}
+
+function formatJsonMarkdown(value: unknown): string {
+  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+}
+
+async function runGit(args: string[], cwd: string, maxChars: number): Promise<{ output: string; exitCode: number | null; timedOut: boolean; truncated: boolean }> {
+  const safeCwd = resolvePolicyPath(cwd, 'git cwd');
+  const timeoutMs = 15_000;
+  const child = spawn('git', ['-c', 'color.ui=false', '-c', 'core.pager=cat', '-C', safeCwd, ...args], {
+    cwd: safeCwd,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', PAGER: 'cat', NO_COLOR: '1' },
+    windowsHide: true,
+  });
+  let output = '';
+  let timedOut = false;
+  let killed = false;
+  const append = (chunk: Buffer) => {
+    if (output.length < maxChars) output += chunk.toString('utf8').slice(0, maxChars - output.length);
+    if (output.length >= maxChars && !killed) {
+      killed = true;
+      child.kill();
+    }
+  };
+  child.stdout.on('data', append);
+  child.stderr.on('data', (chunk) => append(Buffer.from(`[stderr]\n${chunk.toString('utf8')}`)));
+  child.stdin.end();
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+  const exitCode = await new Promise<number | null>((resolveDone, rejectDone) => {
+    child.once('error', rejectDone);
+    child.once('close', (code) => resolveDone(code));
+  }).finally(() => clearTimeout(timer));
+  return { output: redactText(output || '(no output)'), exitCode, timedOut, truncated: output.length >= maxChars };
+}
+
+function registerTools(server: McpServer): void {
+  server.registerTool('nova_tool_catalog', {
+    title: 'Nova Tool Catalog',
+    description: 'List Nova MCP tools, including disabled/gated tools, read-only posture, and security notes.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async () => textResult(formatJsonMarkdown({ tools: toolCatalog, allowedRootPolicy: 'configured roots are enforced but not disclosed by this tool', defaults: { readOnly: true, bash: 'absent', write_file: 'absent' } }), { tools: toolCatalog }));
+
+  server.registerTool('nova_read_file', {
+    title: 'Read File',
+    description: 'Read a policy-approved UTF-8 text file under allowed roots. Denies .env, raw .nova artifacts, .git internals, node_modules, private keys, and secret-like filenames.',
+    inputSchema: z.object({ path: z.string(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(2000).optional(), maxChars: z.number().int().min(1000).max(HARD_OUTPUT_MAX_CHARS).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const data = await readTextFilePolicy(input.path, clampOutputLimit(input.maxChars), input.offset ?? 0, input.limit);
+      const header = `File: ${data.relPath}\nSize: ${data.sizeBytes} bytes | Lines: ${data.totalLines} | Returned lines: ${data.returnedLines}\nTruncated: ${data.truncated}\n`;
+      return textResult(`${header}\n${data.text}`, { ok: true, ...data, text: undefined });
+    } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_list_directory', {
+    title: 'List Directory',
+    description: 'List a policy-approved directory, skipping denied children and reporting skip counts.',
+    inputSchema: z.object({ path: z.string().optional(), recursive: z.boolean().optional(), maxEntries: z.number().int().min(1).max(MAX_DIR_ENTRIES).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const dir = resolvePolicyPath(input.path ?? '.', 'directory path');
+      const dirStat = await stat(dir);
+      if (!dirStat.isDirectory()) throw new Error('path is not a directory');
+      const maxEntries = input.maxEntries ?? 100;
+      const entries: Array<{ name: string; type: 'file' | 'directory'; size?: number; modified?: string }> = [];
+      let skippedDenied = 0;
+      const collect = async (current: string, depth: number): Promise<void> => {
+        if (entries.length >= maxEntries) return;
+        for (const entry of await readdir(current, { withFileTypes: true })) {
+          if (entries.length >= maxEntries) break;
+          const full = join(current, entry.name);
+          if (isDeniedChild(full)) { skippedDenied++; continue; }
+          const s = await stat(full).catch(() => undefined);
+          entries.push({ name: safeRelative(full), type: entry.isDirectory() ? 'directory' : 'file', size: entry.isFile() ? s?.size : undefined, modified: s?.mtime.toISOString() });
+          if (input.recursive && entry.isDirectory() && depth < 3) await collect(full, depth + 1);
+        }
+      };
+      await collect(dir, 0);
+      return textResult(formatJsonMarkdown({ directory: safeRelative(dir), entries, skippedDenied, truncated: entries.length >= maxEntries }), { ok: true, directory: safeRelative(dir), entries, skippedDenied, truncated: entries.length >= maxEntries });
+    } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_search_files', {
+    title: 'Search Files',
+    description: 'Search policy-approved file paths by glob-like pattern. Denied paths are skipped and never returned.',
+    inputSchema: z.object({ pattern: z.string().default('**/*'), root: z.string().optional(), maxResults: z.number().int().min(1).max(MAX_SEARCH_FILES).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const root = resolvePolicyPath(input.root ?? '.', 'search root');
+      const maxResults = input.maxResults ?? 100;
+      const regex = globToRegex(input.pattern);
+      const walked = await walkFiles(root, { maxFiles: MAX_SEARCH_FILES, maxDepth: 8 });
+      const matches = walked.files.map((file) => safeRelative(file).replace(/\\/g, '/')).filter((file) => regex.test(file)).slice(0, maxResults);
+      return textResult(formatJsonMarkdown({ pattern: input.pattern, root: safeRelative(root), matches, skippedDenied: walked.skippedDenied, truncated: walked.files.length >= MAX_SEARCH_FILES || matches.length >= maxResults }), { ok: true, matches, skippedDenied: walked.skippedDenied });
+    } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_search_text', {
+    title: 'Search Text',
+    description: 'Search literal text by default in policy-approved files. Set regex: true for guarded regular expressions. Binary, oversized, and denied files are skipped.',
+    inputSchema: z.object({ pattern: z.string(), regex: z.boolean().optional(), root: z.string().optional(), include: z.string().optional(), ignoreCase: z.boolean().optional(), maxResults: z.number().int().min(1).max(MAX_TEXT_MATCHES).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const root = resolvePolicyPath(input.root ?? '.', 'search root');
+      const maxResults = input.maxResults ?? 50;
+      const regex = buildSearchTextRegex(input);
+      const includeRegex = input.include ? globToRegex(input.include.includes('/') ? input.include : `**/${input.include}`) : undefined;
+      const walked = await walkFiles(root, { maxFiles: MAX_SEARCH_FILES, maxDepth: 8 });
+      const matches: Array<{ file: string; line: number; text: string }> = [];
+      for (const file of walked.files) {
+        if (matches.length >= maxResults) break;
+        const rel = safeRelative(file).replace(/\\/g, '/');
+        if (includeRegex && !includeRegex.test(rel)) continue;
+        const s = await stat(file).catch(() => undefined);
+        if (!s?.isFile() || s.size > MAX_FILE_BYTES) continue;
+        const stream = createReadStream(file, { encoding: 'utf-8' });
+        const rl = createInterface({ input: stream, crlfDelay: Infinity });
+        let lineNo = 0;
+        for await (const line of rl) {
+          lineNo++;
+          if (regex.test(line)) {
+            if (containsPrivateKeyMaterial(line)) continue;
+            matches.push({ file: rel, line: lineNo, text: capText(redactText(line), 500).text });
+            if (matches.length >= maxResults) break;
+          }
+        }
+      }
+      return textResult(formatJsonMarkdown({ pattern: input.pattern, regex: input.regex === true, matches, skippedDenied: walked.skippedDenied, truncated: matches.length >= maxResults }), { ok: true, matches, skippedDenied: walked.skippedDenied });
+    } catch (err) { return safeError(err); }
+  });
+
+  const gitCwdSchema = { cwd: z.string().optional(), maxChars: z.number().int().min(1000).max(HARD_OUTPUT_MAX_CHARS).optional() };
+  server.registerTool('nova_git_status', { title: 'Git Status', description: 'Read-only git status --short --branch.', inputSchema: z.object(gitCwdSchema), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (input) => {
+    try { const result = await runGit(['status', '--short', '--branch', '--untracked-files=all'], input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }
+  });
+  server.registerTool('nova_git_diff', { title: 'Git Diff', description: 'Read-only git diff. Output is redacted and capped; raw sensitive artifacts remain denied by file tools.', inputSchema: z.object({ ...gitCwdSchema, staged: z.boolean().optional(), statOnly: z.boolean().optional() }), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (input) => {
+    try { const args = ['diff', '--no-ext-diff', '--no-color', input.statOnly ? '--stat' : '--unified=3']; if (input.staged) args.push('--cached'); const result = await runGit(args, input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }
+  });
+  server.registerTool('nova_git_log', { title: 'Git Log', description: 'Read-only git log with max count.', inputSchema: z.object({ ...gitCwdSchema, maxCount: z.number().int().min(1).max(50).optional() }), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (input) => {
+    try { const result = await runGit(['log', `--max-count=${input.maxCount ?? 10}`, '--date=iso-strict', '--decorate=short', '--pretty=format:%h\t%ad\t%d\t%s'], input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_doc_read', {
+    title: 'Read Document',
+    description: 'Read policy-approved .pdf, .docx, .xlsx, .md, or .txt documents. Raw sensitive artifacts are denied before parsing.',
+    inputSchema: z.object({ path: z.string(), mode: z.string().optional(), query: z.string().optional(), maxChars: z.number().int().min(1000).max(HARD_OUTPUT_MAX_CHARS).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const filePath = resolvePolicyPath(input.path, 'document path');
+      const ext = extname(filePath).toLowerCase();
+      const maxChars = clampOutputLimit(input.maxChars);
+      let output: string;
+      if (ext === '.pdf') output = await readPdfTool.execute({ path: filePath, mode: input.mode ?? 'text', query: input.query, maxPages: 10, maxCharsPerPage: 10_000 }) as string;
+      else if (ext === '.docx') output = await readDocxTool.execute({ path: filePath, mode: input.mode ?? 'text', query: input.query, maxChars }) as string;
+      else if (ext === '.xlsx') output = await readExcelTool.execute({ path: filePath, mode: input.mode ?? 'sheets', query: input.query, maxChars }) as string;
+      else if (['.md', '.txt'].includes(ext)) output = (await readTextFilePolicy(filePath, maxChars)).text;
+      else throw new Error('unsupported document type; allowed: .pdf, .docx, .xlsx, .md, .txt');
+      const capped = capText(redactText(output), maxChars);
+      return textResult(capped.text, { ok: true, path: safeRelative(filePath), truncated: capped.truncated, originalChars: capped.originalChars });
+    } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_web_search', {
+    title: 'Web Search',
+    description: 'Bounded web search via existing Nova web_search tool. No API keys required; does not fetch result pages.',
+    inputSchema: z.object({ query: z.string(), maxResults: z.number().int().min(1).max(10).optional(), timeout: z.number().int().min(1000).max(15_000).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  }, async (input) => {
+    try { const output = await webSearchTool.execute({ ...input, maxChars: 20_000 }) as string; return textResult(redactText(output), { ok: true }); } catch (err) { return safeError(err); }
+  });
+
+  server.registerTool('nova_eval_list_scenarios', {
+    title: 'List Eval Scenarios',
+    description: 'List built-in eval scenario metadata and suites. Does not read .nova/evals reports.',
+    inputSchema: z.object({ suite: z.string().optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    const suiteIds: Set<string> | undefined = input.suite && input.suite in evalSuites ? new Set<string>(evalSuites[input.suite as keyof typeof evalSuites]) : undefined;
+    const scenarios = defaultScenarios.filter((s) => !suiteIds || suiteIds.has(s.id)).map(({ id, name, description, tags, expectedTools, expectedAnyTools, forbiddenTools }) => ({ id, name, description, tags, expectedTools, expectedAnyTools, forbiddenTools }));
+    return textResult(formatJsonMarkdown({ schemaVersion: EVAL_SCHEMA_VERSION, suites: listSuites(), scenarios }), { scenarios, suites: listSuites() });
+  });
+
+  server.registerTool('nova_eval_schema_info', {
+    title: 'Eval Schema Info',
+    description: 'Show eval/trace schema versions and safe artifact policy without exposing raw reports.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async () => {
+    const info = { evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, reportPolicy: '.nova/evals raw reports are denied via filesystem tools; use eval list/schema summaries only.', tracePolicy: '.nova/traces raw files are denied; nova_trace_summarize returns aggregate sanitized metrics only.' };
+    return textResult(formatJsonMarkdown(info), info);
+  });
+
+  server.registerTool('nova_trace_summarize', {
+    title: 'Trace Summary',
+    description: 'Summarize local traces as aggregate metrics and insights only. Raw trace files and event payloads are never returned.',
+    inputSchema: z.object({ limit: z.number().int().min(1).max(100).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => {
+    try {
+      const summary = await summarizeTraces({ limit: input.limit ?? 25 });
+      const sanitized = { ...summary, directory: safeRelative(summary.directory), recentRuns: summary.recentRuns.map(({ outputPath: _outputPath, ...run }) => run) };
+      return textResult(formatJsonMarkdown(sanitized), { ok: true, summary: sanitized });
+    } catch (err) { return safeError(err); }
+  });
+}
+
+async function readDocResource(path: string, fallback: string): Promise<string> {
+  try {
+    const resolved = resolvePolicyPath(path, 'resource path');
+    const text = await readFile(resolved, 'utf-8');
+    if (containsPrivateKeyMaterial(text)) return fallback;
+    return redactText(text);
+  } catch {
+    return fallback;
+  }
+}
+
+function generatedStatus(): string {
+  return `# Nova MCP Status\n\n- MCP server V1: implemented at \`src/mcp/server.ts\`\n- Transport: stdio via official \`@modelcontextprotocol/sdk\`\n- Default scope: read-only\n- Disabled by default: \`nova_bash\`, \`nova_write_file\` are not registered\n- Allowed roots: configured locally and enforced without disclosure in tool errors\n`;
+}
+
+function generatedToolCatalog(): string {
+  return `# Nova MCP Tool Catalog\n\n${toolCatalog.map((tool) => `- **${tool.name}** — ${tool.defaultEnabled ? 'enabled' : 'disabled/absent'} — ${tool.readOnly ? 'read-only' : 'write/exec'} — ${tool.description}`).join('\n')}\n`;
+}
+
+function registerResources(server: McpServer): void {
+  const readers: Record<string, () => Promise<string> | string> = {
+    'nova://docs/status': () => readDocResource('PROJECT_STATUS.md', generatedStatus()),
+    'nova://docs/mcp/readme': () => readDocResource('docs/mcp/README.md', '# Nova MCP README\n'),
+    'nova://docs/mcp/tools': () => readDocResource('docs/mcp/TOOLS.md', generatedToolCatalog()),
+    'nova://docs/mcp/security': () => readDocResource('docs/mcp/SECURITY.md', '# Nova MCP Security\n'),
+    'nova://docs/mcp/resources': () => readDocResource('docs/mcp/RESOURCES.md', '# Nova MCP Resources\n'),
+    'nova://docs/mcp/prompts': () => readDocResource('docs/mcp/PROMPTS.md', '# Nova MCP Prompts\n'),
+    'nova://docs/mcp/client-setup': () => readDocResource('docs/mcp/CLIENT_SETUP.md', '# Nova MCP Client Setup\n'),
+    'nova://tools/catalog': generatedToolCatalog,
+    'nova://eval/scenarios': () => JSON.stringify(defaultScenarios.map(({ id, name, tags, description }) => ({ id, name, tags, description })), null, 2),
+    'nova://eval/schema': () => JSON.stringify({ evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, rawArtifacts: 'Denied by filesystem tools; use summaries only.' }, null, 2),
+  };
+  for (const def of RESOURCE_DEFS) {
+    server.registerResource(def.name, def.uri, { title: def.title, description: def.description, mimeType: def.uri.includes('eval') ? 'application/json' : 'text/markdown' }, async (uri) => {
+      const text = await readers[def.uri]();
+      return { contents: [{ uri: uri.href, mimeType: def.uri.includes('eval') ? 'application/json' : 'text/markdown', text }] };
+    });
+  }
+}
+
+function promptMessage(text: string) {
+  return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
+}
+
+function registerPrompts(server: McpServer): void {
+  server.registerPrompt('nova_repository_orientation', { title: 'Repository Orientation', description: 'Guide an agent through read-only repository orientation.', argsSchema: { focus: z.string().optional() } }, (args) => promptMessage(`Use Nova MCP read-only tools to orient in this repository${args.focus ? ` with focus on ${args.focus}` : ''}. Start with nova_tool_catalog, nova_list_directory, nova_git_status, then targeted nova_read_file calls. Do not request write or bash capabilities.`));
+  server.registerPrompt('nova_readonly_review', { title: 'Read-only Review', description: 'Review code/docs without modifying files.', argsSchema: { target: z.string().optional() } }, (args) => promptMessage(`Perform a read-only review${args.target ? ` of ${args.target}` : ''}. Use nova_search_files, nova_search_text, nova_read_file, nova_git_diff. Report findings with evidence and do not modify files.`));
+  server.registerPrompt('nova_tool_safety_review', { title: 'Tool Safety Review', description: 'Evaluate MCP tool safety posture.', argsSchema: { concern: z.string().optional() } }, (args) => promptMessage(`Review Nova MCP tool safety${args.concern ? ` focusing on ${args.concern}` : ''}. Check catalog, SECURITY docs, denylist behavior, output caps, redaction, and disabled bash/write_file defaults.`));
+  server.registerPrompt('nova_eval_scenario_design', { title: 'Eval Scenario Design', description: 'Design safe eval scenarios for Nova.', argsSchema: { area: z.string().optional() } }, (args) => promptMessage(`Design deterministic read-only eval scenarios${args.area ? ` for ${args.area}` : ''}. Use nova_eval_list_scenarios and nova_eval_schema_info. Avoid scenarios requiring secrets, network mutation, raw traces, or writes.`));
+  server.registerPrompt('nova_trace_summary_diagnosis', { title: 'Trace Summary Diagnosis', description: 'Diagnose behavior from aggregate trace summaries only.', argsSchema: { symptom: z.string().optional() } }, (args) => promptMessage(`Diagnose Nova behavior from nova_trace_summarize only${args.symptom ? ` for symptom: ${args.symptom}` : ''}. Do not request raw trace files or .nova/evals reports.`));
+  server.registerPrompt('nova_mcp_client_setup', { title: 'MCP Client Setup', description: 'Help configure an MCP client for Nova stdio.', argsSchema: { client: z.string().optional() } }, (args) => promptMessage(`Explain how to configure ${args.client ?? 'an MCP client'} for Nova using command \`npm run mcp:stdio\` in ${PROJECT_ROOT}. Include MCP Inspector command and security defaults.`));
+}
+
+export function createNovaMcpServer(): McpServer {
+  const server = new McpServer({ name: 'nova-agent-mcp-server', version: VERSION }, {
+    capabilities: {
+      tools: { listChanged: false },
+      resources: { listChanged: false },
+      prompts: { listChanged: false },
+    },
+    instructions: 'Nova Agent MCP Server V1 exposes curated read-only tools/resources/prompts. Raw .env, .git internals, node_modules, private keys, and raw .nova trace/eval artifacts are denied.',
+  });
+  registerTools(server);
+  registerResources(server);
+  registerPrompts(server);
+  return server;
+}
+
+async function main(): Promise<void> {
+  const server = createNovaMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Nova MCP server failed: ${redactText(message)}`);
+    process.exit(1);
+  });
+}

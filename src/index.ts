@@ -56,6 +56,12 @@ function loadConfig(): AgentConfig {
     llm,
     systemPrompt: soulContent,
     maxSteps: 15,
+    trace: {
+      enabled: process.env.NOVA_TRACE === '1' || process.env.NOVA_TRACE === 'true',
+      outputDir: process.env.NOVA_TRACE_DIR || '.nova/traces',
+      includeContent: process.env.NOVA_TRACE_INCLUDE_CONTENT !== 'false',
+      contentMaxChars: process.env.NOVA_TRACE_CONTENT_MAX_CHARS ? parseInt(process.env.NOVA_TRACE_CONTENT_MAX_CHARS) : undefined,
+    },
   };
 }
 

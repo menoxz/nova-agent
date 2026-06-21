@@ -12,6 +12,17 @@ npx tsx src/index.ts "Ta question ici"
 # Vérifier le typage
 npm run typecheck
 
+# Lancer le serveur MCP stdio read-only
+npm run mcp:stdio
+
+# Smoke test MCP local
+npm run mcp:smoke
+
+# MCP Inspector
+npx @modelcontextprotocol/inspector npm run mcp:stdio
+
+# Future V1.1 target: replace manual Inspector checks with a documented automated Inspector test command.
+
 # Installer une dépendance
 npm install <package>
 ```

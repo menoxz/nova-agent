@@ -15,6 +15,7 @@ import type { AgentConfig, StepDisplay } from './types.js';
 import { ToolRegistry } from './tools/registry.js';
 import { ConversationMemory, userMessage, toolResultMessage } from './memory/conversation.js';
 import { createModel } from './llm/provider.js';
+import { createTraceRecorder } from './trace/recorder.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -61,7 +62,13 @@ export class NovaAgent {
 
     // Build system prompt from soul + tools
     const systemPrompt = this.buildSystemPrompt();
-    const toolSet = this.tools.toAITools();
+    const trace = createTraceRecorder({
+      input,
+      model: this.config.llm.model,
+      maxSteps,
+      toolNames: this.tools.list().map((t) => t.name),
+    }, this.config.trace);
+    const toolSet = this.tools.toAITools({ trace });
 
     // Add user message to memory
     this.memory.add(userMessage(input));
@@ -75,6 +82,12 @@ export class NovaAgent {
         tools: toolSet,
         stopWhen: stepCountIs(maxSteps),
         onStepFinish: (step) => {
+          trace?.recordLlmStep({
+            text: step.text,
+            toolCallCount: step.toolCalls?.length ?? 0,
+            toolResultCount: step.toolResults?.length ?? 0,
+          });
+
           // Capture reasoning text ONLY if this step includes tool calls
           // (otherwise step.text IS the final answer = would cause duplicate display)
           if (step.text && step.toolCalls?.length) {
@@ -87,6 +100,7 @@ export class NovaAgent {
           // Capture tool calls
           if (step.toolCalls?.length) {
             for (const tc of step.toolCalls) {
+              trace?.recordToolCall(tc.toolCallId, tc.toolName, tc.input);
               steps.push({
                 type: 'tool_call',
                 content: `Calling ${tc.toolName}(${JSON.stringify(tc.input)})`,
@@ -100,6 +114,7 @@ export class NovaAgent {
           if (step.toolResults?.length) {
             for (const tr of step.toolResults) {
               const outputStr = summarizeToolOutput(tr.output);
+              trace?.recordToolResult(tr.toolCallId, tr.toolName, tr.output);
               steps.push({
                 type: 'tool_result',
                 content: outputStr,
@@ -116,6 +131,7 @@ export class NovaAgent {
 
       // Add assistant's final response to memory
       const finalText = result.text || '(no response)';
+      trace?.recordFinalAnswer(finalText);
       this.memory.add({
         role: 'assistant',
         content: [{ type: 'text', text: finalText }],
@@ -127,13 +143,16 @@ export class NovaAgent {
         content: finalText,
       });
 
+      await trace?.finish('success');
       return steps;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      trace?.recordError(err);
       steps.push({
         type: 'answer',
         content: chalk.red(`\n✖ Error: ${errorMsg}`),
       });
+      await trace?.finish('error');
       return steps;
     }
   }

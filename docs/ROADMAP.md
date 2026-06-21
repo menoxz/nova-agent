@@ -73,8 +73,15 @@
   - Communication inter-agents
 
 - [ ] **MCP (Model Context Protocol)**
-  - Support du protocole MCP pour connecter des outils externes
-  - Intégration avec les serveurs MCP existants
+  - [x] Serveur MCP stdio V1 read-only (`src/mcp/server.ts`)
+  - [x] Outils/resources/prompts `nova_*` sécurisés
+  - [x] Backlog MCP V1.1 documenté (`docs/mcp/BACKLOG_V1_1.md`)
+  - [ ] Transport HTTP/streamable optionnel, sécurisé, désactivé par défaut et localhost-only par défaut
+  - [ ] Tests automatisés MCP Inspector
+  - [ ] Evals MCP renforcées: denylist, traversal, outside-root, secrets synthétiques, caps, absence d'outils, resources/prompts
+  - [ ] Ressources enrichies mais curatées: statut, schémas, résumés sanitizés, metadata outils, index docs
+  - [ ] Packaging/distribution: entrypoint MCP, exemples clients, versioning, checklist release
+  - [ ] Futures capacités state/write/shell uniquement avec gating explicite
 
 - [ ] **Tests**
   - Tests unitaires pour chaque outil
