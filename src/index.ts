@@ -80,6 +80,12 @@ function loadConfig(): AgentConfig {
     apiKey: process.env.LLM_API_KEY || '',
     model: process.env.LLM_MODEL || projectConfig?.llm?.model || 'openmodel/deepseek-v4-flash',
     maxTokens: process.env.MAX_TOKENS ? parseInt(process.env.MAX_TOKENS) : projectConfig?.llm?.maxTokens,
+    robustness: {
+      timeoutMs: intValue(process.env.NOVA_LLM_TIMEOUT_MS, projectConfig?.llm?.robustness?.timeoutMs),
+      retries: intValue(process.env.NOVA_LLM_RETRIES, projectConfig?.llm?.robustness?.retries),
+      retryBackoffMs: intValue(process.env.NOVA_LLM_RETRY_BACKOFF_MS, projectConfig?.llm?.robustness?.retryBackoffMs),
+      retryBackoffMultiplier: process.env.NOVA_LLM_RETRY_BACKOFF_MULTIPLIER ? Number(process.env.NOVA_LLM_RETRY_BACKOFF_MULTIPLIER) : projectConfig?.llm?.robustness?.retryBackoffMultiplier,
+    },
     pricing: {
       currency: process.env.LLM_PRICING_CURRENCY || projectConfig?.llm?.pricing?.currency || 'USD',
       inputCostPer1MTokens: process.env.LLM_INPUT_COST_PER_1M_TOKENS ? Number(process.env.LLM_INPUT_COST_PER_1M_TOKENS) : projectConfig?.llm?.pricing?.inputCostPer1MTokens,

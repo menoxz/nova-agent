@@ -26,6 +26,7 @@ import { safePreview, estimatedLiveCost } from './streaming/utils.js';
 import type { AgentRunOptions } from './streaming/types.js';
 import { RuntimeEventEmitter } from './streaming/events.js';
 import { StreamingEventLogStore } from './streaming/log.js';
+import { classifyLlmError, formatLlmError, resolveLlmRobustnessConfig, withLlmRetry } from './llm/robustness.js';
 
 function summarizeToolOutput(output: unknown): string {
   if (typeof output === 'string') return output.slice(0, 500);
@@ -180,14 +181,36 @@ export class NovaAgent {
         }
       };
 
-      const result = options.streaming ? await this.runStreaming({ systemPrompt, messages, toolSet, maxSteps, responseStartedAt, estimatedPromptTokens, onStepFinish: handleStepFinish, emit }) : await generateText({
-        model: this.model,
-        system: systemPrompt,
-        messages,
-        tools: toolSet,
-        stopWhen: stepCountIs(maxSteps),
-        onStepFinish: handleStepFinish,
-      });
+      const robustness = resolveLlmRobustnessConfig(this.config.llm.robustness);
+      const result = await withLlmRetry(
+        async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), robustness.timeoutMs);
+          try {
+            if (options.streaming) return await this.runStreaming({ systemPrompt, messages, toolSet, maxSteps, responseStartedAt, estimatedPromptTokens, onStepFinish: handleStepFinish, emit, abortSignal: controller.signal, timeoutMs: robustness.timeoutMs, maxRetries: 0 });
+            return await generateText({
+              model: this.model,
+              system: systemPrompt,
+              messages,
+              tools: toolSet,
+              stopWhen: stepCountIs(maxSteps),
+              onStepFinish: handleStepFinish,
+              abortSignal: controller.signal,
+              timeout: robustness.timeoutMs,
+              maxRetries: 0,
+            });
+          } finally {
+            clearTimeout(timeout);
+          }
+        },
+        robustness,
+        {
+          canRetry: () => !options.streaming,
+          onRetry: async ({ nextAttempt, delayMs, error }) => {
+            if (options.streaming) await emit({ type: 'status', message: `LLM ${error.kind}; retry ${nextAttempt}/${robustness.retries + 1} in ${delayMs}ms` }, { source: 'llm', severity: 'warn' });
+          },
+        },
+      );
 
       // Add assistant's final response to memory
       const finalText = (await Promise.resolve(result.text)) || '(no response)';
@@ -235,8 +258,9 @@ export class NovaAgent {
       }
       return steps;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      if (options.streaming) await emit({ type: 'error', message: errorMsg, elapsedMs: 0 });
+      const classified = classifyLlmError(err);
+      const errorMsg = formatLlmError(err, { provider: this.config.llm.provider, model: this.config.llm.model, baseUrl: this.config.llm.baseUrl });
+      if (options.streaming) await emit({ type: 'error', message: errorMsg, elapsedMs: 0 }, { source: 'llm', severity: 'error' });
       trace?.recordError(err);
       steps.push({
         type: 'answer',
@@ -246,7 +270,7 @@ export class NovaAgent {
       if (sessionManager && activeRun) {
         const finishedRun = await sessionManager.finishRun(activeRun.sessionId, activeRun.id, {
           status: 'failed',
-          summary: errorMsg,
+          summary: `${classified.kind}: ${classified.diagnostic}`,
           toolCalls: steps.filter((step) => step.type === 'tool_call').length,
           observability: { traceRunId: trace?.runId, tracePath: traceResult?.outputPath, memory: context.memorySummary, context: context.budget },
         }).catch(() => undefined);
@@ -256,7 +280,7 @@ export class NovaAgent {
     }
   }
 
-  private async runStreaming(input: { systemPrompt: string; messages: any[]; toolSet: ToolSet; maxSteps: number; responseStartedAt: number; estimatedPromptTokens: number; onStepFinish: (step: any) => void; emit: (event: import('./streaming/types.js').StreamingEventPayload) => Promise<void> }) {
+  private async runStreaming(input: { systemPrompt: string; messages: any[]; toolSet: ToolSet; maxSteps: number; responseStartedAt: number; estimatedPromptTokens: number; onStepFinish: (step: any) => void; emit: (event: import('./streaming/types.js').StreamingEventPayload) => Promise<void>; abortSignal?: AbortSignal; timeoutMs?: number; maxRetries?: number }) {
     let completionText = '';
     let reasoningText = '';
     let reasoningStarted = false;
@@ -266,6 +290,9 @@ export class NovaAgent {
       messages: input.messages,
       tools: input.toolSet,
       stopWhen: stepCountIs(input.maxSteps),
+      abortSignal: input.abortSignal,
+      timeout: input.timeoutMs,
+      maxRetries: input.maxRetries ?? 0,
       onStepFinish: input.onStepFinish,
       onFinish: async (event) => {
         if (event.reasoningText) await input.emit({ type: 'reasoning_end', text: event.reasoningText });

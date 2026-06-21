@@ -22,6 +22,14 @@ Ce fichier est optionnel. S'il est absent, Nova conserve les defaults intégrés
     "conversation": { "enabled": true }
   },
   "policy": { "profileId": "developer" },
+  "llm": {
+    "robustness": {
+      "timeoutMs": 60000,
+      "retries": 1,
+      "retryBackoffMs": 750,
+      "retryBackoffMultiplier": 2
+    }
+  },
   "context": {
     "enabled": true,
     "tokenBudget": 4000,
@@ -98,7 +106,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 
 - `profile`
 - `maxSteps`
-- `llm.provider/baseUrl/model/maxTokens/pricing` — jamais `apiKey`
+- `llm.provider/baseUrl/model/maxTokens/pricing/robustness` — jamais `apiKey`
 - `policy.enabled/profileId`
 - `trace.*`
 - `context.*`
@@ -115,6 +123,7 @@ Le schéma est strict : les champs inconnus sont refusés.
 
 ```bash
 npm run config:smoke
+npm run llm:smoke
 npm run streaming:smoke
 npm run streaming:agent-smoke
 npm run streaming:log-smoke

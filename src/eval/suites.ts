@@ -20,6 +20,7 @@ export const evalSuites = {
   current: ['current-session-ux-v1'],
   config: ['config-file-v1'],
   streaming: ['streaming-ux-v1'],
+  llm: ['llm-robustness-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

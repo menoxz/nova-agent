@@ -27,6 +27,12 @@ export const projectConfigSchema = z.object({
     baseUrl: z.string().url().optional(),
     model: z.string().min(1).optional(),
     maxTokens: z.number().int().positive().optional(),
+    robustness: z.object({
+      timeoutMs: z.number().int().nonnegative().optional(),
+      retries: z.number().int().nonnegative().max(5).optional(),
+      retryBackoffMs: z.number().int().nonnegative().optional(),
+      retryBackoffMultiplier: z.number().min(1).optional(),
+    }).strict().optional(),
     pricing: z.object({
       currency: z.string().min(1).optional(),
       inputCostPer1MTokens: z.number().nonnegative().optional(),
@@ -186,6 +192,7 @@ export function mergeProjectConfig(base: AgentConfig, project?: ProjectConfig): 
       baseUrl: project.llm?.baseUrl ?? base.llm.baseUrl,
       model: project.llm?.model ?? base.llm.model,
       maxTokens: project.llm?.maxTokens ?? base.llm.maxTokens,
+      robustness: { ...base.llm.robustness, ...project.llm?.robustness },
       pricing: { currency: base.llm.pricing?.currency ?? project.llm?.pricing?.currency ?? 'USD', ...base.llm.pricing, ...project.llm?.pricing },
     },
     policy: { ...base.policy, ...project.policy },

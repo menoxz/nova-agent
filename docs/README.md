@@ -80,6 +80,7 @@ nova-agent/
 | [conversation-persistence.md](conversation-persistence.md) | Conversation Persistence V1: turns redacted par session, compaction déterministe, injection contextuelle sûre |
 | [current-session-ux.md](current-session-ux.md) | Current Session UX V1: pointeur courant metadata-only, commandes sans copier-coller d'IDs |
 | [config-file.md](config-file.md) | Config File V1: `.nova/config.json`, defaults projet sûrs, validation stricte, CLI config |
+| [llm-robustness.md](llm-robustness.md) | LLM Robustness V1: timeout, retries/backoff, classification d'erreurs provider, diagnostics CLI |
 | [streaming-ux.md](streaming-ux.md) | Streaming UX V1: tokens live, timer, coût, outils, thinking/reasoning pliable, fallback non-streaming |
 | [streaming-event-log.md](streaming-event-log.md) | Streaming Event Log / Replay V1: JSONL redacted, replay CLI sans LLM/tools |
 | [READ_FILE_MULTIMODAL.md](READ_FILE_MULTIMODAL.md) | Design et limites de `read_file` multimodal |

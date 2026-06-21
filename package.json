@@ -14,6 +14,7 @@
     "mcp:smoke": "tsx src/mcp/smoke.ts",
     "lsp:stdio": "tsx src/lsp/server.ts --stdio",
     "lsp:smoke": "tsx src/lsp/smoke.ts",
+    "llm:smoke": "tsx src/llm/smoke.ts",
     "memory:smoke": "tsx src/memory/smoke.ts",
     "context:smoke": "tsx src/context/smoke.ts",
     "tokens:smoke": "tsx src/tokens/smoke.ts",
@@ -51,6 +52,7 @@
     "eval:current": "tsx src/eval/runner.ts --suite current --mode mock",
     "eval:config": "tsx src/eval/runner.ts --suite config --mode mock",
     "eval:streaming": "tsx src/eval/runner.ts --suite streaming --mode mock",
+    "eval:llm": "tsx src/eval/runner.ts --suite llm --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },

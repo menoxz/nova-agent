@@ -18,6 +18,7 @@ export interface LLMConfig {
   model: string;
   maxTokens?: number;
   pricing?: import('./tokens/types.js').LlmPricingConfig;
+  robustness?: import('./llm/robustness.js').LlmRobustnessConfig;
 }
 
 // ─── Tool System ─────────────────────────────────────────────────────────────

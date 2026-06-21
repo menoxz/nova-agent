@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'llm-robustness-v1',
+    name: 'LLM Robustness V1 timeout retry diagnostics',
+    description: 'LLM calls should support safe timeout/retry/backoff settings, classify provider failures, and surface clean CLI/streaming diagnostics without changing provider/model automatically.',
+    tags: ['llm', 'robustness', 'timeout', 'retry', 'diagnostics'],
+    prompt: 'Verify Nova LLM Robustness V1: configurable timeout, retries and backoff; generateText/streamText protected with timeout and controlled retries; provider errors classified as auth, rate_limit, timeout, endpoint_incompatible, network, provider_5xx, unknown; diagnostics are safe and clear in CLI/streaming; no automatic provider/model switching. Do not modify files.',
+    expectedAnyTools: ['llm:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['timeout', 'retry', 'auth', 'rate_limit', 'endpoint'],
+    mock: {
+      tools: ['llm:smoke'],
+      finalAnswer: 'LLM Robustness V1 adds configurable timeout, retries and backoff, protects generateText and streamText with timeout plus controlled retry policy, classifies provider errors including auth, rate_limit, timeout, endpoint_incompatible, network, provider_5xx and unknown, surfaces safe CLI/streaming diagnostics, and does not automatically switch provider or model.',
+    },
+  },
+  {
     id: 'streaming-ux-v1',
     name: 'Streaming UX V1.1 live CLI and TUI-ready events',
     description: 'Streaming UX should expose a safe TUI-ready event architecture, optional redacted JSONL event logs/replay, and CLI renderer for live tokens, timer, token/cost metrics, tool events, compact/normal/verbose modes, collapsed thinking/reasoning, final summary, and non-streaming fallback compatibility.',

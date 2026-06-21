@@ -46,6 +46,7 @@
 - [x] **Current Session UX V1** — pointeur courant metadata-only, commandes sessions/runs/conversations sans copier-coller d'IDs, mise à jour agent/resume/use (`docs/current-session-ux.md`, `src/session/current.ts`)
 - [x] **Config File V1** — `.nova/config.json` pour defaults projet/runtime sûrs, validation stricte, merge env/CLI, CLI show/init/validate/explain (`docs/config-file.md`, `src/config`)
 - [x] **Streaming UX V1** — expérience CLI live avec tokens, timer, coût estimé, events outils redacted, thinking/reasoning pliable et fallback `generateText()` (`docs/streaming-ux.md`, `src/streaming`)
+- [x] **LLM Robustness V1** — timeout, retries/backoff, classification erreurs provider et diagnostics CLI/streaming (`docs/llm-robustness.md`, `src/llm`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
@@ -67,9 +68,9 @@
   - Planification (ex: "vérifie les logs toutes les heures")
 
 - [ ] **Gestion d'erreurs robuste**
-  - Retry sur les appels LLM
-  - Rate limiting
-  - Timeout configurables
+  - [x] Retry sur les appels LLM non-streaming
+  - [x] Classification rate limit/provider/network/auth/timeout
+  - [x] Timeout configurables
 
 - [ ] **Mode batch / script**
   - Lire une liste de prompts depuis un fichier
