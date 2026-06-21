@@ -1,0 +1,43 @@
+{
+  "name": "nova-agent",
+  "version": "0.1.0",
+  "description": "Nova Agent — An autonomous general-purpose AI agent",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "nova": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "autonomous"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.85",
+    "@ai-sdk/openai": "^3.0.0",
+    "@clack/prompts": "^0.9.0",
+    "ai": "^6.0.0",
+    "chalk": "^5.4.0",
+    "dotenv": "^16.4.0",
+    "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.9.3",
+    "jszip": "^3.10.1",
+    "pdfjs-dist": "^6.0.227",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}
