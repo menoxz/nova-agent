@@ -65,6 +65,7 @@ export class TraceRecorder {
       includeContent: config.includeContent ?? true,
       contentMaxChars: config.contentMaxChars ?? 2_000,
       writeJsonlIndex: config.writeJsonlIndex ?? true,
+      includeErrorStack: config.includeErrorStack ?? false,
       runIdPrefix: config.runIdPrefix,
     };
 
@@ -182,7 +183,7 @@ export class TraceRecorder {
       ...this.eventBase('error'),
       message: safe.message,
       name: safe.name,
-      stack: safe.stack,
+      stack: this.config.includeErrorStack ? safe.stack : undefined,
     };
     this.run.metrics.errorCount += 1;
     this.push(event);

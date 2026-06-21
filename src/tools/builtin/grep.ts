@@ -178,6 +178,9 @@ async function walkAndSearch(
 export const grepTool: NovaTool = {
   name: 'grep',
   description: `Search for text patterns in files using regex. Supports: context lines (before/after), inverse match (find non-matching lines), count mode, file type filtering, case-insensitive search. Binary files are auto-skipped.`,
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     pattern: z.string().describe('Regular expression (e.g. "function\\s+\\w+", "TODO", "Error|Warning")'),
     root: z.string().optional().describe('Root directory (default: current)'),

@@ -291,6 +291,9 @@ function searchAll(sections: Array<{ source: string; text: string }>, query: str
 export const readDocxTool: NovaTool = {
   name: 'read_docx',
   description: 'Read and inspect Word DOCX files: metadata, structured text/headings, tables, headers/footers, comments, media/images, and text search. DOC legacy files are not supported.',
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('Absolute or workspace-relative path to the .docx file'),
     mode: z.enum(['metadata', 'text', 'tables', 'headers', 'comments', 'media', 'search', 'all']).optional()

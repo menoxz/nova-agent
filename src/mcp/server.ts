@@ -6,24 +6,32 @@ import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
-import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { defaultScenarios } from '../eval/scenarios.js';
 import { EVAL_SCHEMA_VERSION } from '../eval/schema.js';
 import { evalSuites, listSuites } from '../eval/suites.js';
+import {
+  PROJECT_ROOT,
+  capText,
+  clampOutputLimit,
+  containsPrivateKeyMaterial,
+  deniedPathReason,
+  redactString,
+  resolvePolicyPath as resolveSharedPolicyPath,
+  safeRelative as sharedSafeRelative,
+  splitRootsEnv,
+} from '../policy/index.js';
 import { readDocxTool } from '../tools/builtin/read_docx.js';
 import { readExcelTool } from '../tools/builtin/read_excel.js';
 import { readPdfTool } from '../tools/builtin/read_pdf.js';
 import { webSearchTool } from '../tools/builtin/web_search.js';
 import { TRACE_SCHEMA_VERSION } from '../trace/schema.js';
 import { summarizeTraces } from '../trace/summary.js';
-import { isPathInside } from '../utils/safe_io.js';
 
 const VERSION = '0.1.0';
-const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DEFAULT_OUTPUT_MAX_CHARS = 40_000;
 const HARD_OUTPUT_MAX_CHARS = 120_000;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_DIR_ENTRIES = 300;
@@ -74,101 +82,30 @@ const RESOURCE_DEFS = [
 ] as const;
 
 function allowedRoots(): string[] {
-  const extra = (process.env.NOVA_MCP_ALLOWED_ROOTS ?? '')
-    .split(process.platform === 'win32' ? ';' : ':')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const extra = splitRootsEnv(process.env.NOVA_MCP_ALLOWED_ROOTS);
   return [PROJECT_ROOT, ...extra].map((entry) => resolve(entry));
 }
 
-function normalizeForPolicy(path: string): string {
-  return path.replace(/\\/g, '/');
-}
-
-function hasTraversal(input: string): boolean {
-  return input.split(/[\\/]+/).some((part) => part === '..');
-}
-
 function deniedReason(path: string): string | undefined {
-  const normalized = normalizeForPolicy(path);
-  const parts = normalized.split('/').filter(Boolean);
-  const base = parts.at(-1) ?? '';
-  const lowerParts = parts.map((p) => p.toLowerCase());
-  const lowerBase = base.toLowerCase();
-
-  if (lowerBase === '.env' || lowerBase.startsWith('.env.')) return '.env files are denied';
-  if (lowerParts.includes('node_modules')) return 'node_modules is denied';
-  if (lowerParts.includes('.git')) return '.git internals are denied';
-  if (/\.(pem|key|p12|pfx|ppk|asc|gpg)$/i.test(lowerBase)) return 'private key material extensions are denied';
-  if (/(^|[._-])(secret|token|credential|credentials|api[_-]?key|private[_-]?key|password|passwd)([._-]|$)/i.test(base)) {
-    return 'secret/token/credential-like filenames are denied';
-  }
-  const novaIdx = lowerParts.indexOf('.nova');
-  if (novaIdx >= 0) {
-    const next = lowerParts[novaIdx + 1];
-    if (next === 'traces' || next === 'reports' || next === 'evals') return `.nova/${next} raw artifacts are denied`;
-  }
-  return undefined;
+  return deniedPathReason(path);
 }
 
 function resolvePolicyPath(inputPath: string, label = 'path'): string {
-  if (!inputPath || !inputPath.trim()) throw new Error(`${label} is required.`);
-  if (inputPath.includes('\0')) throw new Error(`${label} contains a NUL byte.`);
-  if (hasTraversal(inputPath)) throw new Error(`${label} must not contain .. path traversal segments.`);
-  const resolved = isAbsolute(inputPath) ? resolve(inputPath) : resolve(PROJECT_ROOT, inputPath);
-  const roots = allowedRoots();
-  if (!roots.some((root) => isPathInside(resolved, root))) {
-    throw new Error(`${label} is outside the configured allowed roots.`);
-  }
-  const reason = deniedReason(resolved);
-  if (reason) throw new Error(`${DENIED_MESSAGE} Reason: ${reason}`);
-  return resolved;
+  const check = resolveSharedPolicyPath(inputPath, label, allowedRoots());
+  if (!check.ok) throw new Error(`${DENIED_MESSAGE} Reason: ${check.reason}`);
+  return check.path;
 }
 
 function safeRelative(path: string): string {
-  const root = allowedRoots().find((candidate) => isPathInside(path, candidate)) ?? PROJECT_ROOT;
-  const rel = relative(root, path);
-  return rel || '.';
+  return sharedSafeRelative(path, allowedRoots());
 }
 
 function isDeniedChild(path: string): boolean {
   return Boolean(deniedReason(path));
 }
 
-const SECRET_VALUE_PATTERNS: RegExp[] = [
-  /sk-[A-Za-z0-9_-]{12,}/g,
-  /Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
-  /gh[pousr]_[A-Za-z0-9_]{20,}/g,
-  /github_pat_[A-Za-z0-9_]{20,}/gi,
-  /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
-  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
-  /((?:api[_-]?key|authorization|password|passwd|secret|token|credential)\s*[:=]\s*)([^\s'\"]+)/gi,
-];
-
-function containsPrivateKeyMaterial(text: string): boolean {
-  return /-----BEGIN [A-Z ]*PRIVATE KEY-----|-----BEGIN OPENSSH PRIVATE KEY-----/i.test(text);
-}
-
 function redactText(text: string): string {
-  let safe = text;
-  for (const pattern of SECRET_VALUE_PATTERNS) {
-    safe = safe.replace(pattern, (...args) => {
-      if (args.length > 3 && typeof args[1] === 'string') return `${args[1]}<redacted>`;
-      return '<redacted>';
-    });
-  }
-  return safe;
-}
-
-function clampOutputLimit(value: unknown, fallback = DEFAULT_OUTPUT_MAX_CHARS): number {
-  const n = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
-  return Math.max(1_000, Math.min(HARD_OUTPUT_MAX_CHARS, n));
-}
-
-function capText(text: string, maxChars: number): { text: string; truncated: boolean; originalChars: number; maxChars: number } {
-  const originalChars = text.length;
-  if (originalChars <= maxChars) return { text, truncated: false, originalChars, maxChars };
-  return { text: `${text.slice(0, maxChars)}\n...(truncated ${originalChars - maxChars} chars)`, truncated: true, originalChars, maxChars };
+  return redactString(text, HARD_OUTPUT_MAX_CHARS);
 }
 
 function textResult(text: string, structuredContent: ToolPayload = {}, isError = false) {
@@ -304,6 +241,29 @@ async function runGit(args: string[], cwd: string, maxChars: number): Promise<{ 
   return { output: redactText(output || '(no output)'), exitCode, timedOut, truncated: output.length >= maxChars };
 }
 
+async function assertGitDiffOutputAllowed(input: { cwd?: string; staged?: boolean; output?: string }): Promise<{ changedPathCount: number }> {
+  const cwd = input.cwd ?? PROJECT_ROOT;
+  const rootResult = await runGit(['rev-parse', '--show-toplevel'], cwd, 20_000);
+  if (rootResult.exitCode !== 0) throw new Error('git repository root could not be resolved for diff safety preflight');
+  const repoRoot = resolvePolicyPath(rootResult.output.trim().split(/\r?\n/)[0] ?? '', 'git repository root');
+  const nameArgs = ['diff', '--no-ext-diff', '--no-color', '--name-only'];
+  if (input.staged) nameArgs.push('--cached');
+  const nameResult = await runGit(nameArgs, cwd, HARD_OUTPUT_MAX_CHARS);
+  if (nameResult.exitCode !== 0) throw new Error('git diff changed-path preflight failed');
+  if (nameResult.truncated) throw new Error(`${DENIED_MESSAGE} Reason: git diff changed-path preflight exceeded safety output limit`);
+  const changedPaths = nameResult.output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const relPath of changedPaths) {
+    const resolved = resolve(repoRoot, relPath);
+    const check = resolveSharedPolicyPath(resolved, 'git diff changed path', allowedRoots());
+    const reason = check.ok ? deniedReason(check.path) : check.reason;
+    if (reason) throw new Error(`${DENIED_MESSAGE} Reason: changed path is denied by policy (${reason})`);
+  }
+  if (input.output && containsPrivateKeyMaterial(input.output)) {
+    throw new Error(`${DENIED_MESSAGE} Reason: private key material detected in git diff output`);
+  }
+  return { changedPathCount: changedPaths.length };
+}
+
 function registerTools(server: McpServer): void {
   server.registerTool('nova_tool_catalog', {
     title: 'Nova Tool Catalog',
@@ -410,7 +370,14 @@ function registerTools(server: McpServer): void {
     try { const result = await runGit(['status', '--short', '--branch', '--untracked-files=all'], input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }
   });
   server.registerTool('nova_git_diff', { title: 'Git Diff', description: 'Read-only git diff. Output is redacted and capped; raw sensitive artifacts remain denied by file tools.', inputSchema: z.object({ ...gitCwdSchema, staged: z.boolean().optional(), statOnly: z.boolean().optional() }), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (input) => {
-    try { const args = ['diff', '--no-ext-diff', '--no-color', input.statOnly ? '--stat' : '--unified=3']; if (input.staged) args.push('--cached'); const result = await runGit(args, input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }
+    try {
+      await assertGitDiffOutputAllowed({ cwd: input.cwd, staged: input.staged });
+      const args = ['diff', '--no-ext-diff', '--no-color', input.statOnly ? '--stat' : '--unified=3'];
+      if (input.staged) args.push('--cached');
+      const result = await runGit(args, input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars));
+      const safety = await assertGitDiffOutputAllowed({ cwd: input.cwd, staged: input.staged, output: result.output });
+      return textResult(result.output, { ok: result.exitCode === 0, ...result, changedPathCount: safety.changedPathCount });
+    } catch (err) { return safeError(err); }
   });
   server.registerTool('nova_git_log', { title: 'Git Log', description: 'Read-only git log with max count.', inputSchema: z.object({ ...gitCwdSchema, maxCount: z.number().int().min(1).max(50).optional() }), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (input) => {
     try { const result = await runGit(['log', `--max-count=${input.maxCount ?? 10}`, '--date=iso-strict', '--decorate=short', '--pretty=format:%h\t%ad\t%d\t%s'], input.cwd ?? PROJECT_ROOT, clampOutputLimit(input.maxChars)); return textResult(result.output, { ok: result.exitCode === 0, ...result }); } catch (err) { return safeError(err); }

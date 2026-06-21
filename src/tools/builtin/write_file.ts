@@ -67,6 +67,9 @@ function generateDiff(oldContent: string, newContent: string, filePath: string):
 export const writeFileTool: NovaTool = {
   name: 'write_file',
   description: 'Write or append content to a file. Features: dry-run preview, diff against existing, atomic writes, backup creation. Use with caution — this modifies the filesystem.',
+  capability: 'write',
+  readOnly: false,
+  riskLevel: 'high',
   inputSchema: z.object({
     path: z.string().describe('Absolute path to the file to write'),
     content: z.string().describe('Content to write to the file'),

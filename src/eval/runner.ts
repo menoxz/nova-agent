@@ -130,6 +130,11 @@ function loadEvalConfig(evalRunId: string): AgentConfig {
   return {
     llm,
     maxSteps: process.env.NOVA_EVAL_MAX_STEPS ? parseInt(process.env.NOVA_EVAL_MAX_STEPS) : 15,
+    policy: {
+      enabled: process.env.NOVA_POLICY_ENABLED !== '0' && process.env.NOVA_POLICY_ENABLED !== 'false',
+      profileId: process.env.NOVA_POLICY_PROFILE || 'readonly',
+      approvalProvided: false,
+    },
     systemPrompt: [
       'You are Nova, an autonomous AI agent under evaluation.',
       'Follow the user request exactly, use tools when needed, avoid side effects unless explicitly requested, and answer concisely with evidence.',
@@ -138,6 +143,7 @@ function loadEvalConfig(evalRunId: string): AgentConfig {
       enabled: true,
       outputDir: getArg('trace-dir') || `.nova/evals/${evalRunId}/traces`,
       includeContent: getArg('trace-content') !== 'false',
+      includeErrorStack: process.env.NOVA_TRACE_DEBUG_STACKS === '1' || process.env.NOVA_TRACE_DEBUG_STACKS === 'true',
       runIdPrefix: evalRunId,
     },
   };

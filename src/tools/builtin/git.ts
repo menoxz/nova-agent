@@ -270,6 +270,9 @@ function buildCommand(input: any): BuiltCommand {
 export const gitTool: NovaTool = {
   name: 'git',
   description: 'Run safe read-only Git operations with structured output: status, diff, log, branch, show, ls-files. Validates repo/cwd, enforces timeout/output limits, disables prompts/pagers/colors, and does not expose destructive or network operations.',
+  capability: 'git',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     action: z.enum(['status', 'diff', 'log', 'branch', 'show', 'ls-files']).describe('Read-only Git operation to run.'),
     cwd: z.string().optional().describe('Directory inside a Git work tree. Default: current process cwd.'),

@@ -24,8 +24,14 @@ npm run lsp:stdio
 # Smoke test LSP local
 npm run lsp:smoke
 
+# Smoke test Policy/Permissions V1
+npm run policy:smoke
+
 # Eval LSP mock
 npm run eval:lsp
+
+# Eval Policy V1 mock
+npm run eval:policy
 
 # MCP Inspector
 npx @modelcontextprotocol/inspector npm run mcp:stdio

@@ -264,6 +264,9 @@ function changedFields(before: GoalContract, after: GoalContract): string[] {
 export const goalTool: NovaTool = {
   name: 'goal',
   description: 'Manage a local structured objective contract with get/set/update/complete/clear, objective + Definition of Done + out-of-scope, validated statuses, local atomic persistence, minimal audit history, clear errors, and size limits.',
+  capability: 'memory',
+  readOnly: false,
+  riskLevel: 'medium',
   inputSchema: z.object({
     action: z.enum(['get', 'set', 'update', 'complete', 'clear']).describe('Goal operation.'),
     cwd: z.string().optional().describe('Project directory for local .nova/goal.json storage. Default: current process cwd.'),

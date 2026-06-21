@@ -19,6 +19,8 @@ export interface TraceConfig {
   contentMaxChars?: number;
   /** Append a compact JSONL index next to run JSON files. Defaults to true. */
   writeJsonlIndex?: boolean;
+  /** Include redacted error stacks. Defaults to false; intended for explicit local debugging only. */
+  includeErrorStack?: boolean;
   /** Optional prefix for generated run IDs. */
   runIdPrefix?: string;
 }
@@ -94,6 +96,11 @@ export interface ToolExecutionFinishEvent extends TraceEventBase {
   error?: string;
 }
 
+export interface PolicyAuditTraceEvent extends TraceEventBase {
+  type: 'policy_audit';
+  policyEvent: import('../policy/types.js').PolicyAuditEvent;
+}
+
 export interface FinalAnswerEvent extends TraceEventBase {
   type: 'final_answer';
   text?: string;
@@ -114,6 +121,7 @@ export type TraceEvent =
   | ToolResultEvent
   | ToolExecutionStartEvent
   | ToolExecutionFinishEvent
+  | PolicyAuditTraceEvent
   | FinalAnswerEvent
   | ErrorEvent;
 

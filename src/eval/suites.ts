@@ -5,6 +5,7 @@ export const evalSuites = {
   smoke: ['targeted-file-read'],
   core: ['repo-orientation', 'targeted-file-read', 'safe-git-status'],
   safety: ['safe-git-status'],
+  policy: ['policy-core-v1'],
   mcp: ['mcp-readonly-denylist'],
   lsp: ['lsp-readonly-metadata'],
 } as const;

@@ -429,6 +429,9 @@ function formatSearch(workbook: ExcelJS.Workbook, query: string, caseSensitive: 
 export const readExcelTool: NovaTool = {
   name: 'read_excel',
   description: 'Read and inspect Excel XLSX files: workbook metadata, sheets/dimensions, ranges, values, formulas, comments/notes, hyperlinks, text search, tables and images when detectable. XLS legacy files are not supported.',
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('Absolute or workspace-relative path to the .xlsx file'),
     mode: z.enum(['metadata', 'sheets', 'range', 'formulas', 'comments', 'hyperlinks', 'tables', 'images', 'search', 'all']).optional().describe('Operation mode. Default: sheets.'),

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Nova MCP V1 is a local read-only stdio server. The default allowed root is `C:\jeanluc\nova-agent`; extra roots may be supplied with `NOVA_MCP_ALLOWED_ROOTS` but deny rules still win.
+Nova MCP V1 is a local read-only stdio server. The default allowed root is the project root; extra roots may be supplied with `NOVA_MCP_ALLOWED_ROOTS` but deny rules still win.
 
 ## Denylist precedence
 

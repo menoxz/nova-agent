@@ -66,6 +66,7 @@ nova-agent/
 | [DECISIONS.md](DECISIONS.md) | Décisions clés et leur justification |
 | [ROADMAP.md](ROADMAP.md) | Prochaines itérations et améliorations |
 | [RUNBOOK.md](RUNBOOK.md) | Commandes, débogage, extension |
+| [policy/README.md](policy/README.md) | Policy/Permissions V1: profils, règles, audit, smoke/eval sécurité |
 | [mcp/README.md](mcp/README.md) | Serveur MCP stdio V1, outils read-only, sécurité et setup client |
 | [lsp/README.md](lsp/README.md) | Serveur LSP stdio V1 read-only, capacités, sécurité, diagnostics et smoke test |
 | [READ_FILE_MULTIMODAL.md](READ_FILE_MULTIMODAL.md) | Design et limites de `read_file` multimodal |

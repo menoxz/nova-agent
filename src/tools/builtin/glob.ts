@@ -95,6 +95,9 @@ async function walk(
 export const globTool: NovaTool = {
   name: 'glob',
   description: `Search for files matching a glob pattern. Supports * (any chars), ** (recursive), ? (single char). Exclude patterns and depth limit available. Max results: ${MAX_RESULTS}.`,
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     pattern: z.string().describe('Glob pattern (e.g. "**/*.ts", "*.json", "src/**/*.ts")'),
     root: z.string().optional().describe('Root directory (default: current working directory)'),

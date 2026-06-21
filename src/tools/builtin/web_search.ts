@@ -265,6 +265,9 @@ function formatText(query: string, provider: string, results: SearchResult[], er
 export const webSearchTool: NovaTool = {
   name: 'web_search',
   description: 'Search the web with bounded timeout/output, explicit user-agent, provider fallback, input validation, deduplication, and structured results containing title, URL, snippet, source, and provider.',
+  capability: 'network',
+  readOnly: true,
+  riskLevel: 'medium',
   inputSchema: z.object({
     query: z.string().describe('Search query. 2-500 chars; must contain letters or numbers.'),
     maxResults: z.number().int().min(1).max(MAX_RESULTS).optional().describe(`Max deduplicated results to return (default: ${DEFAULT_MAX_RESULTS}, max: ${MAX_RESULTS}).`),

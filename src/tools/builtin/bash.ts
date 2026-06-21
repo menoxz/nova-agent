@@ -271,6 +271,9 @@ async function runWithFallbackShells(params: Omit<Parameters<typeof runWithShell
 export const bashTool: NovaTool = {
   name: 'bash',
   description: 'Execute a bounded non-interactive shell command with timeout, output limits, safe cwd/env validation, interactive/server command detection, stdin support, and process-tree cleanup on timeout. ⚠️ Can modify system state — use with caution.',
+  capability: 'shell',
+  readOnly: false,
+  riskLevel: 'critical',
   inputSchema: z.object({
     command: z.string().min(1).describe('The non-interactive shell command to execute'),
     timeout: z.number().int().min(1000).max(MAX_TIMEOUT_MS).optional().describe(`Timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}, max: ${MAX_TIMEOUT_MS})`),

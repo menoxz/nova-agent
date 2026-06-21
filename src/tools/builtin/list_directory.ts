@@ -89,6 +89,9 @@ async function collectEntries(
 export const listDirectoryTool: NovaTool = {
   name: 'list_directory',
   description: `List directory contents with file sizes, types, and dates. Supports recursive mode (up to 5 levels) and summary mode for totals. Max ${MAX_ENTRIES} entries.`,
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('Absolute path to the directory'),
     showHidden: z.boolean().optional().describe('Show hidden files (default: false)'),

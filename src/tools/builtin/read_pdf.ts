@@ -194,6 +194,9 @@ function searchText(text: string, query: string, caseSensitive: boolean): Array<
 export const readPdfTool: NovaTool = {
   name: 'read_pdf',
   description: 'Read and inspect PDF files: metadata, text per page, page ranges, outline/bookmarks, annotations, and text search. Not OCR for scanned PDFs.',
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('Absolute or workspace-relative path to the PDF file'),
     mode: z.enum(['metadata', 'text', 'outline', 'annotations', 'search', 'all']).optional()

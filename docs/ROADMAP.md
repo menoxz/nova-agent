@@ -97,6 +97,7 @@
   - [ ] V1.1: extraction metadata plus riche, setup clients, tests unitaires policy/metadata
 
 - [ ] **Sécurité**
+  - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel
   - Sandbox d'exécution pour les commandes bash
   - Validation des chemins de fichiers
   - Approbation utilisateur pour les actions destructrices

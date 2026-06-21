@@ -68,7 +68,15 @@ export class NovaAgent {
       maxSteps,
       toolNames: this.tools.list().map((t) => t.name),
     }, this.config.trace);
-    const toolSet = this.tools.toAITools({ trace });
+    const toolSet = this.tools.toAITools({
+      trace,
+      policy: {
+        enabled: this.config.policy?.enabled ?? true,
+        profileId: this.config.policy?.profileId ?? 'readonly',
+        actor: this.config.policy?.actor,
+        approvalProvided: this.config.policy?.approvalProvided,
+      },
+    });
 
     // Add user message to memory
     this.memory.add(userMessage(input));

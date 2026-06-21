@@ -139,6 +139,9 @@ async function infoForPath(filePath: string, computeHashFlag: boolean): Promise<
 export const getFileInfoTool: NovaTool = {
   name: 'get_file_info',
   description: 'Get detailed metadata about files/directories: size, type, MIME, timestamps, SHA256 hash. Accepts one or multiple paths (comma-separated).',
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('File or directory path. For multiple items, use comma separation: "file1.ts, file2.ts"'),
     hash: z.boolean().optional().describe('Compute SHA256 hash (default: false, can be slow for large files)'),

@@ -185,6 +185,9 @@ function multimodalOutput(params: {
 export const readFileTool: NovaTool = {
   name: 'read_file',
   description: `Read a file. Text: returns text with full/head/tail/offset/limit. Binary/multimodal: detects images/audio/video/PDF/etc. and can attach supported files to the model with multimodal="auto" or "force". Use multimodal="off" for metadata only.`,
+  capability: 'read',
+  readOnly: true,
+  riskLevel: 'low',
   inputSchema: z.object({
     path: z.string().describe('Absolute or workspace-relative path to the file to read'),
     offset: z.number().int().min(0).optional().describe('Starting line number (0-based). Use with limit.'),

@@ -271,6 +271,9 @@ function findTask(store: TodoStore, id: string): TodoTask {
 export const todoTool: NovaTool = {
   name: 'todo',
   description: 'Manage a local persistent structured todo list with stable IDs: list/add/update/complete/remove/clear. Validates status/priority/tags, supports filters and summaries, writes atomically to .nova/todos.json, and enforces task/store size limits.',
+  capability: 'memory',
+  readOnly: false,
+  riskLevel: 'medium',
   inputSchema: z.object({
     action: z.enum(['list', 'add', 'update', 'complete', 'remove', 'clear']).describe('Todo operation.'),
     cwd: z.string().optional().describe('Project directory for local .nova/todos.json storage. Default: current process cwd.'),

@@ -56,11 +56,17 @@ function loadConfig(): AgentConfig {
     llm,
     systemPrompt: soulContent,
     maxSteps: 15,
+    policy: {
+      enabled: process.env.NOVA_POLICY_ENABLED !== '0' && process.env.NOVA_POLICY_ENABLED !== 'false',
+      profileId: process.env.NOVA_POLICY_PROFILE || 'readonly',
+      approvalProvided: false,
+    },
     trace: {
       enabled: process.env.NOVA_TRACE === '1' || process.env.NOVA_TRACE === 'true',
       outputDir: process.env.NOVA_TRACE_DIR || '.nova/traces',
       includeContent: process.env.NOVA_TRACE_INCLUDE_CONTENT !== 'false',
       contentMaxChars: process.env.NOVA_TRACE_CONTENT_MAX_CHARS ? parseInt(process.env.NOVA_TRACE_CONTENT_MAX_CHARS) : undefined,
+      includeErrorStack: process.env.NOVA_TRACE_DEBUG_STACKS === '1' || process.env.NOVA_TRACE_DEBUG_STACKS === 'true',
     },
   };
 }

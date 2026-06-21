@@ -772,6 +772,9 @@ function changedFields(before: SkillMetadata, after: SkillMetadata, bodyChanged:
 export const skillTool: NovaTool = {
   name: 'skill',
   description: 'Manage folder-based local Nova skills under .nova/skills: list/search/get/load/create/update/archive/remove with SKILL.md, metadata.json, references/templates/models/scripts/examples/evals/tests, CHANGELOG.md, validated auto-suggestion metadata, migration from legacy .nova/skills.json, audit/versioning, and strict path/no-execution guards.',
+  capability: 'memory',
+  readOnly: false,
+  riskLevel: 'medium',
   inputSchema: z.object({
     action: z.enum(['list', 'search', 'get', 'load', 'create', 'update', 'archive', 'remove']).describe('Skill operation.'),
     cwd: z.string().optional().describe('Project directory for .nova/skills storage. Default: current process cwd.'),

@@ -15,6 +15,7 @@
     "lsp:stdio": "tsx src/lsp/server.ts --stdio",
     "lsp:smoke": "tsx src/lsp/smoke.ts",
     "typecheck": "tsc --noEmit",
+    "policy:smoke": "tsx src/policy/smoke.ts",
     "trace:summary": "tsx src/trace/summary_cli.ts",
     "trace:summary:json": "tsx src/trace/summary_cli.ts --json",
     "eval:list": "tsx src/eval/runner.ts --list",
@@ -23,6 +24,7 @@
     "eval:core": "tsx src/eval/runner.ts --suite core --mode mock",
     "eval:mcp": "tsx src/eval/runner.ts --suite mcp --mode mock",
     "eval:lsp": "tsx src/eval/runner.ts --suite lsp --mode mock",
+    "eval:policy": "tsx src/eval/runner.ts --suite policy --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },

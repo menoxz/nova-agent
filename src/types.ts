@@ -4,6 +4,7 @@
 
 import type { z } from 'zod';
 import type { FlexibleSchema, ToolResultOutput } from '@ai-sdk/provider-utils';
+import type { ActorContext, CapabilityCategory, ToolRiskLevel } from './policy/types.js';
 
 // ─── LLM Provider ────────────────────────────────────────────────────────────
 
@@ -26,6 +27,9 @@ export interface NovaTool {
   name: string;
   description: string;
   inputSchema: FlexibleSchema<any>;
+  capability?: CapabilityCategory;
+  readOnly?: boolean;
+  riskLevel?: ToolRiskLevel;
   execute: (input: any, options?: { toolCallId?: string }) => Promise<string | ToolResultOutput>;
 }
 
@@ -36,6 +40,12 @@ export interface AgentConfig {
   systemPrompt: string;
   maxSteps?: number;
   trace?: import('./trace/types.js').TraceConfig;
+  policy?: {
+    enabled?: boolean;
+    profileId?: string;
+    actor?: ActorContext;
+    approvalProvided?: boolean;
+  };
 }
 
 export interface ToolTraceSink {

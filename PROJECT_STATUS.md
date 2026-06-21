@@ -1,5 +1,22 @@
 # Project Status
 
+## Policy/Permissions V1 — 2026-06-21
+
+Status: implemented and verified locally.
+
+### Delivered
+
+- Added shared policy core under `src/policy/` with types, profiles, deterministic rules, path helpers, redaction, output caps, safe errors, and metadata-only audit events.
+- Integrated Sub-agent Contract Spec V0 fields in types only; no full sub-agent orchestration added.
+- Added optional ToolRegistry pre-execution policy hook; deny/ask blocks execution unless an approval integration explicitly approves.
+- Added tool metadata for capability/readOnly/riskLevel across built-in tools.
+- Harmonized trace redaction and reused shared path/redaction/output helpers in LSP/MCP where safe while preserving read-only defaults.
+- Added `policy:smoke` and `eval:policy`, plus policy documentation.
+
+### Verification run
+
+- See latest implementation report for exact command output and exit codes.
+
 ## LSP Server V1 — 2026-06-21
 
 Status: implemented and verified locally.
