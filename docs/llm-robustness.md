@@ -1,5 +1,7 @@
 # LLM Robustness V1
 
+Pour les erreurs de provider/model ou d'endpoint, commencer par `nova providers doctor` et `nova providers show <id>` afin de vérifier le profil, le protocole, la base URL, le modèle et la présence de `LLM_API_KEY` sans afficher la clé.
+
 LLM Robustness V1 fiabilise les appels modèle sans changer automatiquement de provider ou de modèle.
 
 ## Fonctionnalités

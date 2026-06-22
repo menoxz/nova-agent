@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'provider-profiles-v1',
+    name: 'Provider Profiles and Controlled Fallback V1',
+    description: 'Provider/model profiles and diagnostics should be explicit, safe, read-only and avoid hidden provider switching.',
+    tags: ['providers', 'llm', 'config', 'cli', 'fallback', 'safety'],
+    prompt: 'Verify Nova Provider Profiles / Fallback contrôlé V1: built-in provider/model profiles resolve from explicit CLI, env and .nova/config.json precedence without exposing secrets; nova providers list/show/doctor are read-only, work without LLM_API_KEY and do not invoke LLM/tools; doctor validates provider, baseUrl, model and API key present/missing status without printing the key; fallback is opt-in only and explicit via CLI/env/config, never automatic or silent; docs and examples are updated; smokes/evals run without real provider calls. Do not modify files.',
+    expectedAnyTools: ['providers:smoke', 'cli:smoke', 'config:smoke', 'eval:providers', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['providers', 'doctor', 'LLM_API_KEY', 'fallback', 'opt-in', 'secrets'],
+    mock: {
+      tools: ['providers:smoke', 'eval:providers'],
+      finalAnswer: 'Provider Profiles / Fallback contrôlé V1 adds safe built-in provider/model profiles resolved through explicit CLI, env and .nova/config.json precedence without exposing secrets; nova providers list/show/doctor are read-only and work without LLM_API_KEY or LLM/tools; doctor validates provider/baseUrl/model/API key presence without printing the key; fallback is opt-in only through CLI/env/config and is never automatic or silent; docs, smokes and evals are updated without real provider calls.',
+    },
+  },
+  {
     id: 'quality-gate-v1',
     name: 'Quality Gate V1 local validation scripts',
     description: 'Quality Gate V1 should provide fast and full local validation scripts that are safe to run before commits without requiring live LLM credentials.',

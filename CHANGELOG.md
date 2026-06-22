@@ -15,6 +15,8 @@ All notable Nova Agent changes are documented here. Nova uses the version declar
 - TUI Prototype V0.1: read-only `nova tui replay <logId>` and `nova tui latest` with compact/normal/verbose replay snapshots from existing event logs.
 - Packaging / Install UX V1: `bin/nova.js` wrapper, `bin.nova`, build/local-link smoke coverage, and development fallback through `tsx` when `dist/` is absent.
 - Release Notes / Versioning V1: `nova --version`, `nova -v`, `nova version`, help/version docs, and this initial changelog.
+- Quality Gate V1: local `npm run check:fast` and `npm run check` validation gates with typecheck, key smokes, binary/version coverage, and mock eval suites.
+- Provider Profiles / Fallback contrôlé V1: safe provider/model profiles, read-only `nova providers list/show/doctor`, API-key presence diagnostics without secret output, and explicit opt-in fallback metadata with no hidden provider switch.
 
 ### Safety and packaging notes
 

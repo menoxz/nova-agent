@@ -30,6 +30,7 @@ nova version
 nova help streaming
 nova batch --help
 nova tui --help
+nova providers doctor
 nova config validate
 ```
 
@@ -54,6 +55,7 @@ nova streaming --help
 nova config --help
 nova batch --help
 nova tui --help
+nova providers --help
 nova sessions --help
 nova runs --help
 nova approvals --help
@@ -66,6 +68,8 @@ nova conversations --help
 | --- | --- |
 | `--version` / `-v` | Affiche la version du package depuis `package.json` sans LLM/tools. |
 | `--profile <id>` | Utilise un profil agent, par exemple `nova.builder`. |
+| `--provider-profile <id>` | Utilise un profil provider/model intégré. |
+| `--provider-fallback <ids>` | Déclare des profils fallback opt-in, séparés par virgule; jamais silencieux. |
 | `--stream` / `--no-stream` | Force le streaming ou le fallback non-streaming. |
 | `--stream-mode=compact\|normal\|verbose` | Définit le niveau de détail du rendu live. |
 | `--stream-compact` / `--stream-verbose` | Raccourcis pour le mode streaming. |
@@ -93,6 +97,8 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova --version`, `nova -v` et `nova version` affichent la version de `package.json` sans lire la configuration LLM, sans nécessiter `LLM_API_KEY` et sans déclencher tools/agent.
 
+`nova providers list`, `nova providers show <id>` et `nova providers doctor` sont read-only : ils listent/diagnostiquent la configuration provider sans appel LLM, sans tools et sans afficher la valeur de `LLM_API_KEY`.
+
 `nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) reste disponible sans clé.
 
 ### Batch
@@ -119,6 +125,15 @@ nova config show
 nova config init [--force]
 nova config validate
 nova config explain
+```
+
+### Providers
+
+```bash
+nova providers list
+nova providers show openmodel-deepseek-v4-flash
+nova providers doctor
+nova --provider-profile openmodel-deepseek-v4-flash providers doctor
 ```
 
 ### Sessions / runs / conversations
@@ -165,4 +180,4 @@ npm run eval:cli
 npm run typecheck
 ```
 
-`check:fast` est le garde-fou rapide pendant l'itération et avant petits commits. `check` est le garde-fou complet local pour un module terminé : il regroupe typecheck, smokes clés et evals mock release/quality sans nécessiter de vraie clé LLM.
+`check:fast` est le garde-fou rapide pendant l'itération et avant petits commits. `check` est le garde-fou complet local pour un module terminé : il regroupe typecheck, smokes clés et evals mock release/quality/providers sans nécessiter de vraie clé LLM.

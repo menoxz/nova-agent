@@ -1,10 +1,10 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
 
-const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from', 'mode']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from', 'mode']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
@@ -66,6 +66,7 @@ function globalHelp(): string {
       ['batch', 'Sequential non-interactive prompt files with JSON reports.'],
       ['tui', 'Terminal UI prototype for event-log replay.'],
       ['streaming', 'Live output, event logs, replay.'],
+      ['providers', 'Provider/model profiles and safe diagnostics.'],
       ['config', 'Project config show/init/validate/explain.'],
       ['sessions', 'List/show/current/use local sessions.'],
       ['runs', 'List/show/replay/report/resume runs.'],
@@ -76,6 +77,8 @@ function globalHelp(): string {
     section('Main flags', [
       ['--version, -v', 'Print the package version from package.json.'],
       ['--profile <id>', 'Use an agent profile, e.g. nova.builder.'],
+      ['--provider-profile <id>', 'Use a built-in provider/model profile.'],
+      ['--provider-fallback <ids>', 'Opt-in fallback profile ids, comma-separated; never silent.'],
       ['--stream', 'Force streaming output.'],
       ['--no-stream', 'Force non-streaming generateText fallback.'],
       ['--stream-mode=<mode>', 'compact | normal | verbose.'],
@@ -204,6 +207,27 @@ function configHelp(): string {
   ].join('\n');
 }
 
+function providersHelp(): string {
+  return [
+    'Nova CLI help — providers',
+    '',
+    section('Commands', [
+      ['nova providers list', 'List built-in provider/model profiles.'],
+      ['nova providers show <id>', 'Show one profile without secrets.'],
+      ['nova providers doctor', 'Validate selected provider/baseUrl/model/API key presence.'],
+    ]),
+    '',
+    section('Selection', [
+      ['--provider-profile <id>', 'Highest priority explicit provider profile.'],
+      ['NOVA_PROVIDER_PROFILE', 'Env provider profile default.'],
+      ['.nova/config.json llm.providerProfile', 'Project provider profile default.'],
+      ['LLM_PROVIDER/BASE_URL/MODEL', 'Explicit env overrides for adapter/base URL/model.'],
+    ]),
+    '',
+    'Fallback is opt-in only via --provider-fallback, NOVA_PROVIDER_FALLBACK/NOVA_LLM_FALLBACK or llm.fallbackProfiles. Nova does not perform hidden automatic provider/model switching.',
+  ].join('\n');
+}
+
 function sessionsHelp(): string {
   return [
     'Nova CLI help — sessions',
@@ -272,6 +296,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'batch': return batchHelp();
     case 'tui': return tuiHelp();
     case 'streaming': return streamingHelp();
+    case 'providers': return providersHelp();
     case 'config': return configHelp();
     case 'sessions': return sessionsHelp();
     case 'runs': return runsHelp();

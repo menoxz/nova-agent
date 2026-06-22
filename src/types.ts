@@ -16,6 +16,8 @@ export interface LLMConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  providerProfile?: string;
+  fallbackProfiles?: string[];
   maxTokens?: number;
   pricing?: import('./tokens/types.js').LlmPricingConfig;
   robustness?: import('./llm/robustness.js').LlmRobustnessConfig;

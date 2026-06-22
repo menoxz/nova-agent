@@ -23,6 +23,8 @@ export const projectConfigSchema = z.object({
   profile: z.string().min(1).optional(),
   maxSteps: z.number().int().positive().max(100).optional(),
   llm: z.object({
+    providerProfile: z.string().min(1).optional(),
+    fallbackProfiles: z.array(z.string().min(1)).optional(),
     provider: z.string().min(1).optional(),
     baseUrl: z.string().url().optional(),
     model: z.string().min(1).optional(),
@@ -188,6 +190,8 @@ export function mergeProjectConfig(base: AgentConfig, project?: ProjectConfig): 
     maxSteps: project.maxSteps ?? base.maxSteps,
     llm: {
       ...base.llm,
+      providerProfile: project.llm?.providerProfile ?? base.llm.providerProfile,
+      fallbackProfiles: project.llm?.fallbackProfiles ?? base.llm.fallbackProfiles,
       provider: project.llm?.provider ?? base.llm.provider,
       baseUrl: project.llm?.baseUrl ?? base.llm.baseUrl,
       model: project.llm?.model ?? base.llm.model,

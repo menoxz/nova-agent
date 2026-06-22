@@ -33,7 +33,9 @@ async function main(): Promise<void> {
       context: { enabled: false },
       policy: { enabled: true, profileId: 'readonly' },
     };
-    const merged = mergeProjectConfig(base, { ...defaultProjectConfig(), session: { enabled: true, title: 'Project title' }, runs: { maxToolCalls: 20, currency: 'EUR' } });
+    const merged = mergeProjectConfig(base, { ...defaultProjectConfig(), llm: { providerProfile: 'openmodel-deepseek-v4-flash', fallbackProfiles: ['openai-gpt-4o-mini'] }, session: { enabled: true, title: 'Project title' }, runs: { maxToolCalls: 20, currency: 'EUR' } });
+    assert.equal(merged.llm.providerProfile, 'openmodel-deepseek-v4-flash', 'project provider profile merged');
+    assert.deepEqual(merged.llm.fallbackProfiles, ['openai-gpt-4o-mini'], 'project fallback profiles merged');
     assert.equal(merged.llm.apiKey, 'real-env-key', 'project config never supplies api key');
     assert.equal(merged.session?.enabled, true, 'project session default merged');
     assert.equal(merged.session?.defaultBudget?.maxToolCalls, 20, 'run budget merged');

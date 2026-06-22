@@ -44,6 +44,7 @@ import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
 import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
 import { TuiReplayRenderer } from './tui/index.js';
 import type { TuiReplayMode } from './tui/index.js';
+import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime } from './providers/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -76,15 +77,28 @@ function thinkingModeValue(value: string | undefined, fallback?: StreamingThinki
   return value === 'hidden' || value === 'collapsed' || value === 'expanded' ? value : fallback;
 }
 
+function providerRuntimeFor(projectConfig: ReturnType<typeof requireValidProjectConfig>) {
+  return resolveProviderRuntime({
+    cliProfileId: getArg('provider-profile'),
+    cliFallback: getArg('provider-fallback'),
+    env: process.env,
+    project: projectConfig,
+  });
+}
+
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 function loadConfig(): AgentConfig {
   const projectConfig = requireValidProjectConfig();
+  const providerRuntime = providerRuntimeFor(projectConfig);
+  if (providerRuntime.errors.length) throw new Error(`Invalid provider configuration: ${providerRuntime.errors.join('; ')}`);
   const llm: LLMConfig = {
-    provider: process.env.LLM_PROVIDER || projectConfig?.llm?.provider || 'openrouter',
-    baseUrl: process.env.LLM_BASE_URL || projectConfig?.llm?.baseUrl || 'https://openrouter.ai/api/v1',
+    providerProfile: providerRuntime.primary.id,
+    fallbackProfiles: providerRuntime.fallbackProfileIds,
+    provider: providerRuntime.primary.provider,
+    baseUrl: providerRuntime.primary.baseUrl,
     apiKey: process.env.LLM_API_KEY || '',
-    model: process.env.LLM_MODEL || projectConfig?.llm?.model || 'openmodel/deepseek-v4-flash',
+    model: providerRuntime.primary.model,
     maxTokens: process.env.MAX_TOKENS ? parseInt(process.env.MAX_TOKENS) : projectConfig?.llm?.maxTokens,
     robustness: {
       timeoutMs: intValue(process.env.NOVA_LLM_TIMEOUT_MS, projectConfig?.llm?.robustness?.timeoutMs),
@@ -221,8 +235,10 @@ function promptArgs(): string[] {
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === '--profile' || arg === '--report' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
+    if (arg === '--profile' || arg === '--provider-profile' || arg === '--provider-fallback' || arg === '--report' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
     if (arg.startsWith('--profile=')) continue;
+    if (arg.startsWith('--provider-profile=')) continue;
+    if (arg.startsWith('--provider-fallback=')) continue;
     if (arg.startsWith('--report=')) continue;
     if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error' || arg === '--dry-run') continue;
     if (arg === '--thinking' || arg === '--stream-mode') { index += 1; continue; }
@@ -234,7 +250,7 @@ function promptArgs(): string[] {
 
 function positionalArgs(args: string[]): string[] {
   const values: string[] = [];
-  const optionsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
+  const optionsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg) continue;
@@ -383,6 +399,38 @@ async function handleConfigCommand(args: string[]): Promise<boolean> {
     return true;
   }
   console.error(chalk.red(renderUnknownCommand(args, 'config')));
+  process.exitCode = 1;
+  return true;
+}
+
+async function handleProvidersCommand(args: string[]): Promise<boolean> {
+  const areaIndex = args.indexOf('providers');
+  if (areaIndex < 0) return false;
+  const [action, ...rest] = positionalArgs(args.slice(areaIndex + 1));
+  const projectConfig = requireValidProjectConfig();
+  if (action === 'list' || action === undefined) {
+    console.log(JSON.stringify(listProviderProfiles(), null, 2));
+    return true;
+  }
+  if (action === 'show' && rest[0]) {
+    const profile = getProviderProfile(rest[0]);
+    if (!profile) {
+      console.error(chalk.red(`Unknown provider profile: ${rest[0]}`));
+      process.exitCode = 1;
+      return true;
+    }
+    console.log(JSON.stringify(profile, null, 2));
+    return true;
+  }
+  if (action === 'doctor') {
+    const resolved = providerRuntimeFor(projectConfig);
+    const report = providerDoctor(resolved, process.env);
+    console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.ok ? 0 : 1;
+    return true;
+  }
+  if (action === 'show') return missingArgument('nova providers show <id>', 'providers');
+  console.error(chalk.red(renderUnknownCommand(args, 'providers')));
   process.exitCode = 1;
   return true;
 }
@@ -590,6 +638,7 @@ async function main() {
   if (handleVersionCommand(rawArgs)) return;
   if (handleHelpCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
+  if (await handleProvidersCommand(rawArgs)) return;
   const config = loadConfig();
   if (await handleTuiCommand(config, rawArgs)) return;
   if (await handleRuntimeCommand(config, rawArgs)) return;

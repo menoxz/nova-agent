@@ -23,6 +23,8 @@ Ce fichier est optionnel. S'il est absent, Nova conserve les defaults intégrés
   },
   "policy": { "profileId": "developer" },
   "llm": {
+    "providerProfile": "openmodel-deepseek-v4-flash",
+    "fallbackProfiles": ["openrouter-deepseek-v4-flash"],
     "robustness": {
       "timeoutMs": 60000,
       "retries": 1,
@@ -106,7 +108,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 
 - `profile`
 - `maxSteps`
-- `llm.provider/baseUrl/model/maxTokens/pricing/robustness` — jamais `apiKey`
+- `llm.providerProfile/fallbackProfiles/provider/baseUrl/model/maxTokens/pricing/robustness` — jamais `apiKey`
 - `policy.enabled/profileId`
 - `trace.*`
 - `context.*`
@@ -123,6 +125,8 @@ Le schéma est strict : les champs inconnus sont refusés.
 
 ```bash
 npm run config:smoke
+npm run providers:smoke
+npm run eval:providers
 npm run llm:smoke
 npm run streaming:smoke
 npm run streaming:agent-smoke

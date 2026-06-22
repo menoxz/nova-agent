@@ -25,7 +25,7 @@ nova --version
 
 # Quality gate local avant commit/module terminé
 npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans clé LLM
-npm run check        # complet local: smokes clés + eval release/quality, sans clé LLM réelle
+npm run check        # complet local: smokes clés + eval release/quality/providers, sans clé LLM réelle
 ```
 
 ## Stack
@@ -93,6 +93,7 @@ nova-agent/
 | [conversation-persistence.md](conversation-persistence.md) | Conversation Persistence V1: turns redacted par session, compaction déterministe, injection contextuelle sûre |
 | [current-session-ux.md](current-session-ux.md) | Current Session UX V1: pointeur courant metadata-only, commandes sans copier-coller d'IDs |
 | [config-file.md](config-file.md) | Config File V1: `.nova/config.json`, defaults projet sûrs, validation stricte, CLI config |
+| [provider-profiles.md](provider-profiles.md) | Provider Profiles / Fallback contrôlé V1: profils provider/model, doctor read-only, fallback explicite non silencieux |
 | [cli-usage.md](cli-usage.md) | CLI Help / Command UX V1: aide intégrée, flags, commandes sûres et erreurs pédagogiques |
 | [batch-mode.md](batch-mode.md) | Batch Mode V1: prompts `.txt`/`.json`, exécution séquentielle, rapport JSON, streaming/event-log |
 | [tui-prototype.md](tui-prototype.md) | TUI Prototype V0.1: `nova tui replay/latest`, modes compact/verbose et timeline depuis event logs |

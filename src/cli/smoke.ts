@@ -36,6 +36,7 @@ async function main(): Promise<void> {
   assertOkVersion(['version'], packageJson.version);
   assertOkHelp(['help'], ['Topics', 'streaming', 'conversations']);
   assertOkHelp(['streaming', '--help'], ['streaming', 'streaming replay <logId>', '--thinking']);
+  assertOkHelp(['providers', '--help'], ['providers list', 'providers doctor', 'Fallback is opt-in']);
   assertOkHelp(['config', '--help'], ['config show', 'Precedence', 'never secrets']);
   assertOkHelp(['sessions', '--help'], ['sessions list', 'sessions current']);
   assertOkHelp(['runs', '--help'], ['runs replay', 'resume-current']);
@@ -52,6 +53,11 @@ async function main(): Promise<void> {
   assert.equal(missing.status, 1, 'missing argument exits 1');
   assert.match(missing.stderr, /Missing argument\. Usage: nova streaming show <logId>/, 'missing argument usage shown');
   assert.doesNotMatch(missing.stderr + missing.stdout, /LLM_API_KEY not set/, 'missing argument does not reach LLM key check');
+
+  const providerDoctor = runNova(['providers', 'doctor']);
+  assert.equal(providerDoctor.status, 0, 'providers doctor exits 0 without LLM key');
+  assert.match(providerDoctor.stdout, /"status": "missing"/, 'providers doctor reports missing key without value');
+  assert.doesNotMatch(providerDoctor.stderr + providerDoctor.stdout, /LLM_API_KEY not set/, 'providers doctor does not reach LLM key check');
 
   console.log('cli:smoke passed');
 }

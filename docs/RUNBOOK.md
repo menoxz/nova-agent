@@ -14,7 +14,13 @@ npm run typecheck
 
 # Quality Gate V1 — avant commit d'un module terminé
 npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans LLM_API_KEY
-npm run check        # complet local: smokes clés + eval release/quality, sans clé LLM réelle
+npm run check        # complet local: smokes clés + eval release/quality/providers, sans clé LLM réelle
+
+# Provider Profiles / Fallback contrôlé V1
+nova providers list
+nova providers doctor
+npm run providers:smoke
+npm run eval:providers
 
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
@@ -60,7 +66,7 @@ npm install <package>
 
 Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commit : il regroupe les validations rapides essentielles (`typecheck`, aide/version CLI, binaire local/installé) et ne nécessite pas `LLM_API_KEY`.
 
-Utiliser `npm run check` avant de considérer un module terminé : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `streaming:log`, `batch`, `tui`, `bin`) et evals mock `release`/`quality`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
+Utiliser `npm run check` avant de considérer un module terminé : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `providers`, `streaming:log`, `batch`, `tui`, `bin`) et evals mock `release`/`quality`/`providers`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
 
 Si `check:fast` échoue, corriger avant de lancer `check`. Si `check` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
 
@@ -72,12 +78,15 @@ LLM_BASE_URL=https://api.openmodel.ai/v1
 LLM_API_KEY=ta-clé-api
 LLM_MODEL=deepseek-v4-flash
 NOVA_PROFILE=nova.general      # optional: nova.security, nova.builder, nova.qa, etc.
+NOVA_PROVIDER_PROFILE=openmodel-deepseek-v4-flash
+# NOVA_PROVIDER_FALLBACK=openrouter-deepseek-v4-flash,openai-gpt-4o-mini  # opt-in only, never silent
 ```
 
 ## Changer de Provider
 
 ### Pour utiliser OpenAI
 ```env
+NOVA_PROVIDER_PROFILE=openai-gpt-4o-mini
 LLM_PROVIDER=openai
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=<your-api-key>
@@ -86,6 +95,7 @@ LLM_MODEL=gpt-4o
 
 ### Pour utiliser OpenRouter
 ```env
+NOVA_PROVIDER_PROFILE=openrouter-deepseek-v4-flash
 LLM_PROVIDER=openrouter
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_API_KEY=<your-api-key>
@@ -94,6 +104,7 @@ LLM_MODEL=openmodel/deepseek-v4-flash
 
 ### Pour utiliser DeepSeek direct
 ```env
+NOVA_PROVIDER_PROFILE=deepseek-chat
 LLM_PROVIDER=deepseek
 LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_API_KEY=<your-api-key>

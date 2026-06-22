@@ -26,6 +26,7 @@ export const evalSuites = {
   tui: ['tui-prototype-v0'],
   release: ['release-versioning-v1'],
   quality: ['quality-gate-v1'],
+  providers: ['provider-profiles-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;
