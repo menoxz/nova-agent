@@ -66,18 +66,19 @@ Package metadata lives in `package.json`:
 - The packaged file list includes `bin/`, `dist/`, selected docs under `docs/`, `CHANGELOG.md`, and `soul.md`.
 - The root `README.md` is included by npm's default packaging rules and is intended for package inspection/readability.
 
-No npm publish, tag, push, PR, or remote release step is part of this task. Inspect the package locally with:
+No npm publish, tag, push, PR, or remote release step is part of release-candidate dry-runs. Follow the [Release Candidate Dry-Run Checklist V1](docs/release-candidate-dry-run-checklist.md) and inspect the package locally with the pure read-only command:
 
 ```bash
 npm pack --dry-run --ignore-scripts
 ```
 
-Use `npm link` only for local installation testing when needed; it does not publish to the registry.
+Use `npm link` only for explicitly authorized local installation testing when needed; it does not publish to the registry, but it mutates global npm link state and is not part of the pure read-only dry-run.
 
 ## Documentation
 
 - [CLI usage](docs/cli-usage.md)
 - [Packaging / install UX](docs/packaging-install.md)
+- [Release Candidate Dry-Run Checklist V1](docs/release-candidate-dry-run-checklist.md)
 - [Runbook](docs/RUNBOOK.md)
 - [Policy and read-only command audit](docs/policy/README.md)
 - [Provider live smoke readiness plan](docs/provider-live-smoke-readiness.md)

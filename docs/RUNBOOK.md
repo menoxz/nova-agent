@@ -98,6 +98,18 @@ Utiliser `npm run eval:slo-smoke` pour vérifier rapidement la CLI dashboard/SLO
 
 Provider live smoke readiness reste offline/mock-only en V1 : suivre `docs/provider-live-smoke-readiness.md` (inclus dans le package npm), exécuter `npm run providers:readiness-smoke` et `npm run eval:provider-readiness`, et ne lancer aucun appel provider/LLM réel sans autorisation future explicite.
 
+## Release Candidate Dry-Run V1
+
+Pour une vérification release-candidate sans effet de publication, suivre `docs/release-candidate-dry-run-checklist.md` (inclus dans le package npm). Le périmètre interdit `npm publish`, tag, push, PR, appels provider/LLM live, daemon/autonomie, et lecture de secrets/prompts ou artefacts bruts `.nova`.
+
+La commande packaging pure read-only est :
+
+```bash
+npm pack --dry-run --ignore-scripts
+```
+
+Ne pas remplacer cette commande par `npm pack` normal : le lifecycle `prepack` lance `npm run build`, donc écrit `dist/` avant de créer un tarball. Les simulations d'installation (`npm link`, installation tarball en dossier temporaire) mutent l'état npm global ou des dossiers externes et exigent une autorisation explicite avec nettoyage documenté.
+
 ## Batch reports et CI mode
 
 Pour valider un fichier batch sans appeler le LLM :

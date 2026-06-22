@@ -2,6 +2,8 @@
 
 Packaging / Install UX V1 rend la commande `nova` utilisable en développement local et via un lien npm local, sans pointer le champ `bin` directement vers `src/index.ts`.
 
+Pour les dry-runs release-candidate sans publication ni mutation globale, utiliser aussi `docs/release-candidate-dry-run-checklist.md`.
+
 ## Modes d'usage
 
 ### Développement dans le dépôt
@@ -39,6 +41,8 @@ Ce fallback évite le shebang fragile `#!/usr/bin/env tsx` sur `src/index.ts` to
 
 ### Installation locale réaliste
 
+Ces commandes simulent une installation locale, mais elles ne sont pas pure read-only : `npm link` modifie l'état npm global et doit être réservé aux validations explicitement autorisées avec nettoyage documenté.
+
 Depuis le dépôt :
 
 ```bash
@@ -68,11 +72,19 @@ npm run bin:smoke   # vérifie node bin/nova.js + npm link + aide/version sans c
 
 `node bin/nova.js --version` et `nova --version` utilisent la version de `package.json`. Ces chemins sont des commandes metadata-only : ils ne nécessitent pas `LLM_API_KEY` et ne déclenchent ni agent, ni LLM, ni tools.
 
+Pour inspecter le manifeste sans exécuter `prepack`, sans reconstruire `dist/` et sans écrire de tarball :
+
+```bash
+npm pack --dry-run --ignore-scripts
+```
+
+Ne pas utiliser `npm pack` normal pour un dry-run pure read-only : `prepack` exécute `npm run build`, ce qui écrit les artefacts `dist/` avant la création du paquet.
+
 ## Champs package
 
 - `main`: `dist/index.js`
 - `bin.nova`: `./bin/nova.js`
-- `files`: `bin/`, `dist/`, selected docs (`docs/packaging-install.md`, `docs/RUNBOOK.md`, `docs/cli-usage.md`, `docs/provider-live-smoke-readiness.md`, `docs/policy/README.md`), `CHANGELOG.md`, `soul.md`
+- `files`: `bin/`, `dist/`, selected docs (`docs/packaging-install.md`, `docs/RUNBOOK.md`, `docs/cli-usage.md`, `docs/provider-live-smoke-readiness.md`, `docs/release-candidate-dry-run-checklist.md`, `docs/policy/README.md`), `CHANGELOG.md`, `soul.md`
 - The package intentionally excludes build smoke outputs (`dist/**/*smoke*.js`, `dist/**/*smoke*.d.ts`) and non-essential source-repository docs.
 
 ## Limites V1
