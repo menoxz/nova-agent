@@ -97,7 +97,7 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova --version`, `nova -v` et `nova version` affichent la version de `package.json` sans lire la configuration LLM, sans nécessiter `LLM_API_KEY` et sans déclencher tools/agent.
 
-`nova providers list`, `nova providers show <id>` et `nova providers doctor` sont read-only : ils listent/diagnostiquent la configuration provider sans appel LLM, sans tools et sans afficher la valeur de `LLM_API_KEY`.
+`nova providers list`, `nova providers show <id>` et `nova providers doctor` sont read-only : ils listent le Provider Directory metadata-only et les Provider Profiles exécutables, diagnostiquent la configuration provider sans appel LLM, sans tools et sans afficher la valeur de `LLM_API_KEY`. Une entrée planned/gateway/custom du Directory n'est pas prétendue exécutable.
 
 `nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) reste disponible sans clé.
 

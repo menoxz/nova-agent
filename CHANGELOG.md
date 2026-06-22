@@ -18,6 +18,7 @@ All notable Nova Agent changes are documented here. Nova uses the version declar
 - Quality Gate V1: local `npm run check:fast` and `npm run check` validation gates with typecheck, key smokes, binary/version coverage, and mock eval suites.
 - Provider Profiles / Fallback contrôlé V1: safe provider/model profiles, read-only `nova providers list/show/doctor`, API-key presence diagnostics without secret output, and explicit opt-in fallback metadata with no hidden provider switch.
 - Provider catalogue expansion: additional built-in provider/model profiles inspired by local opencode provider/model IDs and priorities, without adding remote model fetching or new secret storage.
+- Provider Directory V1.1: metadata-only catalogue for the opencode provider list with runtime-supported/planned/gateway/custom classification and no claim that planned providers are executable.
 
 ### Safety and packaging notes
 

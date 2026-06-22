@@ -2,11 +2,14 @@
 
 Provider Profiles V1 rend la configuration LLM explicite, diagnostiquable et sûre. Les profils décrivent uniquement des métadonnées non secrètes : provider adapter, base URL, modèle et protocole attendu.
 
+Provider Directory V1.1 ajoute en plus un catalogue metadata-only de tous les providers opencode listés par l'utilisateur. Une entrée Directory peut être planned ou gateway/subscription/token-plan sans être exécutable par Nova aujourd'hui.
+
 ## Commandes read-only
 
 ```bash
 nova providers list
 nova providers show openmodel-deepseek-v4-flash
+nova providers show github-copilot
 nova providers doctor
 nova --provider-profile openmodel-deepseek-v4-flash providers doctor
 ```
@@ -14,6 +17,24 @@ nova --provider-profile openmodel-deepseek-v4-flash providers doctor
 Ces commandes ne nécessitent pas `LLM_API_KEY`, ne créent pas `NovaAgent`, ne déclenchent aucun appel LLM et n'exécutent aucun tool.
 
 `doctor` affiche seulement si `LLM_API_KEY` est `present` ou `missing`; la valeur de la clé n'est jamais affichée.
+
+## Provider Profiles vs Provider Directory
+
+| Concept | Rôle | Exécutable runtime ? |
+| --- | --- | --- |
+| Provider Profile | Profil provider/model concret utilisé par `loadConfig()` : provider adapter, base URL, modèle, protocole. | Oui, seulement si l'adapter Nova existe et qu'une clé valide est fournie. |
+| Provider Directory | Catalogue metadata-only inspiré opencode : providers populaires, gateways, plans, SDKs futurs, custom providers. | Pas nécessairement. Les entrées `planned`, `gateway-subscription-token-plan` et `custom-other` ne sont pas prétendues exécutables. |
+
+Catégories Directory :
+
+- `runtime-supported` : adapter Nova actuel avec profils associés (`openrouter`, `openmodel`, `openai`, `anthropic`, `deepseek`).
+- `openai-compatible` : probablement utilisable via endpoint OpenAI-compatible explicite, mais non profilé comme adapter dédié.
+- `anthropic-compatible` : endpoint compatible Anthropic/messages à intégrer explicitement.
+- `planned` : provider présent côté opencode mais nécessite SDK/options/adapters futurs côté Nova.
+- `gateway-subscription-token-plan` : gateway, abonnement, token plan ou fournisseur avec auth spécifique; metadata-only côté Nova.
+- `custom-other` : extension utilisateur/custom provider.
+
+Stratégie progressive : le Directory permet de voir tous les providers opencode sans fetch distant ni secrets. Les entrées migrent vers Provider Profile puis vers runtime support uniquement quand le protocole, l'auth et les tests sans secrets sont maîtrisés.
 
 ## Profils intégrés V1
 

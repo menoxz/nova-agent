@@ -1,4 +1,5 @@
 export type ProviderProtocol = 'anthropic-messages' | 'openai-chat-completions';
+export type ProviderDirectoryCategory = 'runtime-supported' | 'openai-compatible' | 'anthropic-compatible' | 'planned' | 'gateway-subscription-token-plan' | 'custom-other';
 
 export interface ProviderProfile {
   id: string;
@@ -8,6 +9,16 @@ export interface ProviderProfile {
   model: string;
   protocol: ProviderProtocol;
   apiKeyEnv: 'LLM_API_KEY';
+  notes?: string;
+}
+
+export interface ProviderDirectoryEntry {
+  id: string;
+  name: string;
+  category: ProviderDirectoryCategory;
+  runtimeExecutable: boolean;
+  profileIds?: string[];
+  compatibility?: Array<'openai-chat-completions' | 'anthropic-messages' | 'sdk-required' | 'gateway' | 'local' | 'custom'>;
   notes?: string;
 }
 

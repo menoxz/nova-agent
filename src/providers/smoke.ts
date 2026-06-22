@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
-import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime } from './index.js';
+import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime, getProviderDirectoryEntry, listProviderDirectory, providerDirectorySummary } from './index.js';
 import { listProviderProfiles } from './profiles.js';
 
 function runNova(args: string[], env: NodeJS.ProcessEnv = {}): { status: number | null; stdout: string; stderr: string } {
@@ -17,6 +17,17 @@ function runNova(args: string[], env: NodeJS.ProcessEnv = {}): { status: number 
 async function main(): Promise<void> {
   assert.ok(getProviderProfile(DEFAULT_PROVIDER_PROFILE_ID), 'default provider profile exists');
   const profiles = listProviderProfiles();
+  const directory = listProviderDirectory();
+  assert.ok(directory.length >= 140, 'directory includes all opencode-style providers from the user list');
+  assert.equal(new Set(directory.map((provider) => provider.id)).size, directory.length, 'directory ids are unique');
+  for (const id of ['opencode-zen', 'github-copilot', 'google', 'vercel-ai-gateway', 'cloudflare-workers-ai', 'amazon-bedrock', 'azure', 'vertex-anthropic', 'openrouter', 'openmodel', 'other-custom-provider']) {
+    assert.ok(getProviderDirectoryEntry(id), `directory includes provider: ${id}`);
+  }
+  const summary = providerDirectorySummary();
+  assert.ok(summary['runtime-supported'] >= 5, 'directory classifies runtime-supported providers');
+  assert.ok(summary.planned >= 80, 'directory classifies planned providers');
+  assert.ok(summary['gateway-subscription-token-plan'] >= 20, 'directory classifies gateway/subscription/token-plan providers');
+  assert.ok(summary['custom-other'] >= 2, 'directory classifies custom/other providers');
   assert.ok(profiles.length >= 20, 'catalog includes expanded provider/model profiles');
   assert.equal(new Set(profiles.map((profile) => profile.id)).size, profiles.length, 'profile ids are unique');
   for (const id of ['openrouter-openai-gpt-5', 'openrouter-anthropic-claude-sonnet-4', 'openrouter-google-gemini-3-pro-preview', 'openai-gpt-5-mini', 'anthropic-claude-haiku-4-5', 'deepseek-v4-pro', 'openmodel-kimi-k2-5-free']) {
@@ -36,11 +47,16 @@ async function main(): Promise<void> {
   assert.equal(list.status, 0, `providers list exits 0: ${list.stderr}`);
   assert.match(list.stdout, /openrouter-deepseek-v4-flash/, 'providers list includes default profile');
   assert.match(list.stdout, /openrouter-openai-gpt-5/, 'providers list includes expanded profile');
+  assert.match(list.stdout, /OpenCode Zen/, 'providers list includes metadata-only directory provider');
   assert.doesNotMatch(list.stderr + list.stdout, /LLM_API_KEY not set/, 'providers list does not require LLM_API_KEY');
 
   const show = runNova(['providers', 'show', 'openmodel-deepseek-v4-flash']);
   assert.equal(show.status, 0, `providers show exits 0: ${show.stderr}`);
   assert.match(show.stdout, /anthropic-messages/, 'providers show includes protocol');
+  const showPlanned = runNova(['providers', 'show', 'github-copilot']);
+  assert.equal(showPlanned.status, 0, `providers show planned exits 0: ${showPlanned.stderr}`);
+  assert.match(showPlanned.stdout, /gateway-subscription-token-plan/, 'planned/gateway provider classification shown');
+  assert.match(showPlanned.stdout, /"runtimeExecutable": false/, 'planned provider is not claimed executable');
 
   const cliDoctor = runNova(['--provider-profile', 'openmodel-deepseek-v4-flash', 'providers', 'doctor'], { LLM_API_KEY: 'synthetic-secret-value' });
   assert.equal(cliDoctor.status, 0, `providers doctor exits 0: ${cliDoctor.stderr}`);

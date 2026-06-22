@@ -44,7 +44,7 @@ import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
 import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
 import { TuiReplayRenderer } from './tui/index.js';
 import type { TuiReplayMode } from './tui/index.js';
-import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime } from './providers/index.js';
+import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime, listProviderDirectory, getProviderDirectoryEntry, providerDirectorySummary } from './providers/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -409,13 +409,18 @@ async function handleProvidersCommand(args: string[]): Promise<boolean> {
   const [action, ...rest] = positionalArgs(args.slice(areaIndex + 1));
   const projectConfig = requireValidProjectConfig();
   if (action === 'list' || action === undefined) {
-    console.log(JSON.stringify(listProviderProfiles(), null, 2));
+    console.log(JSON.stringify({ directory: listProviderDirectory(), profiles: listProviderProfiles(), summary: providerDirectorySummary() }, null, 2));
     return true;
   }
   if (action === 'show' && rest[0]) {
     const profile = getProviderProfile(rest[0]);
+    const directoryEntry = getProviderDirectoryEntry(rest[0]);
+    if (directoryEntry) {
+      console.log(JSON.stringify({ directory: directoryEntry, profiles: directoryEntry.profileIds?.map((id) => getProviderProfile(id)).filter(Boolean) ?? [] }, null, 2));
+      return true;
+    }
     if (!profile) {
-      console.error(chalk.red(`Unknown provider profile: ${rest[0]}`));
+      console.error(chalk.red(`Unknown provider or profile: ${rest[0]}`));
       process.exitCode = 1;
       return true;
     }
