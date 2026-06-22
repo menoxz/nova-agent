@@ -48,6 +48,8 @@
     "typecheck": "tsc --noEmit",
     "profiles:smoke": "tsx src/profiles/smoke.ts",
     "policy:smoke": "tsx src/policy/smoke.ts",
+    "security:readonly-audit": "tsx src/security/read_only_audit.ts",
+    "security:readonly-smoke": "tsx src/security/read_only_smoke.ts",
     "subagents:smoke": "tsx src/subagents/smoke.ts",
     "trace:summary": "tsx src/trace/summary_cli.ts",
     "trace:summary:json": "tsx src/trace/summary_cli.ts --json",
