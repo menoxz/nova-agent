@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -36,6 +35,13 @@ import { renderEvalMarkdown } from './reporters/markdown.js';
 import type { EvalMode, EvalReport, EvalReportFormat, EvalScenario, EvalScenarioResult } from './types.js';
 import { assertPathUnderDir, projectNovaDir, readJsonFileBounded } from '../utils/safe_io.js';
 import { resolveConfigProfile, resolveProfileSync } from '../profiles/index.js';
+
+let dotenvLoaded = false;
+async function loadDotenvOnce(): Promise<void> {
+  if (dotenvLoaded) return;
+  dotenvLoaded = true;
+  await import('dotenv/config');
+}
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`) || process.argv.includes(name);
@@ -306,6 +312,7 @@ async function main(): Promise<void> {
   } else {
     const scenarios = resolveScenarioSelection(catalog, suite, ids);
     if (!scenarios.length) throw new Error(`No scenarios selected. Available: ${catalog.map((scenario) => scenario.id).join(', ')}`);
+    if (mode === 'live') await loadDotenvOnce();
     const config = mode === 'live' ? loadEvalConfig(evalRunId) : undefined;
     if (mode === 'live' && !config?.llm.apiKey) throw new Error('LLM_API_KEY not set. Use --mode mock for deterministic offline evals.');
 

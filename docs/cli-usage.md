@@ -32,6 +32,8 @@ nova batch --help
 nova tui --help
 nova providers doctor
 nova config validate
+nova heartbeat --help
+nova heartbeat tick --dry-run
 ```
 
 Avec les scripts npm, les arguments CLI doivent être placés après `--` :
@@ -60,6 +62,7 @@ nova sessions --help
 nova runs --help
 nova approvals --help
 nova conversations --help
+nova heartbeat --help
 ```
 
 ## Flags principaux
@@ -103,6 +106,8 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) et `nova batch <file> --dry-run` restent disponibles sans clé, y compris avec `--report-md` et `--ci`.
 
+`nova heartbeat validate/status/tasks/tick --dry-run/report latest` est planning-only : aucun `LLM_API_KEY`, aucun agent/tool, aucun daemon et aucun démarrage automatique.
+
 ### Batch
 
 ```bash
@@ -132,6 +137,18 @@ nova config init [--force]
 nova config validate
 nova config explain
 ```
+
+### Heartbeat
+
+```bash
+nova heartbeat validate
+nova heartbeat status
+nova heartbeat tasks
+nova heartbeat tick --dry-run
+nova heartbeat report latest
+```
+
+Heartbeat V1 est désactivé par défaut et écrit uniquement des rapports metadata-only/redacted sous `.nova/heartbeat`.
 
 ### Providers
 
@@ -180,6 +197,8 @@ npm run check:fast
 npm run check
 npm run cli:smoke
 npm run bin:smoke
+npm run heartbeat:smoke
+npm run eval:heartbeat
 npm run eval:release
 npm run eval:quality
 npm run eval:cli

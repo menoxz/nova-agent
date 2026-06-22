@@ -8,7 +8,6 @@
  *   npx tsx src/index.ts "prompt"     → single prompt mode
  */
 
-import 'dotenv/config';
 import chalk from 'chalk';
 import { intro, outro, spinner, text, isCancel, cancel } from '@clack/prompts';
 
@@ -45,6 +44,14 @@ import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.
 import { TuiReplayRenderer } from './tui/index.js';
 import type { TuiReplayMode } from './tui/index.js';
 import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime, listProviderDirectory, getProviderDirectoryEntry, providerDirectorySummary } from './providers/index.js';
+import { handleHeartbeatCommand } from './heartbeat/index.js';
+
+let dotenvLoaded = false;
+async function loadDotenvOnce(): Promise<void> {
+  if (dotenvLoaded) return;
+  dotenvLoaded = true;
+  await import('dotenv/config');
+}
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -679,6 +686,8 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   if (handleVersionCommand(rawArgs)) return;
   if (handleHelpCommand(rawArgs)) return;
+  if (await handleHeartbeatCommand(rawArgs)) return;
+  await loadDotenvOnce();
   if (await handleConfigCommand(rawArgs)) return;
   if (await handleProvidersCommand(rawArgs)) return;
   const config = loadConfig();

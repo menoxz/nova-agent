@@ -27,6 +27,14 @@ nova batch prompts.json --dry-run --report-md tmp/batch.md --ci  # sans LLM_API_
 npm run batch:smoke
 npm run eval:batch
 
+# Heartbeat / Autonomous Tasks V1 safe slice
+nova heartbeat validate
+nova heartbeat tasks
+nova heartbeat tick --dry-run   # sans LLM_API_KEY/tools/agent; écrit .nova/heartbeat
+nova heartbeat report latest
+npm run heartbeat:smoke
+npm run eval:heartbeat
+
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
 
@@ -84,6 +92,21 @@ nova batch prompts.json --dry-run --report tmp/batch.json --report-md tmp/batch.
 ```
 
 Le dry-run n'exige pas `LLM_API_KEY`, ne crée pas d'agent et n'exécute aucun tool. `--report-md` produit un rapport Markdown lisible en plus du JSON. `--ci` imprime des lignes stables `BATCH_SUMMARY`, `BATCH_REPORT_JSON`, `BATCH_REPORT_MD` et `BATCH_ITEM`, et garde un exit code strict : `0` uniquement si le batch est `completed`.
+
+## Heartbeat V1
+
+Heartbeat est une tranche sûre pour futures tâches autonomes. V1 est désactivé par défaut, ne démarre jamais automatiquement et ne fournit que des commandes explicites :
+
+```bash
+nova heartbeat --help
+nova heartbeat validate
+nova heartbeat status
+nova heartbeat tasks
+nova heartbeat tick --dry-run
+nova heartbeat report latest
+```
+
+`tick --dry-run` ne lit pas `.env`, ne requiert pas `LLM_API_KEY`, n'instancie pas `NovaAgent`, n'exécute aucun tool et écrit uniquement `.nova/heartbeat/state.json`, `.nova/heartbeat/ticks/*.json`, `.nova/heartbeat/ticks/*.md` et un lock temporaire anti-overlap. Les tâches `shell`, `write`, `git`, `network`, `memory-write`, `auto-resume` sont bloquées.
 
 ## Configuration (.env)
 

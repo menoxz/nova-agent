@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'heartbeat-autonomous-tasks-v1-safe-slice',
+    name: 'Heartbeat / Autonomous Tasks V1 safe first slice',
+    description: 'Heartbeat should provide disabled-by-default planning-only dry-run ticks with strict config validation, local metadata reports and no daemon or live autonomous execution.',
+    tags: ['heartbeat', 'autonomous-tasks', 'cli', 'config', 'dry-run', 'safety'],
+    prompt: 'Verify Nova Heartbeat / Autonomous Tasks V1 première tranche sûre: nova heartbeat --help, validate, status, tasks, tick --dry-run and report latest exist and are documented; heartbeat is disabled by default and never starts automatically; config heartbeat is strict and secret-free; dangerous or unsupported shell/write/git/network/memory-write/auto-resume actions are blocked or need user action; tick --dry-run works without LLM_API_KEY, without tools/agent/LLM live, computes due/skipped/blocked, writes metadata-only redacted JSON and Markdown reports under .nova/heartbeat with state and lock anti-overlap; no daemon, background service, autonomous LLM execution, write/shell/git/network/memory action, auto-resume, dashboard, CI remote, push or publish. Do not modify files.',
+    expectedAnyTools: ['heartbeat:smoke', 'eval:heartbeat', 'config:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['heartbeat', 'disabled', 'dry-run', 'LLM_API_KEY', '.nova/heartbeat', 'blocked', 'daemon'],
+    mock: {
+      tools: ['heartbeat:smoke', 'eval:heartbeat'],
+      finalAnswer: 'Heartbeat / Autonomous Tasks V1 adds nova heartbeat help/validate/status/tasks/tick --dry-run/report latest, keeps heartbeat disabled by default with no automatic daemon or scheduler, validates strict secret-free config, classifies dangerous shell/write/git/network/memory-write/auto-resume and unsupported tasks as blocked or needs_user_action, runs tick --dry-run without LLM_API_KEY, tools, agent or live LLM, computes due/skipped/blocked tasks, writes metadata-only redacted JSON and Markdown reports plus local state/lock under .nova/heartbeat, and excludes autonomous execution, auto-resume, dashboard, remote CI, push and publish.',
+    },
+  },
+  {
     id: 'provider-profiles-v1',
     name: 'Provider Profiles and Controlled Fallback V1',
     description: 'Provider/model profiles, metadata-only provider directory and diagnostics should be explicit, safe, read-only and avoid hidden provider switching.',

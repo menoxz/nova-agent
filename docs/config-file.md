@@ -55,6 +55,17 @@ Ce fichier est optionnel. S'il est absent, Nova conserve les defaults intégrés
     }
   },
   "memory": { "enabled": true },
+  "heartbeat": {
+    "enabled": false,
+    "tasks": [
+      {
+        "id": "inspect-docs",
+        "kind": "inspection",
+        "action": "inspect",
+        "schedule": { "type": "interval", "everyMinutes": 60 }
+      }
+    ]
+  },
   "runs": {
     "maxToolCalls": 20,
     "maxTotalTokens": 120000,
@@ -114,6 +125,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 - `context.*`
 - `streaming.enabled/mode/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs/eventLog.*`
 - `memory.*`
+- `heartbeat.enabled/tasks[]` — désactivé par défaut; dry-run planning uniquement (`inspection`, `eval`, `batch-dry-run`, `maintenance` reconnus, actions dangereuses bloquées)
 - `session.*`
 - `session.conversation.*`
 - `runs.*`
@@ -132,4 +144,6 @@ npm run streaming:smoke
 npm run streaming:agent-smoke
 npm run streaming:log-smoke
 npm run eval:config
+npm run heartbeat:smoke
+npm run eval:heartbeat
 ```

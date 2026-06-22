@@ -18,6 +18,25 @@ const budgetSchema = z.object({
   currency: z.string().min(1).optional(),
 }).strict();
 
+const heartbeatTaskSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z0-9._-]{1,80}$/, 'Use 1-80 chars: letters, numbers, dot, underscore or dash.'),
+  name: z.string().min(1).max(160).optional(),
+  enabled: z.boolean().optional(),
+  kind: z.string().min(1).max(80),
+  action: z.string().min(1).max(80).optional(),
+  schedule: z.object({
+    type: z.enum(['manual', 'interval']),
+    everyMinutes: z.number().int().positive().max(525_600).optional(),
+  }).strict().optional(),
+}).strict().superRefine((task, ctx) => {
+  if (task.schedule?.type === 'interval' && task.schedule.everyMinutes === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['schedule', 'everyMinutes'], message: 'interval schedule requires everyMinutes' });
+  }
+  if (task.schedule?.type === 'manual' && task.schedule.everyMinutes !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['schedule', 'everyMinutes'], message: 'manual schedule must not set everyMinutes' });
+  }
+});
+
 export const projectConfigSchema = z.object({
   schemaVersion: z.literal(PROJECT_CONFIG_SCHEMA_VERSION).default(PROJECT_CONFIG_SCHEMA_VERSION),
   profile: z.string().min(1).optional(),
@@ -115,6 +134,16 @@ export const projectConfigSchema = z.object({
       summaryMaxChars: z.number().int().positive().optional(),
     }).strict().optional(),
   }).strict().optional(),
+  heartbeat: z.object({
+    enabled: z.boolean().optional(),
+    tasks: z.array(heartbeatTaskSchema).max(100).optional(),
+  }).strict().optional().superRefine((heartbeat, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, task] of (heartbeat?.tasks ?? []).entries()) {
+      if (seen.has(task.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tasks', index, 'id'], message: `duplicate heartbeat task id "${task.id}"` });
+      seen.add(task.id);
+    }
+  }),
   runs: budgetSchema.optional(),
   toolConstraints: z.object({
     allowed: z.array(z.string().min(1)).optional(),
@@ -170,6 +199,7 @@ export function defaultProjectConfig(): ProjectConfig {
     context: { enabled: true, tokenBudget: 4000, includeConversationSummary: true },
     streaming: { enabled: true, mode: 'normal', showTokens: true, showTools: true, showThinking: true, thinkingMode: 'collapsed', showMetrics: true, showCost: true, eventLog: { enabled: false } },
     memory: { enabled: true },
+    heartbeat: { enabled: false, tasks: [] },
     runs: { maxToolCalls: 20, maxTotalTokens: 120000, maxEstimatedCost: 1, currency: 'USD' },
   };
 }
@@ -204,6 +234,7 @@ export function mergeProjectConfig(base: AgentConfig, project?: ProjectConfig): 
     context: { ...base.context, ...project.context },
     streaming: { ...base.streaming, ...project.streaming },
     memory: { ...base.memory, ...project.memory },
+    heartbeat: { ...base.heartbeat, ...project.heartbeat },
     session: {
       ...base.session,
       ...project.session,
@@ -223,6 +254,7 @@ export function explainProjectConfig(config?: ProjectConfig): string[] {
   if (config.context) lines.push(`- context: enabled=${config.context.enabled ?? 'default'}, tokenBudget=${config.context.tokenBudget ?? 'default'}, conversationSummary=${config.context.includeConversationSummary ?? 'default'}.`);
   if (config.streaming) lines.push(`- streaming: enabled=${config.streaming.enabled ?? 'default'}, mode=${config.streaming.mode ?? 'default'}, tokens=${config.streaming.showTokens ?? 'default'}, tools=${config.streaming.showTools ?? 'default'}, thinking=${config.streaming.thinkingMode ?? (config.streaming.showThinking === false ? 'hidden' : 'default')}, eventLog=${config.streaming.eventLog?.enabled ?? 'default'}.`);
   if (config.memory) lines.push(`- memory: enabled=${config.memory.enabled ?? 'default'}, defaultScope=${config.memory.defaultScope ?? 'default'}.`);
+  if (config.heartbeat) lines.push(`- heartbeat: enabled=${config.heartbeat.enabled ?? false}, tasks=${config.heartbeat.tasks?.length ?? 0}; V1 is dry-run planning only and starts no daemon.`);
   if (config.runs || config.session?.defaultBudget) lines.push('- runs: default run budgets are applied to session.defaultBudget unless env overrides them.');
   if (config.toolConstraints) lines.push('- toolConstraints: project defaults constrain available tools; policy still has final authority.');
   return lines;

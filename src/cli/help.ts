@@ -1,8 +1,8 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat'];
 
 const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode']);
 const knownBooleanFlags = new Set([
@@ -72,6 +72,7 @@ function globalHelp(): string {
       ['runs', 'List/show/replay/report/resume runs.'],
       ['approvals', 'List/approve/deny approval requests.'],
       ['conversations', 'Show/summary/compact stored conversations.'],
+      ['heartbeat', 'Safe disabled-by-default planning ticks for autonomous-task metadata.'],
     ]),
     '',
     section('Main flags', [
@@ -297,6 +298,22 @@ function conversationsHelp(): string {
   ].join('\n');
 }
 
+function heartbeatHelp(): string {
+  return [
+    'Nova CLI help — heartbeat',
+    '',
+    section('Commands', [
+      ['nova heartbeat validate', 'Validate .nova/config.json heartbeat settings without LLM/tools/secrets.'],
+      ['nova heartbeat status', 'Show local heartbeat state and report paths.'],
+      ['nova heartbeat tasks', 'Classify configured tasks as due/skipped/blocked/needs_user_action.'],
+      ['nova heartbeat tick --dry-run', 'Run one planning-only tick and write JSON + Markdown reports under .nova/heartbeat.'],
+      ['nova heartbeat report latest', 'Print the latest heartbeat tick report, or exit 1 with guidance if none exists.'],
+    ]),
+    '',
+    'Heartbeat V1 is disabled by default and never starts a daemon, scheduler, LLM call, tool call, or autonomous write/shell/git/network/memory action.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -308,6 +325,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'runs': return runsHelp();
     case 'approvals': return approvalsHelp();
     case 'conversations': return conversationsHelp();
+    case 'heartbeat': return heartbeatHelp();
     case 'global': return globalHelp();
   }
 }

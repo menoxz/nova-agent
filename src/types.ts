@@ -63,6 +63,7 @@ export interface AgentConfig {
   context?: import('./context/types.js').ContextBuilderConfig;
   session?: import('./session/types.js').SessionRuntimeConfig;
   streaming?: import('./streaming/types.js').StreamingConfig;
+  heartbeat?: import('./heartbeat/types.js').HeartbeatConfig;
   policy?: {
     enabled?: boolean;
     profileId?: string;

@@ -19,6 +19,7 @@ All notable Nova Agent changes are documented here. Nova uses the version declar
 - Provider Profiles / Fallback contrôlé V1: safe provider/model profiles, read-only `nova providers list/show/doctor`, API-key presence diagnostics without secret output, and explicit opt-in fallback metadata with no hidden provider switch.
 - Provider catalogue expansion: additional built-in provider/model profiles inspired by local opencode provider/model IDs and priorities, without adding remote model fetching or new secret storage.
 - Provider Directory V1.1: metadata-only catalogue for the opencode provider list with runtime-supported/planned/gateway/custom classification and no claim that planned providers are executable.
+- Heartbeat / Autonomous Tasks V1 safe slice: disabled-by-default `nova heartbeat` validate/status/tasks/tick `--dry-run`/report latest, strict secret-free config, local `.nova/heartbeat` state/tick reports with anti-overlap lock, planning-only task classification and blocked dangerous autonomous actions.
 
 ### Safety and packaging notes
 

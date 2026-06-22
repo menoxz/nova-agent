@@ -54,6 +54,7 @@
 - [x] **Release Notes / Versioning V1** — `nova --version`/`nova version`, version package en aide CLI, changelog initial et smokes binaires/version (`CHANGELOG.md`, `src/cli/version.ts`)
 - [x] **Quality Gate V1** — scripts `npm run check:fast` et `npm run check`, smokes clés, eval release/quality et runbook de validation locale sans clé LLM réelle
 - [x] **Provider Profiles / Fallback contrôlé V1** — profils provider/model explicites, `nova providers list/show/doctor`, diagnostic sans secrets et fallback opt-in non silencieux (`docs/provider-profiles.md`, `src/providers`)
+- [x] **Heartbeat / Autonomous Tasks V1 safe slice** — CLI/config/store/report/tick `--dry-run`, désactivé par défaut, rapports metadata-only sous `.nova/heartbeat`, lock anti-overlap, aucune exécution autonome/daemon/LLM/tools (`docs/heartbeat.md`, `src/heartbeat`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
@@ -70,9 +71,10 @@
 
 ## 🔭 Itération 3 — Améliorations
 
-- [ ] **Heartbeat / Tâches autonomes**
-  - L'agent peut initier des actions sans prompt utilisateur
-  - Planification (ex: "vérifie les logs toutes les heures")
+- [x] **Heartbeat / Tâches autonomes — tranche V1 sûre**
+  - [x] CLI/config/store/report/tick dry-run, disabled-by-default
+  - [x] Aucun daemon, aucun LLM live, aucune action write/shell/git/network/memory autonome
+  - [ ] Future: exécution réelle uniquement après design d'approvals explicites et sandbox
 
 - [ ] **Gestion d'erreurs robuste**
   - [x] Retry sur les appels LLM non-streaming
