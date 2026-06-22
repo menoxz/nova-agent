@@ -28,6 +28,8 @@ Terminology in this matrix is intentionally split:
 
 Orchestrator-compatible entries must not invoke live providers, use network, perform shell/git mutation, read raw sensitive artifacts, or expose `.env`/secret values. Metadata-writing dry-runs and offline smokes are called out separately from `pure-read-only`.
 
+Provider live smoke readiness is an offline-only safety plan: `providers:readiness-smoke` is local static validation, `eval:provider-readiness` is mock eval metadata output, and any future live provider smoke remains read-only-incompatible until a separate explicit authorization gate is met. See [`../provider-live-smoke-readiness.md`](../provider-live-smoke-readiness.md).
+
 Run:
 
 ```bash

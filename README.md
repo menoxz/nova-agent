@@ -80,6 +80,7 @@ Use `npm link` only for local installation testing when needed; it does not publ
 - [Packaging / install UX](docs/packaging-install.md)
 - [Runbook](docs/RUNBOOK.md)
 - [Policy and read-only command audit](docs/policy/README.md)
+- [Provider live smoke readiness plan](docs/provider-live-smoke-readiness.md)
 - [Trace and eval notes](docs/TRACE_EVAL.md)
 - [Heartbeat safe slice](docs/heartbeat.md)
 - [Changelog](CHANGELOG.md)
@@ -93,6 +94,7 @@ npm run typecheck
 npm run cli:smoke
 npm run config:smoke
 npm run providers:smoke
+npm run providers:readiness-smoke
 npm run batch:smoke
 npm run security:readonly-audit
 npm run security:readonly-smoke

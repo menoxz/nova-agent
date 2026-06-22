@@ -2,6 +2,8 @@
 
 Pour les erreurs de provider/model ou d'endpoint, commencer par `nova providers doctor` et `nova providers show <id>` afin de vérifier le profil, le protocole, la base URL, le modèle et la présence de `LLM_API_KEY` sans afficher la clé.
 
+La préparation d'un futur live smoke provider reste documentée dans [`provider-live-smoke-readiness.md`](provider-live-smoke-readiness.md) et se limite à des checks offline/mock-only (`providers:readiness-smoke`, `eval:provider-readiness`) tant qu'aucune autorisation live explicite n'est donnée.
+
 LLM Robustness V1 fiabilise les appels modèle sans changer automatiquement de provider ou de modèle.
 
 ## Fonctionnalités
@@ -70,6 +72,7 @@ En streaming, Nova passe `abortSignal`, `timeout` et `maxRetries=0` à l'AI SDK.
 
 ```bash
 npm run llm:smoke
+npm run providers:readiness-smoke
 npm run eval:llm
 npm run typecheck
 ```

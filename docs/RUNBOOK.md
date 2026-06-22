@@ -20,7 +20,9 @@ npm run check        # complet local/release-grade: smokes clés + evals mock in
 nova providers list
 nova providers doctor
 npm run providers:smoke
+npm run providers:readiness-smoke   # offline readiness only; no live provider call
 npm run eval:providers
+npm run eval:provider-readiness
 
 # Batch Markdown Report / CI Mode V1
 nova batch prompts.json --dry-run --report-md tmp/batch.md --ci  # sans LLM_API_KEY/tools
@@ -93,6 +95,8 @@ Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commi
 Utiliser `npm run check` avant de considérer un module terminé ou prêt pour une gate locale release-grade : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `providers`, `streaming:log`, `batch`, `heartbeat`, `eval:report-smoke`, `eval:slo-smoke`, `tui`, `bin`) et evals mock `release`/`quality`/`providers`/`heartbeat`/`report`/`slo`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
 
 Utiliser `npm run eval:slo-smoke` pour vérifier rapidement la CLI dashboard/SLO sur fixtures temporaires sanitizées. Utiliser `npm run eval:slo` quand la gate doit exécuter la suite SLO mock complète et écrire un rapport eval local. Si `check:fast` échoue, corriger avant de lancer `check`. Si `check`, `eval:slo-smoke` ou `eval:slo` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
+
+Provider live smoke readiness reste offline/mock-only en V1 : suivre `docs/provider-live-smoke-readiness.md`, exécuter `npm run providers:readiness-smoke` et `npm run eval:provider-readiness`, et ne lancer aucun appel provider/LLM réel sans autorisation future explicite.
 
 ## Batch reports et CI mode
 

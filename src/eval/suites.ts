@@ -28,6 +28,7 @@ export const evalSuites = {
   release: ['release-versioning-v1'],
   quality: ['quality-gate-v1'],
   providers: ['provider-profiles-v1'],
+  'provider-readiness': ['provider-live-smoke-readiness-v1'],
   report: ['eval-report-trend-v1'],
   slo: ['eval-slo-dashboard-v1'],
 } as const;

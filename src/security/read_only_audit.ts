@@ -13,6 +13,7 @@ const requiredCliIds = [
   'cli.providers.list',
   'cli.providers.show',
   'cli.providers.doctor',
+  'cli.providers.live-smoke.future',
   'cli.batch.dry-run',
   'cli.batch.live',
   'cli.eval.list',
@@ -115,6 +116,7 @@ function assertKnownDangerousNotReadOnly(): void {
   const dangerousIds = [
     'cli.prompt-interactive',
     'cli.batch.live',
+    'cli.providers.live-smoke.future',
     'cli.heartbeat.tick.live',
     'cli.config.init',
     'cli.eval.runner',

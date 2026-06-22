@@ -71,6 +71,7 @@ function smokeDangerousEntriesBlocked(): void {
   const dangerousIds = [
     'cli.prompt-interactive',
     'cli.batch.live',
+    'cli.providers.live-smoke.future',
     'cli.heartbeat.tick.live',
     'cli.eval.runner',
     'script.dev-start',

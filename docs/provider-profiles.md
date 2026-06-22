@@ -18,6 +18,8 @@ Ces commandes ne nécessitent pas `LLM_API_KEY`, ne créent pas `NovaAgent`, ne 
 
 `doctor` affiche seulement si `LLM_API_KEY` est `present` ou `missing`; la valeur de la clé n'est jamais affichée.
 
+Pour préparer un futur live smoke sans l'exécuter, utiliser le plan offline/mock-only [`provider-live-smoke-readiness.md`](provider-live-smoke-readiness.md) et `npm run providers:readiness-smoke`.
+
 ## Provider Profiles vs Provider Directory
 
 | Concept | Rôle | Exécutable runtime ? |
@@ -125,6 +127,8 @@ LLM_API_KEY=...
 
 ```bash
 npm run providers:smoke
+npm run providers:readiness-smoke
 npm run eval:providers
+npm run eval:provider-readiness
 npm run check:fast
 ```
