@@ -22,6 +22,11 @@ nova providers doctor
 npm run providers:smoke
 npm run eval:providers
 
+# Batch Markdown Report / CI Mode V1
+nova batch prompts.json --dry-run --report-md tmp/batch.md --ci  # sans LLM_API_KEY/tools
+npm run batch:smoke
+npm run eval:batch
+
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
 
@@ -69,6 +74,16 @@ Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commi
 Utiliser `npm run check` avant de considérer un module terminé : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `providers`, `streaming:log`, `batch`, `tui`, `bin`) et evals mock `release`/`quality`/`providers`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
 
 Si `check:fast` échoue, corriger avant de lancer `check`. Si `check` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
+
+## Batch reports et CI mode
+
+Pour valider un fichier batch sans appeler le LLM :
+
+```bash
+nova batch prompts.json --dry-run --report tmp/batch.json --report-md tmp/batch.md --ci
+```
+
+Le dry-run n'exige pas `LLM_API_KEY`, ne crée pas d'agent et n'exécute aucun tool. `--report-md` produit un rapport Markdown lisible en plus du JSON. `--ci` imprime des lignes stables `BATCH_SUMMARY`, `BATCH_REPORT_JSON`, `BATCH_REPORT_MD` et `BATCH_ITEM`, et garde un exit code strict : `0` uniquement si le batch est `completed`.
 
 ## Configuration (.env)
 

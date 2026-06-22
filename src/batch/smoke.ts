@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -41,10 +41,19 @@ async function main(): Promise<void> {
 
     await mkdir('tmp', { recursive: true });
     const reportPath = join('tmp', 'batch-dry-smoke-report.json');
-    const dry = await dryRunBatch(jsonPath, { reportPath, limit: 1 });
+    const reportMarkdownPath = join('tmp', 'batch-dry-smoke-report.md');
+    const dry = await dryRunBatch(jsonPath, { reportPath, reportMarkdownPath, limit: 1, ci: true });
     assert.equal(dry.options.dryRun, true, 'dry-run report marks dry run');
+    assert.equal(dry.options.ci, true, 'dry-run report records ci option');
+    assert.equal(dry.options.reportMarkdown, true, 'dry-run report records markdown option');
+    assert.equal(dry.reportMarkdownPath?.endsWith('batch-dry-smoke-report.md'), true, 'dry-run report includes markdown path');
     assert.equal(dry.counts.total, 1, 'dry-run reports selected total');
     assert.equal(dry.items[0]?.skipReason, 'Dry run: item validated but not executed.', 'dry-run item explains no execution');
+    const markdown = await readFile(reportMarkdownPath, 'utf-8');
+    assert.match(markdown, /# Nova Batch Report/, 'markdown report has title');
+    assert.match(markdown, /## Summary/, 'markdown report has summary');
+    assert.match(markdown, /\| ID \| Status \| Duration \| Tokens \| Cost \| Run \| Event log \|/, 'markdown report has items table');
+    assert.match(markdown, /Dry run: item validated but not executed\./, 'markdown report includes dry-run detail');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -64,12 +73,22 @@ async function main(): Promise<void> {
     const cliJson = join(cliRoot, 'cli-prompts.json');
     await mkdir('tmp', { recursive: true });
     const cliReport = join('tmp', 'batch-cli-dry-smoke-report.json');
+    const cliMarkdown = join('tmp', 'batch-cli-dry-smoke-report.md');
     await writeFile(cliJson, JSON.stringify([{ id: 'a', prompt: 'A' }, { id: 'b', prompt: 'B' }, { id: 'c', prompt: 'C' }]), 'utf-8');
-    const dryRun = runNova(['batch', cliJson, '--dry-run', '--from', 'b', '--limit', '1', '--report', cliReport]);
+    const dryRun = runNova(['batch', cliJson, '--dry-run', '--from', 'b', '--limit', '1', '--report', cliReport, '--report-md', cliMarkdown]);
     assert.equal(dryRun.status, 0, `dry-run exits 0: ${dryRun.stderr}`);
     assert.match(dryRun.stdout ?? '', /Batch dry-run/, 'dry-run prints summary');
     assert.match(dryRun.stdout ?? '', /✓ b/, 'dry-run prints selected id');
+    assert.match(dryRun.stdout ?? '', /Markdown report:/, 'dry-run prints markdown report path');
     assert.doesNotMatch((dryRun.stderr ?? '') + (dryRun.stdout ?? ''), /LLM_API_KEY not set/, 'dry-run does not require LLM key');
+
+    const ciRun = runNova(['batch', cliJson, '--dry-run', '--ci', '--from', 'b', '--limit', '1', '--report-md', cliMarkdown]);
+    assert.equal(ciRun.status, 0, `dry-run ci exits 0: ${ciRun.stderr}`);
+    assert.match(ciRun.stdout ?? '', /BATCH_SUMMARY status=completed total=3 success=0 error=0 skipped=3/, 'ci prints stable summary');
+    assert.match(ciRun.stdout ?? '', /BATCH_REPORT_JSON path=/, 'ci prints json report path');
+    assert.match(ciRun.stdout ?? '', /BATCH_REPORT_MD path=/, 'ci prints markdown report path');
+    assert.match(ciRun.stdout ?? '', /BATCH_ITEM id=b status=skipped/, 'ci prints selected item line');
+    assert.doesNotMatch((ciRun.stderr ?? '') + (ciRun.stdout ?? ''), /LLM_API_KEY not set/, 'ci dry-run does not require LLM key');
   } finally {
     await rm(cliRoot, { recursive: true, force: true });
   }

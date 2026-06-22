@@ -235,12 +235,13 @@ function promptArgs(): string[] {
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === '--profile' || arg === '--provider-profile' || arg === '--provider-fallback' || arg === '--report' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
+    if (arg === '--profile' || arg === '--provider-profile' || arg === '--provider-fallback' || arg === '--report' || arg === '--report-md' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
     if (arg.startsWith('--profile=')) continue;
     if (arg.startsWith('--provider-profile=')) continue;
     if (arg.startsWith('--provider-fallback=')) continue;
     if (arg.startsWith('--report=')) continue;
-    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error' || arg === '--dry-run') continue;
+    if (arg.startsWith('--report-md=')) continue;
+    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error' || arg === '--dry-run' || arg === '--ci') continue;
     if (arg === '--thinking' || arg === '--stream-mode') { index += 1; continue; }
     if (arg.startsWith('--thinking=') || arg.startsWith('--stream-mode=')) continue;
     result.push(arg);
@@ -250,7 +251,7 @@ function promptArgs(): string[] {
 
 function positionalArgs(args: string[]): string[] {
   const values: string[] = [];
-  const optionsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
+  const optionsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg) continue;
@@ -443,7 +444,7 @@ async function handleProvidersCommand(args: string[]): Promise<boolean> {
 async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<boolean> {
   if (args[0] !== 'batch') return false;
   const file = positionalArgs(args.slice(1))[0];
-  if (!file) return missingArgument('nova batch <file> [--dry-run] [--limit N] [--only id1,id2] [--from id]', 'batch');
+  if (!file) return missingArgument('nova batch <file> [--dry-run] [--limit N] [--only id1,id2] [--from id] [--report-md path] [--ci]', 'batch');
   let batchOptions: BatchRunOptions;
   try {
     batchOptions = parseBatchOptions(config);
@@ -463,8 +464,12 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
   if (batchOptions.dryRun) {
     try {
       const report = await dryRunBatch(file, batchOptions);
-      printBatchDryRun(report.items.filter((item) => item.skipReason === 'Dry run: item validated but not executed.'), report.items.filter((item) => item.skipReason && item.skipReason !== 'Dry run: item validated but not executed.'));
-      console.log(chalk.gray(`Report: ${report.reportPath}`));
+      if (batchOptions.ci) printBatchCiSummary(report);
+      else {
+        printBatchDryRun(report.items.filter((item) => item.skipReason === 'Dry run: item validated but not executed.'), report.items.filter((item) => item.skipReason && item.skipReason !== 'Dry run: item validated but not executed.'));
+        console.log(chalk.gray(`Report: ${report.reportPath}`));
+        if (report.reportMarkdownPath) console.log(chalk.gray(`Markdown report: ${report.reportMarkdownPath}`));
+      }
       process.exitCode = 0;
       return true;
     } catch (err) {
@@ -481,15 +486,17 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
   const tools = setupTools();
   const report = await runBatch(config, tools, file, {
     ...batchOptions,
-    onItemStart: ({ item, index, total }) => printBatchItemStart(item, index, total),
-    onItemFinish: ({ report, index, total }) => printBatchItemFinish(report, index, total),
+    onItemStart: batchOptions.ci ? ({ item, index, total }) => printBatchCiItemStart(item, index, total) : ({ item, index, total }) => printBatchItemStart(item, index, total),
+    onItemFinish: batchOptions.ci ? ({ report, index, total }) => printBatchCiItemFinish(report, index, total) : ({ report, index, total }) => printBatchItemFinish(report, index, total),
   });
-  printBatchSummary(report);
+  if (batchOptions.ci) printBatchCiSummary(report);
+  else printBatchSummary(report);
   process.exitCode = report.status === 'completed' ? 0 : 1;
   return true;
 }
 
 function parseBatchOptions(config: AgentConfig): BatchRunOptions {
+  const ci = hasFlag('ci');
   const limitValue = getArg('limit');
   const limit = limitValue === undefined ? undefined : parseInt(limitValue, 10);
   if (limitValue !== undefined && (!Number.isFinite(limit ?? NaN) || (limit ?? 0) < 1)) throw new Error('--limit must be a positive integer');
@@ -498,16 +505,30 @@ function parseBatchOptions(config: AgentConfig): BatchRunOptions {
   if (onlyValue !== undefined && !onlyIds?.length) throw new Error('--only must contain at least one item id');
   const fromId = getArg('from');
   if (fromId !== undefined && !fromId.trim()) throw new Error('--from must contain an item id');
+  const reportPath = pathValue('report');
+  const reportMarkdownPath = pathValue('report-md');
   return {
-    streaming: shouldStream(config),
+    streaming: ci ? false : shouldStream(config),
     eventLog: hasFlag('event-log'),
-    reportPath: getArg('report'),
+    reportPath,
+    reportMarkdownPath,
+    ci,
     continueOnError: hasFlag('continue-on-error'),
     dryRun: hasFlag('dry-run'),
     limit,
     onlyIds,
     fromId,
   };
+}
+
+function pathValue(name: string): string | undefined {
+  const value = getArg(name);
+  if (value === undefined) {
+    if (hasFlag(name)) throw new Error(`--${name} requires a path`);
+    return undefined;
+  }
+  if (!value.trim() || value.startsWith('-')) throw new Error(`--${name} requires a path`);
+  return value;
 }
 
 function printBatchItemStart(item: BatchItem, index: number, total: number): void {
@@ -532,6 +553,22 @@ function printBatchSummary(report: Awaited<ReturnType<typeof runBatch>>): void {
   console.log(chalk.cyanBright.bold('Batch summary'));
   console.log(`status=${report.status} success=${report.counts.success} error=${report.counts.error} skipped=${report.counts.skipped} total=${report.counts.total}`);
   console.log(chalk.gray(`Report: ${report.reportPath}`));
+  if (report.reportMarkdownPath) console.log(chalk.gray(`Markdown report: ${report.reportMarkdownPath}`));
+}
+
+function printBatchCiItemStart(item: BatchItem, index: number, total: number): void {
+  console.log(`BATCH_ITEM_START index=${index} total=${total} id=${item.id}`);
+}
+
+function printBatchCiItemFinish(report: BatchItemReport, index: number, total: number): void {
+  console.log(`BATCH_ITEM_RESULT index=${index} total=${total} id=${report.id} status=${report.status} durationMs=${report.durationMs}`);
+}
+
+function printBatchCiSummary(report: Awaited<ReturnType<typeof runBatch>>): void {
+  console.log(`BATCH_SUMMARY status=${report.status} total=${report.counts.total} success=${report.counts.success} error=${report.counts.error} skipped=${report.counts.skipped} durationMs=${report.durationMs}`);
+  console.log(`BATCH_REPORT_JSON path=${report.reportPath ?? ''}`);
+  if (report.reportMarkdownPath) console.log(`BATCH_REPORT_MD path=${report.reportMarkdownPath}`);
+  for (const item of report.items) console.log(`BATCH_ITEM id=${item.id} status=${item.status} durationMs=${item.durationMs}`);
 }
 
 async function handleTuiCommand(config: AgentConfig, args: string[]): Promise<boolean> {

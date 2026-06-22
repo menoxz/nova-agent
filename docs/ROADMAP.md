@@ -48,7 +48,7 @@
 - [x] **Streaming UX V1** — expérience CLI live avec tokens, timer, coût estimé, events outils redacted, thinking/reasoning pliable et fallback `generateText()` (`docs/streaming-ux.md`, `src/streaming`)
 - [x] **LLM Robustness V1** — timeout, retries/backoff, classification erreurs provider et diagnostics CLI/streaming (`docs/llm-robustness.md`, `src/llm`)
 - [x] **CLI Help / Command UX V1** — aide globale/par domaine sans clé LLM, flags principaux documentés, erreurs de commande pédagogiques (`docs/cli-usage.md`, `src/cli`)
-- [x] **Batch Mode V1** — `nova batch <file>` séquentiel, entrées `.txt`/`.json`, rapport JSON, options streaming/event-log/report/continue-on-error (`docs/batch-mode.md`, `src/batch`)
+- [x] **Batch Mode V1.2** — `nova batch <file>` séquentiel, entrées `.txt`/`.json`, rapport JSON, rapport Markdown `--report-md`, sortie automation `--ci`, options streaming/event-log/report/continue-on-error (`docs/batch-mode.md`, `src/batch`)
 - [x] **TUI Prototype V0.1** — replay/latest terminal des `RuntimeStreamingEvent`/event logs existants: modes compact/verbose, timeline, metrics, tools, reasoning, final/erreur (`docs/tui-prototype.md`, `src/tui`)
 - [x] **Packaging / Install UX V1** — wrapper `bin/nova.js`, `bin.nova` fiable, build/local link, docs dev vs installed et smoke binaire (`docs/packaging-install.md`)
 - [x] **Release Notes / Versioning V1** — `nova --version`/`nova version`, version package en aide CLI, changelog initial et smokes binaires/version (`CHANGELOG.md`, `src/cli/version.ts`)

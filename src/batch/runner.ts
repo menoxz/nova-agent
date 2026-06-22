@@ -48,12 +48,15 @@ export async function runBatch(config: AgentConfig, tools: ToolRegistry, filePat
     status: reportStatus(items),
     inputFile: loaded.path,
     reportPath,
+    reportMarkdownPath: options.reportMarkdownPath ? resolveBatchReportPath(options.reportMarkdownPath) : undefined,
     startedAt,
     finishedAt: new Date(finishedAtMs).toISOString(),
     durationMs: finishedAtMs - startedAtMs,
     options: {
       streaming: requestedStreaming,
       eventLog: options.eventLog === true,
+      reportMarkdown: options.reportMarkdownPath !== undefined,
+      ci: options.ci === true,
       continueOnError: options.continueOnError === true,
       dryRun: false,
       limit: options.limit,
@@ -64,6 +67,7 @@ export async function runBatch(config: AgentConfig, tools: ToolRegistry, filePat
     items,
   };
   await writeBatchReport(reportPath, report);
+  if (report.reportMarkdownPath) await writeBatchMarkdownReport(report.reportMarkdownPath, report);
   return report;
 }
 
@@ -83,12 +87,15 @@ export async function dryRunBatch(filePath: string, options: BatchRunOptions = {
     status: 'completed',
     inputFile: loaded.path,
     reportPath,
+    reportMarkdownPath: options.reportMarkdownPath ? resolveBatchReportPath(options.reportMarkdownPath) : undefined,
     startedAt: new Date(startedAtMs).toISOString(),
     finishedAt: new Date(finishedAtMs).toISOString(),
     durationMs: finishedAtMs - startedAtMs,
     options: {
       streaming: false,
       eventLog: false,
+      reportMarkdown: options.reportMarkdownPath !== undefined,
+      ci: options.ci === true,
       continueOnError: options.continueOnError === true,
       dryRun: true,
       limit: options.limit,
@@ -99,6 +106,7 @@ export async function dryRunBatch(filePath: string, options: BatchRunOptions = {
     items,
   };
   await writeBatchReport(reportPath, report);
+  if (report.reportMarkdownPath) await writeBatchMarkdownReport(report.reportMarkdownPath, report);
   return report;
 }
 
@@ -284,6 +292,104 @@ function reportStatus(items: BatchItemReport[]): BatchReportStatus {
 async function writeBatchReport(path: string, report: BatchReport): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, 'utf-8');
+}
+
+async function writeBatchMarkdownReport(path: string, report: BatchReport): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, renderBatchMarkdownReport(report), 'utf-8');
+}
+
+export function renderBatchMarkdownReport(report: BatchReport): string {
+  const lines: string[] = [];
+  lines.push(`# Nova Batch Report — ${escapeMarkdown(report.batchId)}`);
+  lines.push('');
+  lines.push('## Summary');
+  lines.push('');
+  lines.push(`- Status: **${report.status}**`);
+  lines.push(`- Input file: \`${escapeInlineCode(report.inputFile)}\``);
+  lines.push(`- JSON report: \`${escapeInlineCode(report.reportPath ?? 'n/a')}\``);
+  if (report.reportMarkdownPath) lines.push(`- Markdown report: \`${escapeInlineCode(report.reportMarkdownPath)}\``);
+  lines.push(`- Started: ${report.startedAt}`);
+  lines.push(`- Finished: ${report.finishedAt}`);
+  lines.push(`- Duration: ${report.durationMs} ms`);
+  lines.push(`- Counts: total ${report.counts.total}, success ${report.counts.success}, error ${report.counts.error}, skipped ${report.counts.skipped}`);
+  lines.push(`- Options: streaming=${report.options.streaming}, eventLog=${report.options.eventLog}, dryRun=${report.options.dryRun}, ci=${report.options.ci}, continueOnError=${report.options.continueOnError}${report.options.limit ? `, limit=${report.options.limit}` : ''}${report.options.fromId ? `, from=${report.options.fromId}` : ''}${report.options.onlyIds?.length ? `, only=${report.options.onlyIds.join(',')}` : ''}`);
+  lines.push('');
+  lines.push('## Items');
+  lines.push('');
+  lines.push('| ID | Status | Duration | Tokens | Cost | Run | Event log |');
+  lines.push('| --- | --- | ---: | ---: | ---: | --- | --- |');
+  for (const item of report.items) {
+    lines.push(`| ${cell(item.id)} | ${cell(item.status)} | ${item.durationMs} ms | ${cell(formatTokens(item))} | ${cell(formatCost(item))} | ${cell(formatRun(item))} | ${cell(formatEventLog(item))} |`);
+  }
+  lines.push('');
+  lines.push('## Errors and details');
+  lines.push('');
+  if (!report.items.length) {
+    lines.push('_No items._');
+  }
+  for (const item of report.items) {
+    lines.push(`### ${escapeMarkdown(item.id)} — ${item.status}`);
+    lines.push('');
+    lines.push(`- Duration: ${item.durationMs} ms`);
+    if (item.error) lines.push(`- Error: ${escapeMarkdown(item.error)}`);
+    if (item.skipReason) lines.push(`- Skip reason: ${escapeMarkdown(item.skipReason)}`);
+    if (item.run?.sessionId || item.run?.runId) lines.push(`- Run: ${escapeMarkdown(formatRun(item))}`);
+    if (item.eventLog?.logId || item.eventLog?.path) lines.push(`- Event log: ${escapeMarkdown(formatEventLog(item))}`);
+    lines.push('');
+    lines.push('Prompt preview:');
+    lines.push('');
+    lines.push(fence(item.promptPreview));
+    if (item.answerPreview) {
+      lines.push('');
+      lines.push('Answer preview:');
+      lines.push('');
+      lines.push(fence(item.answerPreview));
+    }
+    lines.push('');
+  }
+  return `${lines.join('\n').trimEnd()}\n`;
+}
+
+function formatTokens(item: BatchItemReport): string {
+  const total = item.metrics?.totalTokens;
+  if (typeof total === 'number') return String(total);
+  const prompt = item.metrics?.promptTokens;
+  const completion = item.metrics?.completionTokens;
+  if (typeof prompt === 'number' || typeof completion === 'number') return `${prompt ?? 0}+${completion ?? 0}`;
+  return '-';
+}
+
+function formatCost(item: BatchItemReport): string {
+  const cost = item.metrics?.cost;
+  if (!cost) return '-';
+  return `${cost.totalCost.toFixed(6)} ${cost.currency}`;
+}
+
+function formatRun(item: BatchItemReport): string {
+  if (!item.run?.sessionId && !item.run?.runId) return '-';
+  return [item.run.sessionId ? `session=${item.run.sessionId}` : undefined, item.run.runId ? `run=${item.run.runId}` : undefined].filter(Boolean).join(' ');
+}
+
+function formatEventLog(item: BatchItemReport): string {
+  if (!item.eventLog?.logId && !item.eventLog?.path) return '-';
+  return [item.eventLog.logId ? `log=${item.eventLog.logId}` : undefined, item.eventLog.path ? `path=${item.eventLog.path}` : undefined].filter(Boolean).join(' ');
+}
+
+function cell(value: string): string {
+  return escapeMarkdown(value).replace(/\n/g, '<br>').replace(/\|/g, '\\|');
+}
+
+function fence(value: string): string {
+  return ['```text', value.replace(/```/g, '``\u200b`'), '```'].join('\n');
+}
+
+function escapeMarkdown(value: string): string {
+  return value.replace(/([*_`])/g, '\\$1');
+}
+
+function escapeInlineCode(value: string): string {
+  return value.replace(/`/g, '\\`');
 }
 
 function resolveBatchReportPath(path: string): string {

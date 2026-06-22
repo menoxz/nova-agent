@@ -4,12 +4,12 @@ export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers
 
 export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from', 'mode']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error', 'dry-run', 'compact', 'verbose',
+  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -63,7 +63,7 @@ function globalHelp(): string {
     ]),
     '',
     section('Topics', [
-      ['batch', 'Sequential non-interactive prompt files with JSON reports.'],
+      ['batch', 'Sequential non-interactive prompt files with JSON/Markdown reports.'],
       ['tui', 'Terminal UI prototype for event-log replay.'],
       ['streaming', 'Live output, event logs, replay.'],
       ['providers', 'Provider/model profiles and safe diagnostics.'],
@@ -89,6 +89,8 @@ function globalHelp(): string {
       ['--no-stream-tools', 'Hide live tool events.'],
       ['--event-log', 'For batch: persist event logs for each item.'],
       ['--report <path>', 'For batch: write report JSON to a custom path.'],
+      ['--report-md <path>', 'For batch: write a human-readable Markdown report.'],
+      ['--ci', 'For batch: stable automation output and strict exit codes.'],
       ['--continue-on-error', 'For batch: keep running after an item error.'],
       ['--dry-run', 'For batch: validate and display selected items without LLM/tools.'],
       ['--limit N', 'For batch: select at most N executable items.'],
@@ -133,6 +135,8 @@ function batchHelp(): string {
       ['nova batch prompts.txt --stream', 'Stream each item while still writing a report.'],
       ['nova batch prompts.json --event-log', 'Persist redacted per-item event logs.'],
       ['nova batch prompts.json --report .nova/batch/report.json', 'Write report to a custom path.'],
+      ['nova batch prompts.json --report-md .nova/batch/report.md', 'Write a human-readable Markdown report.'],
+      ['nova batch prompts.json --ci', 'Print stable automation-friendly lines and strict exit codes.'],
       ['nova batch prompts.json --dry-run', 'Validate and display selected items without LLM/tools/API key.'],
     ]),
     '',
@@ -145,6 +149,8 @@ function batchHelp(): string {
       ['--stream', 'Use streaming output for each item.'],
       ['--event-log', 'Enable redacted JSONL event logs for each item.'],
       ['--report <path>', 'Write the structured JSON report at this path.'],
+      ['--report-md <path>', 'Write a readable Markdown report with summary, item table, errors/details and run/event-log references.'],
+      ['--ci', 'Use stable BATCH_* console lines; exit non-zero if the batch is not completed.'],
       ['--continue-on-error', 'Continue after item errors; default is stop and mark remaining skipped.'],
       ['--dry-run', 'Validate input and filters, write report, do not execute LLM/tools.'],
       ['--limit N', 'Select at most N executable items.'],

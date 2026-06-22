@@ -78,6 +78,8 @@ nova conversations --help
 | `--no-stream-tools` | Masque les événements tools dans le rendu live. |
 | `--event-log` | En batch, active les logs JSONL redacted par item. |
 | `--report <path>` | En batch, choisit le chemin du rapport JSON. |
+| `--report-md <path>` | En batch, écrit un rapport Markdown lisible. |
+| `--ci` | En batch, active une sortie stable `BATCH_*` pour automation et des exit codes stricts. |
 | `--continue-on-error` | En batch, continue après une erreur d'item. |
 
 ## TUI Prototype V0
@@ -99,7 +101,7 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova providers list`, `nova providers show <id>` et `nova providers doctor` sont read-only : ils listent le Provider Directory metadata-only et les Provider Profiles exécutables, diagnostiquent la configuration provider sans appel LLM, sans tools et sans afficher la valeur de `LLM_API_KEY`. Une entrée planned/gateway/custom du Directory n'est pas prétendue exécutable.
 
-`nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) reste disponible sans clé.
+`nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) et `nova batch <file> --dry-run` restent disponibles sans clé, y compris avec `--report-md` et `--ci`.
 
 ### Batch
 
@@ -108,7 +110,11 @@ nova batch prompts.txt
 nova batch prompts.json --stream --event-log
 nova batch prompts.json --report .nova/batch/report.json --continue-on-error
 nova batch prompts.json --dry-run --from task-2 --limit 3
+nova batch prompts.json --report-md .nova/batch/report.md
+nova batch prompts.json --dry-run --ci --report-md tmp/batch.md
 ```
+
+`--report-md` ajoute un rapport Markdown avec résumé, tableau items, erreurs/détails et références `run`/`eventLog` quand disponibles. `--ci` imprime des lignes `BATCH_*` stables et retourne `1` si le batch n'est pas `completed`.
 
 ### Streaming
 

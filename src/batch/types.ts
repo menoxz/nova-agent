@@ -10,6 +10,8 @@ export interface BatchRunOptions {
   streaming?: boolean;
   eventLog?: boolean;
   reportPath?: string;
+  reportMarkdownPath?: string;
+  ci?: boolean;
   continueOnError?: boolean;
   dryRun?: boolean;
   limit?: number;
@@ -49,12 +51,15 @@ export interface BatchReport {
   status: BatchReportStatus;
   inputFile: string;
   reportPath?: string;
+  reportMarkdownPath?: string;
   startedAt: string;
   finishedAt: string;
   durationMs: number;
   options: {
     streaming: boolean;
     eventLog: boolean;
+    reportMarkdown: boolean;
+    ci: boolean;
     continueOnError: boolean;
     dryRun: boolean;
     limit?: number;
