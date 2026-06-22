@@ -22,6 +22,10 @@ node bin/nova.js --version
 npm link
 nova --help
 nova --version
+
+# Quality gate local avant commit/module terminé
+npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans clé LLM
+npm run check        # complet local: smokes clés + eval release/quality, sans clé LLM réelle
 ```
 
 ## Stack

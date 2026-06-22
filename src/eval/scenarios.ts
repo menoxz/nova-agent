@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'quality-gate-v1',
+    name: 'Quality Gate V1 local validation scripts',
+    description: 'Quality Gate V1 should provide fast and full local validation scripts that are safe to run before commits without requiring live LLM credentials.',
+    tags: ['quality', 'check', 'npm', 'smoke', 'eval', 'docs', 'safety'],
+    prompt: 'Verify Nova Quality Gate V1: package.json exposes npm run check:fast for rapid essential validation without LLM_API_KEY; npm run check performs a proportionate full local validation including typecheck, key smoke tests, binary/version coverage and eval release; docs/README.md, docs/RUNBOOK.md and docs/cli-usage.md explain when to use check:fast vs check; the quality gate has a scenario/suite or explicit documentation; no GitHub Actions/remote CI, provider/fallback changes, npm publish, tag, push, PR, npm runner refactor, or heavy tests requiring a real LLM key. Do not modify files.',
+    expectedAnyTools: ['check:fast', 'check', 'eval:quality', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['check:fast', 'check', 'typecheck', 'smoke', 'eval:release', 'LLM_API_KEY'],
+    mock: {
+      tools: ['check:fast', 'check', 'eval:quality'],
+      finalAnswer: 'Quality Gate V1 adds npm run check:fast for rapid typecheck/CLI/bin validation without LLM_API_KEY, npm run check for proportionate full local validation including typecheck, key smokes, binary/version coverage, eval:release and eval:quality, documents when to use each command in README/RUNBOOK/CLI usage, and avoids GitHub Actions, remote CI, provider/fallback changes, npm publish, tags, push/PR, npm runner refactors and tests requiring a real LLM key.',
+    },
+  },
+  {
     id: 'release-versioning-v1',
     name: 'Release Notes and Versioning V1',
     description: 'Version commands and release notes should expose the package version safely without requiring LLM credentials or changing release/publish state.',

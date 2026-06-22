@@ -25,6 +25,7 @@ export const evalSuites = {
   batch: ['batch-mode-v1'],
   tui: ['tui-prototype-v0'],
   release: ['release-versioning-v1'],
+  quality: ['quality-gate-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

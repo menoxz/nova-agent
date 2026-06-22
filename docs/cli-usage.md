@@ -155,7 +155,14 @@ nova approvals deny <approvalId> [reason]
 ## Vérification
 
 ```bash
+npm run check:fast
+npm run check
 npm run cli:smoke
+npm run bin:smoke
+npm run eval:release
+npm run eval:quality
 npm run eval:cli
 npm run typecheck
 ```
+
+`check:fast` est le garde-fou rapide pendant l'itération et avant petits commits. `check` est le garde-fou complet local pour un module terminé : il regroupe typecheck, smokes clés et evals mock release/quality sans nécessiter de vraie clé LLM.

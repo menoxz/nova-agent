@@ -12,6 +12,10 @@ npx tsx src/index.ts "Ta question ici"
 # Vérifier le typage
 npm run typecheck
 
+# Quality Gate V1 — avant commit d'un module terminé
+npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans LLM_API_KEY
+npm run check        # complet local: smokes clés + eval release/quality, sans clé LLM réelle
+
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
 
@@ -51,6 +55,14 @@ npx @modelcontextprotocol/inspector npm run mcp:stdio
 # Installer une dépendance
 npm install <package>
 ```
+
+## Quality Gate V1
+
+Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commit : il regroupe les validations rapides essentielles (`typecheck`, aide/version CLI, binaire local/installé) et ne nécessite pas `LLM_API_KEY`.
+
+Utiliser `npm run check` avant de considérer un module terminé : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `streaming:log`, `batch`, `tui`, `bin`) et evals mock `release`/`quality`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
+
+Si `check:fast` échoue, corriger avant de lancer `check`. Si `check` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
 
 ## Configuration (.env)
 
