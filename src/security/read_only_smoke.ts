@@ -30,6 +30,7 @@ function smokeSafeReadOnlyCommands(): void {
     'cli.eval.list',
     'cli.eval.report',
     'cli.eval.compare',
+    'cli.eval.dashboard',
     'cli.heartbeat.validate',
     'cli.heartbeat.status',
     'cli.heartbeat.tasks',

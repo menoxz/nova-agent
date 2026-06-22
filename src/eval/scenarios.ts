@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'eval-slo-dashboard-v1',
+    name: 'Eval SLO / Regression Dashboard V1',
+    description: 'Eval SLO dashboard commands should summarize sanitized report metrics, gates, tool-call budgets, readiness and regressions without LLM/tools/secrets/raw eval bodies.',
+    tags: ['eval', 'slo', 'dashboard', 'regression', 'cli', 'safety', 'read-only'],
+    prompt: 'Verify Eval SLO / Regression Dashboard V1: nova eval dashboard|slo latest|<runId> supports --json and --previous, remains pre-dotenv/pre-config and works without LLM_API_KEY/provider/tools, builds only from sanitized report summaries/comparisons over structured report.json, models pass rate, errors, gates, optional tool-call budgets, readiness, newly failed and recovered scenarios, excludes raw finalAnswer and checks.actual, rejects traversal/mismatched ids/missing reports safely, and includes smoke/docs/security matrix validation. Do not modify files.',
+    expectedAnyTools: ['eval:slo-smoke', 'eval:slo', 'eval:report-smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['dashboard', 'slo', 'LLM_API_KEY', 'report.json', 'finalAnswer', 'checks.actual', 'readiness', 'regression'],
+    mock: {
+      tools: ['eval:slo-smoke', 'eval:slo'],
+      finalAnswer: 'Eval SLO / Regression Dashboard V1 adds read-only nova eval dashboard|slo latest|<runId> commands with --json and --previous, stays pre-dotenv/pre-config without LLM_API_KEY, provider, NovaAgent or tools, builds only from sanitized structured report.json summaries/comparisons, models pass rate, errors, gates, optional tool-call budgets, readiness, newly failed and recovered regressions, excludes raw finalAnswer and checks.actual, rejects traversal, mismatched ids and missing reports safely, and includes smoke/docs/security validation.',
+    },
+  },
+  {
     id: 'eval-report-trend-v1',
     name: 'Eval Report / Trend V1 read-only local CLI',
     description: 'Eval report commands should list, summarize and compare existing structured report.json artifacts without LLM/tools/secrets or raw trace reads.',

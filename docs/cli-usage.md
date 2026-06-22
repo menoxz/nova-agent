@@ -37,6 +37,7 @@ nova heartbeat tick --dry-run
 nova eval list
 nova eval report latest
 nova eval compare <previousRunId> <currentRunId>
+nova eval dashboard latest --previous <previousRunId> --json
 ```
 
 Avec les scripts npm, les arguments CLI doivent être placés après `--` :
@@ -112,7 +113,7 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova heartbeat validate/status/tasks/tick --dry-run/report latest` est planning-only : aucun `LLM_API_KEY`, aucun agent/tool, aucun daemon et aucun démarrage automatique.
 
-`nova eval list/report/summary/compare` relit uniquement les rapports structurés `.nova/evals/*/report.json`. Ces commandes ne lisent pas `.env`, `report.md`, raw `.nova/traces`, prompts bruts ou secrets; elles n'instancient pas `NovaAgent`, ne configurent aucun tool et ne nécessitent pas `LLM_API_KEY`.
+`nova eval list/report/summary/compare/dashboard/slo` relit uniquement les rapports structurés `.nova/evals/*/report.json`. Ces commandes ne lisent pas `.env`, `report.md`, raw `.nova/traces`, prompts bruts ou secrets; elles n'instancient pas `NovaAgent`, ne configurent aucun tool et ne nécessitent pas `LLM_API_KEY`.
 
 ### Batch
 
@@ -164,9 +165,13 @@ nova eval report latest|<evalRunId> [--json]
 nova eval summary latest|<evalRunId> [--markdown]
 nova eval summary <evalRunId> --out tmp/eval-summary.md
 nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+nova eval dashboard latest|<evalRunId> [--json] [--previous <previousRunId>]
+nova eval slo latest|<evalRunId> [--json] [--previous <previousRunId>]
 ```
 
 La sortie par défaut évite les champs bruts sensibles (`finalAnswer`, `checks.actual`) et résume uniquement metadata, pass rate, compteurs, gates et scénarios échoués avec erreurs tronquées/redacted. `compare` affiche les deltas pass rate/passed/failed/errors/total, les gates, les échecs avant/après, les nouveaux échecs et les scénarios récupérés. `summary --out` écrit un Markdown hors de `.nova/evals` pour ne pas modifier les rapports existants.
+
+`dashboard`/`slo` ajoute un état readiness, les gates, les budgets tool-call configurés et la régression optionnelle via `--previous`, sans dashboard web ni lecture de traces/prompts/secrets/corps eval bruts.
 
 ### Providers
 
@@ -217,11 +222,13 @@ npm run cli:smoke
 npm run bin:smoke
 npm run heartbeat:smoke
 npm run eval:report-smoke
+npm run eval:slo-smoke
 npm run eval:heartbeat
 npm run eval:release
 npm run eval:quality
 npm run eval:cli
 npm run eval:report
+npm run eval:slo
 npm run typecheck
 ```
 

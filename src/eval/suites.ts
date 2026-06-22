@@ -29,6 +29,7 @@ export const evalSuites = {
   quality: ['quality-gate-v1'],
   providers: ['provider-profiles-v1'],
   report: ['eval-report-trend-v1'],
+  slo: ['eval-slo-dashboard-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

@@ -162,17 +162,23 @@ nova eval report latest|<evalRunId> [--json]
 nova eval summary latest|<evalRunId> [--markdown]
 nova eval summary <evalRunId> --out tmp/eval-summary.md
 nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+nova eval dashboard latest|<evalRunId> [--json] [--previous <previousRunId>]
+nova eval slo latest|<evalRunId> [--json] [--previous <previousRunId>]
 ```
 
 These commands are intentionally report-only and read only structured `.nova/evals/*/report.json` files. They do not read `.env`, `report.md`, raw `.nova/traces`, raw prompts, or secret files. Existing `.nova/evals` artifacts are never rewritten; `summary --out` refuses to write under `.nova/evals`.
 
 Safe output excludes raw `finalAnswer` and `checks.actual`. Summaries include metadata, pass/fail/error counts, pass rate, gates, and failed scenario ids/names/status with truncated redacted errors. Compare output includes pass-rate/passed/failed/error/total deltas, gates status changes, failed scenarios before/after, newly failed scenarios, and recovered scenarios in stable JSON or Markdown for local automation.
 
+`dashboard` (alias `slo`) emits a stable `schemaVersion: 1` SLO object or human report covering pass rate, errors, gates, configured tool-call budgets, readiness blockers, and optional regression details from `--previous`. It is local/offline only: no web dashboard, live provider, tools, daemon/autonomy, raw traces, prompts, secrets, or raw eval bodies are read.
+
 Validation:
 
 ```bash
 npm run eval:report-smoke
+npm run eval:slo-smoke
 npm run eval:report
+npm run eval:slo
 ```
 
 Current default scenarios cover:
@@ -181,6 +187,7 @@ Current default scenarios cover:
 2. targeted source file read
 3. safe git status via the read-only git tool
 4. eval report/trend read-only CLI safety
+5. eval SLO/regression dashboard read-only CLI safety
 
 ## Reading results to improve ReAct
 

@@ -325,6 +325,7 @@ function evalHelp(): string {
       ['nova eval summary latest|<evalRunId> [--markdown]', 'Print a safe Markdown summary.'],
       ['nova eval summary <evalRunId> --out <path>', 'Write the Markdown summary outside .nova/evals.'],
       ['nova eval compare <previousRunId> <currentRunId> [--json|--markdown]', 'Compare pass rate, failed scenarios, gates and deltas.'],
+      ['nova eval dashboard|slo latest|<evalRunId> [--json] [--previous <evalRunId>]', 'Show SLO readiness, gates, tool-call budgets and regressions.'],
     ]),
     '',
     'Eval report commands are read-only for existing eval runs: they only read structured .nova/evals/*/report.json artifacts, never report.md, traces, prompts, .env or secrets. They do not require LLM_API_KEY and do not instantiate NovaAgent or tools.',

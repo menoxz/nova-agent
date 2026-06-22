@@ -19,6 +19,7 @@ const requiredCliIds = [
   'cli.eval.report',
   'cli.eval.summary',
   'cli.eval.compare',
+  'cli.eval.dashboard',
   'cli.eval.runner',
   'cli.heartbeat.validate',
   'cli.heartbeat.status',

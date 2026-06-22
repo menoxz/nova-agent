@@ -17,7 +17,7 @@
   "scripts": {
     "build": "tsc",
     "prepack": "npm run build",
-    "check:fast": "npm run typecheck && npm run cli:smoke && npm run heartbeat:smoke && npm run eval:report-smoke && npm run bin:smoke",
+    "check:fast": "npm run typecheck && npm run cli:smoke && npm run heartbeat:smoke && npm run eval:report-smoke && npm run eval:slo-smoke && npm run bin:smoke",
     "test:targeted-v1": "npm run typecheck && npm run heartbeat:smoke && npm run eval:report-smoke && npm run batch:smoke && npm run config:smoke && npm run providers:smoke && npm run policy:smoke",
     "check": "npm run typecheck && npm run cli:smoke && npm run config:smoke && npm run providers:smoke && npm run streaming:log-smoke && npm run batch:smoke && npm run heartbeat:smoke && npm run eval:report-smoke && npm run tui:smoke && npm run bin:smoke && npm run eval:release && npm run eval:quality && npm run eval:providers && npm run eval:heartbeat && npm run eval:report",
     "dev": "tsx src/index.ts",
@@ -82,6 +82,8 @@
     "eval:providers": "tsx src/eval/runner.ts --suite providers --mode mock",
     "eval:report-smoke": "tsx src/eval/report_smoke.ts",
     "eval:report": "tsx src/eval/runner.ts --suite report --mode mock",
+    "eval:slo-smoke": "tsx src/eval/slo_smoke.ts",
+    "eval:slo": "tsx src/eval/runner.ts --suite slo --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },

@@ -40,8 +40,11 @@ nova eval list --json
 nova eval report latest
 nova eval summary latest --out tmp/eval-summary.md
 nova eval compare <previousRunId> <currentRunId> --json
+nova eval dashboard latest --previous <previousRunId> --json
 npm run eval:report-smoke
+npm run eval:slo-smoke
 npm run eval:report
+npm run eval:slo
 
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
@@ -126,13 +129,17 @@ nova eval report latest|<evalRunId> [--json]
 nova eval summary latest|<evalRunId> [--markdown]
 nova eval summary <evalRunId> --out tmp/eval-summary.md
 nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+nova eval dashboard latest|<evalRunId> [--json] [--previous <previousRunId>]
+nova eval slo latest|<evalRunId> [--json] [--previous <previousRunId>]
 ```
 
 Ces commandes s'arrêtent avant dotenv, `NovaAgent`, setup tools et la vérification `LLM_API_KEY`. Elles lisent seulement `.nova/evals/*/report.json`, rejettent les ids avec traversal/séparateurs, n'exposent pas `finalAnswer` ni `checks.actual`, et ne modifient jamais les rapports existants sous `.nova/evals`.
 
 `compare` est prévu pour automation locale stable : pass rate delta, deltas passed/failed/errors/total, gates previous/current, scénarios échoués avant/après, nouveaux échecs et scénarios récupérés.
 
-Validation dédiée : `npm run eval:report-smoke` puis `npm run eval:report`.
+`dashboard` (alias `slo`) produit un objet JSON stable `schemaVersion: 1` ou une sortie humaine avec pass rate, erreurs, gates, budgets tool-call configurés, readiness et régression optionnelle via `--previous`. Hors périmètre : dashboard web, provider live, tools, daemon/autonomie, traces brutes, prompts, secrets et corps eval bruts.
+
+Validation dédiée : `npm run eval:report-smoke`, `npm run eval:slo-smoke`, `npm run eval:report` puis `npm run eval:slo`.
 
 ## Configuration (.env)
 

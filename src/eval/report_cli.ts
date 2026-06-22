@@ -10,6 +10,7 @@ import {
   summarizeEvalReport,
   writeMarkdownOutput,
 } from './reporting.js';
+import { buildEvalSloDashboard, renderEvalSloDashboardText } from './slo.js';
 
 export async function handleEvalCommand(args: string[]): Promise<boolean> {
   if (args[0] !== 'eval') return false;
@@ -54,6 +55,18 @@ export async function handleEvalCommand(args: string[]): Promise<boolean> {
       const current = await resolveEvalReport(currentRunId);
       const comparison = compareEvalReports(previous.report, previous.path, current.report, current.path);
       console.log(hasFlag(args, 'json') ? JSON.stringify(comparison, null, 2) : renderEvalCompareMarkdown(comparison));
+      return true;
+    }
+
+    if (action === 'dashboard' || action === 'slo') {
+      const selector = rest[0];
+      if (!selector) return missingArgument(`nova eval ${action} latest|<evalRunId> [--json] [--previous <evalRunId>]`);
+      const current = await resolveEvalReport(selector);
+      const previousRunId = parseOptionalValue(args, 'previous');
+      const previous = previousRunId ? await resolveEvalReport(previousRunId) : undefined;
+      const comparison = previous ? compareEvalReports(previous.report, previous.path, current.report, current.path) : undefined;
+      const dashboard = buildEvalSloDashboard(summarizeEvalReport(current.report, current.path), comparison);
+      console.log(hasFlag(args, 'json') ? JSON.stringify(dashboard, null, 2) : renderEvalSloDashboardText(dashboard));
       return true;
     }
 
@@ -105,9 +118,16 @@ function parseLimit(args: string[]): number | undefined {
   return parsed;
 }
 
+function parseOptionalValue(args: string[], name: string): string | undefined {
+  const value = getArg(args, name);
+  if (value === undefined && hasFlag(args, name)) throw new Error(`--${name} requires a value`);
+  if (value !== undefined && (!value.trim() || value.startsWith('-'))) throw new Error(`--${name} requires a value`);
+  return value;
+}
+
 function positionalArgs(args: string[]): string[] {
   const values: string[] = [];
-  const optionsWithValues = new Set(['limit', 'out', 'md']);
+  const optionsWithValues = new Set(['limit', 'out', 'md', 'previous']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg) continue;
