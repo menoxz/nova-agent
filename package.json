@@ -3,11 +3,19 @@
   "version": "0.1.0",
   "description": "Nova Agent — An autonomous general-purpose AI agent",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "bin": {
-    "nova": "./src/index.ts"
+    "nova": "./bin/nova.js"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "docs/",
+    "soul.md"
+  ],
   "scripts": {
+    "build": "tsc",
+    "prepack": "npm run build",
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
     "mcp:stdio": "tsx src/mcp/server.ts",
@@ -29,6 +37,7 @@
     "cli:smoke": "tsx src/cli/smoke.ts",
     "batch:smoke": "tsx src/batch/smoke.ts",
     "tui:smoke": "tsx src/tui/smoke.ts",
+    "bin:smoke": "tsx src/cli/bin_smoke.ts",
     "approval:smoke": "tsx src/approval/smoke.ts",
     "typecheck": "tsc --noEmit",
     "profiles:smoke": "tsx src/profiles/smoke.ts",

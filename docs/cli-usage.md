@@ -11,9 +11,17 @@ npx tsx src/index.ts --help
 npx tsx src/index.ts --stream "résume le projet"
 ```
 
+Le binaire local du dépôt peut aussi être testé sans installation globale :
+
+```bash
+npm run build
+node bin/nova.js --help
+```
+
 Si le binaire `nova` est installé ou lié localement :
 
 ```bash
+npm link
 nova --help
 nova help streaming
 nova batch --help

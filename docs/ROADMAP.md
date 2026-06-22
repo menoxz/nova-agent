@@ -50,6 +50,7 @@
 - [x] **CLI Help / Command UX V1** — aide globale/par domaine sans clé LLM, flags principaux documentés, erreurs de commande pédagogiques (`docs/cli-usage.md`, `src/cli`)
 - [x] **Batch Mode V1** — `nova batch <file>` séquentiel, entrées `.txt`/`.json`, rapport JSON, options streaming/event-log/report/continue-on-error (`docs/batch-mode.md`, `src/batch`)
 - [x] **TUI Prototype V0** — replay terminal minimal des `RuntimeStreamingEvent`/event logs existants: statut, metrics, tools, reasoning, final/erreur (`docs/tui-prototype.md`, `src/tui`)
+- [x] **Packaging / Install UX V1** — wrapper `bin/nova.js`, `bin.nova` fiable, build/local link, docs dev vs installed et smoke binaire (`docs/packaging-install.md`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable

@@ -9,11 +9,17 @@ Nova est un agent LLM autonome construit en TypeScript avec le Vercel AI SDK v6.
 ```bash
 cd C:\jeanluc\nova-agent
 
-# Lancer en mode interactif
+# Lancer en mode interactif dev
 npm run dev
 
 # Lancer avec un prompt unique
 npx tsx src/index.ts "Read soul.md and summarize Nova's principles"
+
+# Tester le binaire local/installable
+npm run build
+node bin/nova.js --help
+npm link
+nova --help
 ```
 
 ## Stack
@@ -83,6 +89,7 @@ nova-agent/
 | [cli-usage.md](cli-usage.md) | CLI Help / Command UX V1: aide intégrée, flags, commandes sûres et erreurs pédagogiques |
 | [batch-mode.md](batch-mode.md) | Batch Mode V1: prompts `.txt`/`.json`, exécution séquentielle, rapport JSON, streaming/event-log |
 | [tui-prototype.md](tui-prototype.md) | TUI Prototype V0: `nova tui replay <logId>` depuis les event logs streaming existants |
+| [packaging-install.md](packaging-install.md) | Packaging / Install UX V1: wrapper `bin/nova.js`, `npm link`, dev vs installed usage |
 | [llm-robustness.md](llm-robustness.md) | LLM Robustness V1: timeout, retries/backoff, classification d'erreurs provider, diagnostics CLI |
 | [streaming-ux.md](streaming-ux.md) | Streaming UX V1: tokens live, timer, coût, outils, thinking/reasoning pliable, fallback non-streaming |
 | [streaming-event-log.md](streaming-event-log.md) | Streaming Event Log / Replay V1: JSONL redacted, replay CLI sans LLM/tools |
