@@ -72,7 +72,8 @@ npm run bin:smoke   # vérifie node bin/nova.js + npm link + aide/version sans c
 
 - `main`: `dist/index.js`
 - `bin.nova`: `./bin/nova.js`
-- `files`: `bin/`, `dist/`, `docs/`, `CHANGELOG.md`, `soul.md`
+- `files`: `bin/`, `dist/`, selected docs (`docs/packaging-install.md`, `docs/RUNBOOK.md`, `docs/cli-usage.md`, `docs/provider-live-smoke-readiness.md`, `docs/policy/README.md`), `CHANGELOG.md`, `soul.md`
+- The package intentionally excludes build smoke outputs (`dist/**/*smoke*.js`, `dist/**/*smoke*.d.ts`) and non-essential source-repository docs.
 
 ## Limites V1
 

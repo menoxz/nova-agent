@@ -10,7 +10,13 @@
   "files": [
     "bin/",
     "dist/",
-    "docs/",
+    "!dist/**/*smoke*.js",
+    "!dist/**/*smoke*.d.ts",
+    "docs/packaging-install.md",
+    "docs/RUNBOOK.md",
+    "docs/cli-usage.md",
+    "docs/provider-live-smoke-readiness.md",
+    "docs/policy/README.md",
     "CHANGELOG.md",
     "soul.md"
   ],

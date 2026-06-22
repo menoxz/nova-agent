@@ -63,7 +63,7 @@ node --import tsx src/index.ts eval list
 Package metadata lives in `package.json`:
 
 - `bin.nova` points to `bin/nova.js`.
-- The packaged file list includes `bin/`, `dist/`, `docs/`, `CHANGELOG.md`, and `soul.md`.
+- The packaged file list includes `bin/`, `dist/`, selected docs under `docs/`, `CHANGELOG.md`, and `soul.md`.
 - The root `README.md` is included by npm's default packaging rules and is intended for package inspection/readability.
 
 No npm publish, tag, push, PR, or remote release step is part of this task. Inspect the package locally with:
@@ -81,8 +81,8 @@ Use `npm link` only for local installation testing when needed; it does not publ
 - [Runbook](docs/RUNBOOK.md)
 - [Policy and read-only command audit](docs/policy/README.md)
 - [Provider live smoke readiness plan](docs/provider-live-smoke-readiness.md)
-- [Trace and eval notes](docs/TRACE_EVAL.md)
-- [Heartbeat safe slice](docs/heartbeat.md)
+- [Trace and eval notes](docs/TRACE_EVAL.md) (source repository only; not shipped in the npm package)
+- [Heartbeat safe slice](docs/heartbeat.md) (source repository only; not shipped in the npm package)
 - [Changelog](CHANGELOG.md)
 
 ## Validation

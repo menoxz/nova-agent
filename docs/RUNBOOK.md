@@ -96,7 +96,7 @@ Utiliser `npm run check` avant de considérer un module terminé ou prêt pour u
 
 Utiliser `npm run eval:slo-smoke` pour vérifier rapidement la CLI dashboard/SLO sur fixtures temporaires sanitizées. Utiliser `npm run eval:slo` quand la gate doit exécuter la suite SLO mock complète et écrire un rapport eval local. Si `check:fast` échoue, corriger avant de lancer `check`. Si `check`, `eval:slo-smoke` ou `eval:slo` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
 
-Provider live smoke readiness reste offline/mock-only en V1 : suivre `docs/provider-live-smoke-readiness.md`, exécuter `npm run providers:readiness-smoke` et `npm run eval:provider-readiness`, et ne lancer aucun appel provider/LLM réel sans autorisation future explicite.
+Provider live smoke readiness reste offline/mock-only en V1 : suivre `docs/provider-live-smoke-readiness.md` (inclus dans le package npm), exécuter `npm run providers:readiness-smoke` et `npm run eval:provider-readiness`, et ne lancer aucun appel provider/LLM réel sans autorisation future explicite.
 
 ## Batch reports et CI mode
 
@@ -190,7 +190,7 @@ LLM_MODEL=deepseek-chat
 
 ## Memory/Knowledge V1
 
-The implementation is under `src/memory/` and the design/acceptance docs are under `docs/memory/`:
+The implementation is under `src/memory/` and the design/acceptance docs are under `docs/memory/` in the source repository only; those memory design docs are not shipped in the slim npm package:
 
 - `README.md`: goals, types, scopes, built-in collections, acceptance summary.
 - `ARCHITECTURE.md`: components, data flow, integration with profiles/agent/subagents/policy/eval/MCP/LSP.
