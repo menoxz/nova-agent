@@ -4,14 +4,19 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 import { dryRunBatch, loadBatchItems, parseJsonBatch, parseTxtBatch, planBatchItems, renderBatchMarkdownReport } from './index.js';
 
 const SYNTHETIC_SECRET = 'sk-batchSmokeSecret1234567890';
+const repoRoot = process.cwd();
+const require = createRequire(import.meta.url);
+const tsxLoader = pathToFileURL(require.resolve('tsx')).href;
 
-function runNova(args: string[]) {
-  return spawnSync(process.execPath, ['--import', 'tsx', 'src/index.ts', ...args], {
-    cwd: process.cwd(),
+function runNova(args: string[], cwd = repoRoot) {
+  return spawnSync(process.execPath, ['--import', tsxLoader, join(repoRoot, 'src/index.ts'), ...args], {
+    cwd,
     encoding: 'utf-8',
     env: { ...process.env, LLM_API_KEY: '' },
   });
@@ -107,6 +112,20 @@ async function main(): Promise<void> {
     assert.match(dryRun.stdout ?? '', /✓ b/, 'dry-run prints selected id');
     assert.match(dryRun.stdout ?? '', /Markdown report:/, 'dry-run prints markdown report path');
     assert.doesNotMatch((dryRun.stderr ?? '') + (dryRun.stdout ?? ''), /LLM_API_KEY not set/, 'dry-run does not require LLM key');
+
+    const invalidConfigRoot = await mkdtemp(join(tmpdir(), 'nova-batch-invalid-config-'));
+    try {
+      await mkdir(join(invalidConfigRoot, '.nova'), { recursive: true });
+      await writeFile(join(invalidConfigRoot, '.nova', 'config.json'), '{"schemaVersion":1,"unknown":true}\n', 'utf-8');
+      const invalidConfigBatch = join(invalidConfigRoot, 'prompts.json');
+      await writeFile(invalidConfigBatch, JSON.stringify([{ id: 'safe', prompt: 'Validate only' }]), 'utf-8');
+      const dryRunWithInvalidConfig = runNova(['batch', invalidConfigBatch, '--dry-run'], invalidConfigRoot);
+      assert.equal(dryRunWithInvalidConfig.status, 0, `dry-run ignores invalid project config: ${dryRunWithInvalidConfig.stderr}`);
+      assert.match(dryRunWithInvalidConfig.stdout ?? '', /Batch dry-run/, 'dry-run from temp cwd prints summary');
+      assert.doesNotMatch((dryRunWithInvalidConfig.stderr ?? '') + (dryRunWithInvalidConfig.stdout ?? ''), /Invalid Nova project config|LLM_API_KEY not set/, 'dry-run does not validate project config or require LLM key');
+    } finally {
+      await rm(invalidConfigRoot, { recursive: true, force: true });
+    }
 
     const ciRun = runNova(['batch', cliJson, '--dry-run', '--ci', '--from', 'b', '--limit', '1', '--report-md', cliMarkdown]);
     assert.equal(ciRun.status, 0, `dry-run ci exits 0: ${ciRun.stderr}`);

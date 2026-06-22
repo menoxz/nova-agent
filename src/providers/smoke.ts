@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime, getProviderDirectoryEntry, listProviderDirectory, providerDirectorySummary } from './index.js';
 import { listProviderProfiles } from './profiles.js';
 
-function runNova(args: string[], env: NodeJS.ProcessEnv = {}): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync(process.execPath, ['--import', 'tsx', 'src/index.ts', ...args], {
-    cwd: process.cwd(),
+const repoRoot = process.cwd();
+const require = createRequire(import.meta.url);
+const tsxLoader = pathToFileURL(require.resolve('tsx')).href;
+
+function runNova(args: string[], env: NodeJS.ProcessEnv = {}, cwd = repoRoot): { status: number | null; stdout: string; stderr: string } {
+  const result = spawnSync(process.execPath, ['--import', tsxLoader, join(repoRoot, 'src/index.ts'), ...args], {
+    cwd,
     encoding: 'utf-8',
     env: { ...process.env, LLM_API_KEY: '', LLM_PROVIDER: '', LLM_BASE_URL: '', LLM_MODEL: '', NOVA_PROVIDER_PROFILE: '', NOVA_LLM_PROVIDER_PROFILE: '', NOVA_PROVIDER_FALLBACK: '', NOVA_LLM_FALLBACK: '', ...env },
   });
@@ -67,6 +76,22 @@ async function main(): Promise<void> {
   assert.equal(showPlanned.status, 0, `providers show planned exits 0: ${showPlanned.stderr}`);
   assert.match(showPlanned.stdout, /gateway-subscription-token-plan/, 'planned/gateway provider classification shown');
   assert.match(showPlanned.stdout, /"runtimeExecutable": false/, 'planned provider is not claimed executable');
+
+  const invalidConfigRoot = await mkdtemp(join(tmpdir(), 'nova-providers-invalid-config-'));
+  try {
+    await mkdir(join(invalidConfigRoot, '.nova'), { recursive: true });
+    await writeFile(join(invalidConfigRoot, '.nova', 'config.json'), '{"schemaVersion":1,"unknown":true}\n', 'utf-8');
+    const listWithInvalidConfig = runNova(['providers', 'list'], {}, invalidConfigRoot);
+    assert.equal(listWithInvalidConfig.status, 0, `providers list ignores invalid project config: ${listWithInvalidConfig.stderr}`);
+    assert.match(listWithInvalidConfig.stdout, /openrouter-deepseek-v4-flash/, 'providers list from temp cwd still reads catalog');
+    assert.doesNotMatch(listWithInvalidConfig.stderr + listWithInvalidConfig.stdout, /Invalid Nova project config|LLM_API_KEY not set/, 'providers list does not validate config or require key');
+    const showWithInvalidConfig = runNova(['providers', 'show', 'openmodel'], {}, invalidConfigRoot);
+    assert.equal(showWithInvalidConfig.status, 0, `providers show ignores invalid project config: ${showWithInvalidConfig.stderr}`);
+    assert.match(showWithInvalidConfig.stdout, /OpenModel/, 'providers show from temp cwd still reads directory entry');
+    assert.doesNotMatch(showWithInvalidConfig.stderr + showWithInvalidConfig.stdout, /Invalid Nova project config|LLM_API_KEY not set/, 'providers show does not validate config or require key');
+  } finally {
+    await rm(invalidConfigRoot, { recursive: true, force: true });
+  }
 
   const cliDoctor = runNova(['--provider-profile', 'openmodel-deepseek-v4-flash', 'providers', 'doctor'], { LLM_API_KEY: 'synthetic-secret-value' });
   assert.equal(cliDoctor.status, 0, `providers doctor exits 0: ${cliDoctor.stderr}`);

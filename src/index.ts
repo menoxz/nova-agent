@@ -416,7 +416,6 @@ async function handleProvidersCommand(args: string[]): Promise<boolean> {
   const areaIndex = args.indexOf('providers');
   if (areaIndex < 0) return false;
   const [action, ...rest] = positionalArgs(args.slice(areaIndex + 1));
-  const projectConfig = requireValidProjectConfig();
   if (action === 'list' || action === undefined) {
     console.log(JSON.stringify({ directory: listProviderDirectory(), profiles: listProviderProfiles(), summary: providerDirectorySummary() }, null, 2));
     return true;
@@ -437,6 +436,8 @@ async function handleProvidersCommand(args: string[]): Promise<boolean> {
     return true;
   }
   if (action === 'doctor') {
+    await loadDotenvOnce();
+    const projectConfig = requireValidProjectConfig();
     const resolved = providerRuntimeFor(projectConfig);
     const report = providerDoctor(resolved, process.env);
     console.log(JSON.stringify(report, null, 2));
@@ -449,7 +450,7 @@ async function handleProvidersCommand(args: string[]): Promise<boolean> {
   return true;
 }
 
-async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<boolean> {
+async function handleBatchCommand(config: AgentConfig | undefined, args: string[]): Promise<boolean> {
   if (args[0] !== 'batch') return false;
   const file = positionalArgs(args.slice(1))[0];
   if (!file) return missingArgument('nova batch <file> [--dry-run] [--limit N] [--only id1,id2] [--from id] [--report-md path] [--ci]', 'batch');
@@ -486,6 +487,7 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
       return true;
     }
   }
+  if (!config) return false;
   if (!config.llm.apiKey) {
     console.error(chalk.red('✖ Error: LLM_API_KEY not set. Batch mode executes prompts and requires an LLM key.'));
     process.exitCode = 1;
@@ -503,7 +505,7 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
   return true;
 }
 
-function parseBatchOptions(config: AgentConfig): BatchRunOptions {
+function parseBatchOptions(config?: AgentConfig): BatchRunOptions {
   const ci = hasFlag('ci');
   const limitValue = getArg('limit');
   const limit = limitValue === undefined ? undefined : parseInt(limitValue, 10);
@@ -516,7 +518,7 @@ function parseBatchOptions(config: AgentConfig): BatchRunOptions {
   const reportPath = pathValue('report');
   const reportMarkdownPath = pathValue('report-md');
   return {
-    streaming: ci ? false : shouldStream(config),
+    streaming: ci || !config ? false : shouldStream(config),
     eventLog: hasFlag('event-log'),
     reportPath,
     reportMarkdownPath,
@@ -689,9 +691,10 @@ async function main() {
   if (handleHelpCommand(rawArgs)) return;
   if (await handleHeartbeatCommand(rawArgs)) return;
   if (await handleEvalCommand(rawArgs)) return;
-  await loadDotenvOnce();
   if (await handleConfigCommand(rawArgs)) return;
   if (await handleProvidersCommand(rawArgs)) return;
+  if (await handleBatchCommand(undefined, rawArgs)) return;
+  await loadDotenvOnce();
   const config = loadConfig();
   if (await handleTuiCommand(config, rawArgs)) return;
   if (await handleRuntimeCommand(config, rawArgs)) return;
