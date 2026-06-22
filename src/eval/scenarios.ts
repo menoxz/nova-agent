@@ -3,18 +3,18 @@ import type { EvalScenario } from './types.js';
 export const defaultScenarios: EvalScenario[] = [
   {
     id: 'tui-prototype-v0',
-    name: 'TUI Prototype V0 event log replay',
-    description: 'TUI Prototype V0 should render saved RuntimeStreamingEvent logs in a minimal terminal UI without starting a daemon, web dashboard or new persistence layer.',
+    name: 'TUI Prototype V0.1 event log replay and latest',
+    description: 'TUI Prototype V0.1 should render saved RuntimeStreamingEvent logs in a minimal terminal UI, support latest and compact/verbose modes, and avoid daemon, web dashboard or new persistence.',
     tags: ['tui', 'streaming', 'event-log', 'cli', 'safety'],
-    prompt: 'Verify Nova TUI Prototype V0: nova tui replay <logId> exists and is documented, reads existing RuntimeStreamingEvent/event log JSONL, renders minimal terminal status, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, requires no LLM_API_KEY, and introduces no daemon, dashboard web, scheduler, queue, batch dashboard or new persistence. Do not modify files.',
+    prompt: 'Verify Nova TUI Prototype V0.1: nova tui replay <logId> and nova tui latest exist and are documented; replay supports --compact, --verbose and --mode compact|normal|verbose; commands read existing RuntimeStreamingEvent/event log JSONL, select latest from existing logs, render minimal terminal status, timeline start/status/tools/error/finish, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, require no LLM_API_KEY, and introduce no daemon, dashboard web, scheduler, queue, batch dashboard or new persistence. Do not modify files.',
     expectedAnyTools: ['tui:smoke', 'streaming:log-smoke', 'read_file', 'grep'],
     forbiddenTools: ['write_file', 'bash'],
     maxToolCalls: 8,
     maxSteps: 8,
-    requiredAnswerIncludes: ['tui', 'replay', 'RuntimeStreamingEvent', 'metrics', 'tools', 'daemon'],
+    requiredAnswerIncludes: ['tui', 'replay', 'latest', 'RuntimeStreamingEvent', 'timeline', 'compact', 'verbose', 'daemon'],
     mock: {
       tools: ['tui:smoke'],
-      finalAnswer: 'TUI Prototype V0 adds nova tui replay <logId>, reuses existing RuntimeStreamingEvent JSONL logs, renders terminal status, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, works without LLM_API_KEY, and adds no daemon, web dashboard, scheduler, queue, batch dashboard or new persistence layer.',
+      finalAnswer: 'TUI Prototype V0.1 adds nova tui replay <logId> and nova tui latest, supports compact/normal/verbose modes, reuses existing RuntimeStreamingEvent JSONL logs, renders terminal status, timeline start/status/tools/error/finish, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, works without LLM_API_KEY, and adds no daemon, web dashboard, scheduler, queue, batch dashboard or new persistence layer.',
     },
   },
   {

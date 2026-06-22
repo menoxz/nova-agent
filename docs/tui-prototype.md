@@ -1,11 +1,15 @@
-# TUI Prototype V0
+# TUI Prototype V0.1
 
-TUI Prototype V0 fournit un rendu terminal minimal à partir des logs streaming existants.
+TUI Prototype V0.1 fournit un rendu terminal minimal à partir des logs streaming existants.
 
 ## Commande
 
 ```bash
 nova tui replay <logId>
+nova tui latest
+nova tui replay <logId> --compact
+nova tui replay <logId> --verbose
+nova tui latest --mode verbose
 ```
 
 Pour trouver un `logId` :
@@ -20,7 +24,7 @@ Depuis le dépôt :
 npx tsx src/index.ts tui replay <logId>
 ```
 
-La commande est read-only et ne nécessite pas `LLM_API_KEY`.
+Les commandes sont read-only et ne nécessitent pas `LLM_API_KEY`.
 
 ## Source de données
 
@@ -32,7 +36,7 @@ Le TUI V0 réutilise exclusivement les événements existants :
 
 Il n'ajoute pas de persistance dédiée.
 
-## Affichage V0
+## Affichage V0.1
 
 Le rendu est une snapshot terminal textuelle :
 
@@ -40,9 +44,20 @@ Le rendu est une snapshot terminal textuelle :
 - modèle, session/run, timestamps ;
 - compteur events, tokens, tools ;
 - métriques provider/estimées quand disponibles ;
+- timeline start/status/tools/metrics/error/finish ;
 - tools calls/results avec previews redacted ;
 - reasoning collapsed ;
 - final answer ou erreur.
+
+## Modes
+
+| Mode | Commande | Usage |
+| --- | --- | --- |
+| `compact` | `--compact` ou `--mode compact` | Header + final/error uniquement. |
+| `normal` | défaut ou `--mode normal` | Timeline bornée, tools, reasoning collapsed, final/error. |
+| `verbose` | `--verbose` ou `--mode verbose` | Timeline complète et previews plus longues. |
+
+`nova tui latest` sélectionne le dernier event log retourné par `nova streaming logs` / `StreamingEventLogStore.list()`.
 
 ## Limites V0
 

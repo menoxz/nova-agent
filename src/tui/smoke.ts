@@ -21,6 +21,7 @@ async function main(): Promise<void> {
   const emitter = new RuntimeEventEmitter({ runId: 'tui_smoke_run' });
   const events = [
     emitter.create({ type: 'start', model: 'mock-model', estimatedPromptTokens: 42 }),
+    emitter.create({ type: 'status', message: 'Preparing safe replay' }),
     emitter.create({ type: 'reasoning_end', text: 'safe short reasoning' }),
     emitter.create({ type: 'tool_call', toolName: 'read_file', inputPreview: '{"path":"README.md"}' }),
     emitter.create({ type: 'tool_result', toolName: 'read_file', outputPreview: 'README content preview', ok: true }),
@@ -33,12 +34,19 @@ async function main(): Promise<void> {
     assert.equal(summary.toolCallCount, 1, 'tool call counted');
     const rendered = new TuiReplayRenderer().render(events);
     assert.match(rendered, /Nova TUI replay/, 'renderer title shown');
+    assert.match(rendered, /Timeline/, 'renderer includes timeline');
+    assert.match(rendered, /status.*Preparing safe replay/, 'timeline includes status events');
     assert.match(rendered, /Final answer text/, 'final answer rendered');
     assert.match(rendered, /read_file/, 'tool rendered');
+    const compact = new TuiReplayRenderer().render(events, { mode: 'compact' });
+    assert.doesNotMatch(compact, /Timeline/, 'compact omits timeline panel');
+    const verbose = new TuiReplayRenderer().render(events, { mode: 'verbose' });
+    assert.match(verbose, /README content preview/, 'verbose includes longer tool previews');
 
     const help = runNova(['tui', '--help']);
     assert.equal(help.status, 0, 'tui help exits 0');
     assert.match(help.stdout ?? '', /nova tui replay <logId>/, 'tui help documents replay');
+    assert.match(help.stdout ?? '', /nova tui latest/, 'tui help documents latest');
     assert.doesNotMatch((help.stderr ?? '') + (help.stdout ?? ''), /LLM_API_KEY not set/, 'tui help does not require LLM key');
 
     const replay = runNova(['tui', 'replay', 'tui_smoke_run'], { NOVA_STREAMING_EVENT_LOG_ROOT: root });
@@ -46,6 +54,11 @@ async function main(): Promise<void> {
     assert.match(replay.stdout ?? '', /Final answer text/, 'tui replay renders final answer');
     assert.match(replay.stdout ?? '', /prompt=\? completion=3 total=45/, 'tui replay renders metrics');
     assert.doesNotMatch((replay.stderr ?? '') + (replay.stdout ?? ''), /LLM_API_KEY not set/, 'tui replay does not require LLM key');
+
+    const latest = runNova(['tui', 'latest', '--compact'], { NOVA_STREAMING_EVENT_LOG_ROOT: root });
+    assert.equal(latest.status, 0, `tui latest exits 0: ${latest.stderr}`);
+    assert.match(latest.stdout ?? '', /Nova TUI latest · tui_smoke_run/, 'latest selects newest event log');
+    assert.match(latest.stdout ?? '', /Final answer text/, 'latest renders final answer');
 
     console.log('tui:smoke passed');
   } finally {

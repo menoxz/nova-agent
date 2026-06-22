@@ -74,9 +74,11 @@ nova conversations --help
 ```bash
 nova streaming logs
 nova tui replay <logId>
+nova tui latest --compact
+nova tui replay <logId> --verbose
 ```
 
-`nova tui replay <logId>` relit les event logs streaming existants et affiche une snapshot terminale sûre : statut, metrics/tokens, tools, reasoning collapsed, final answer ou erreur. La commande est read-only et ne nécessite pas `LLM_API_KEY`.
+`nova tui replay <logId>` et `nova tui latest` relisent les event logs streaming existants et affichent une snapshot terminale sûre : statut, timeline, metrics/tokens, tools, reasoning collapsed, final answer ou erreur. Ces commandes sont read-only et ne nécessitent pas `LLM_API_KEY`.
 
 ## Commandes runtime sûres
 

@@ -42,6 +42,7 @@ import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, sho
 import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
 import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
 import { TuiReplayRenderer } from './tui/index.js';
+import type { TuiReplayMode } from './tui/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -482,16 +483,45 @@ function printBatchSummary(report: Awaited<ReturnType<typeof runBatch>>): void {
 async function handleTuiCommand(config: AgentConfig, args: string[]): Promise<boolean> {
   const [area, action, ...rest] = args;
   if (area !== 'tui') return false;
-  if (action === 'replay' && rest[0]) {
-    const eventStore = new StreamingEventLogStore({ ...config.streaming?.eventLog, enabled: true });
-    const events = await eventStore.read(rest[0]);
-    console.log(new TuiReplayRenderer().render(events, { title: `Nova TUI replay · ${rest[0]}` }));
+  const eventStore = new StreamingEventLogStore({ ...config.streaming?.eventLog, enabled: true });
+  let mode: TuiReplayMode;
+  try {
+    mode = parseTuiMode();
+  } catch (err) {
+    console.error(chalk.red(`✖ TUI option error: ${err instanceof Error ? err.message : String(err)}`));
+    process.exitCode = 1;
     return true;
   }
-  if (action === 'replay') return missingArgument('nova tui replay <logId>', 'tui');
+  const logId = rest.find((value) => !value.startsWith('-'));
+  if (action === 'replay' && logId) {
+    const events = await eventStore.read(logId);
+    console.log(new TuiReplayRenderer().render(events, { title: `Nova TUI replay · ${logId}`, mode }));
+    return true;
+  }
+  if (action === 'latest') {
+    const latest = (await eventStore.list())[0];
+    if (!latest) {
+      console.error(chalk.red('No streaming event logs found. Run with NOVA_STREAMING_EVENT_LOG=true or --event-log first.'));
+      process.exitCode = 1;
+      return true;
+    }
+    const events = await eventStore.read(latest.logId);
+    console.log(new TuiReplayRenderer().render(events, { title: `Nova TUI latest · ${latest.logId}`, mode }));
+    return true;
+  }
+  if (action === 'replay') return missingArgument('nova tui replay <logId> [--compact|--verbose|--mode compact|normal|verbose]', 'tui');
   console.error(chalk.red(renderUnknownCommand(args, 'tui')));
   process.exitCode = 1;
   return true;
+}
+
+function parseTuiMode(): TuiReplayMode {
+  if (hasFlag('compact')) return 'compact';
+  if (hasFlag('verbose')) return 'verbose';
+  const value = getArg('mode');
+  if (value === 'compact' || value === 'normal' || value === 'verbose') return value;
+  if (value) throw new Error('--mode must be compact, normal, or verbose');
+  return 'normal';
 }
 
 function handleHelpCommand(args: string[]): boolean {

@@ -2,11 +2,11 @@ export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'config' |
 
 export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
 
-const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
+const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from', 'mode']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error', 'dry-run',
+  'event-log', 'continue-on-error', 'dry-run', 'compact', 'verbose',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -100,10 +100,17 @@ function tuiHelp(): string {
     '',
     section('Commands', [
       ['nova tui replay <logId>', 'Render a terminal UI snapshot from a saved streaming event log.'],
+      ['nova tui latest', 'Replay the most recently updated event log.'],
       ['nova streaming logs', 'List available log IDs.'],
     ]),
     '',
-    'TUI Prototype V0 is read-only and reuses existing RuntimeStreamingEvent JSONL logs. It does not start a daemon, web dashboard, scheduler, or new persistence layer.',
+    section('Options', [
+      ['--compact', 'Header + final/error only.'],
+      ['--verbose', 'Fuller timeline and longer previews.'],
+      ['--mode compact|normal|verbose', 'Explicit render mode.'],
+    ]),
+    '',
+    'TUI V0.1 is read-only and reuses existing RuntimeStreamingEvent JSONL logs. It does not start a daemon, web dashboard, scheduler, or new persistence layer.',
   ].join('\n');
 }
 
