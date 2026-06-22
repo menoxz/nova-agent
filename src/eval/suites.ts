@@ -28,6 +28,7 @@ export const evalSuites = {
   release: ['release-versioning-v1'],
   quality: ['quality-gate-v1'],
   providers: ['provider-profiles-v1'],
+  report: ['eval-report-trend-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

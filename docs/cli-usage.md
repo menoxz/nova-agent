@@ -34,6 +34,9 @@ nova providers doctor
 nova config validate
 nova heartbeat --help
 nova heartbeat tick --dry-run
+nova eval list
+nova eval report latest
+nova eval compare <previousRunId> <currentRunId>
 ```
 
 Avec les scripts npm, les arguments CLI doivent être placés après `--` :
@@ -63,6 +66,7 @@ nova runs --help
 nova approvals --help
 nova conversations --help
 nova heartbeat --help
+nova eval --help
 ```
 
 ## Flags principaux
@@ -108,6 +112,8 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 
 `nova heartbeat validate/status/tasks/tick --dry-run/report latest` est planning-only : aucun `LLM_API_KEY`, aucun agent/tool, aucun daemon et aucun démarrage automatique.
 
+`nova eval list/report/summary/compare` relit uniquement les rapports structurés `.nova/evals/*/report.json`. Ces commandes ne lisent pas `.env`, `report.md`, raw `.nova/traces`, prompts bruts ou secrets; elles n'instancient pas `NovaAgent`, ne configurent aucun tool et ne nécessitent pas `LLM_API_KEY`.
+
 ### Batch
 
 ```bash
@@ -149,6 +155,18 @@ nova heartbeat report latest
 ```
 
 Heartbeat V1 est désactivé par défaut et écrit uniquement des rapports metadata-only/redacted sous `.nova/heartbeat`.
+
+### Eval reports
+
+```bash
+nova eval list [--limit N] [--json]
+nova eval report latest|<evalRunId> [--json]
+nova eval summary latest|<evalRunId> [--markdown]
+nova eval summary <evalRunId> --out tmp/eval-summary.md
+nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+```
+
+La sortie par défaut évite les champs bruts sensibles (`finalAnswer`, `checks.actual`) et résume uniquement metadata, pass rate, compteurs, gates et scénarios échoués avec erreurs tronquées/redacted. `compare` affiche les deltas pass rate/passed/failed/errors/total, les gates, les échecs avant/après, les nouveaux échecs et les scénarios récupérés. `summary --out` écrit un Markdown hors de `.nova/evals` pour ne pas modifier les rapports existants.
 
 ### Providers
 
@@ -198,10 +216,12 @@ npm run check
 npm run cli:smoke
 npm run bin:smoke
 npm run heartbeat:smoke
+npm run eval:report-smoke
 npm run eval:heartbeat
 npm run eval:release
 npm run eval:quality
 npm run eval:cli
+npm run eval:report
 npm run typecheck
 ```
 

@@ -45,6 +45,7 @@ import { TuiReplayRenderer } from './tui/index.js';
 import type { TuiReplayMode } from './tui/index.js';
 import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime, listProviderDirectory, getProviderDirectoryEntry, providerDirectorySummary } from './providers/index.js';
 import { handleHeartbeatCommand } from './heartbeat/index.js';
+import { handleEvalCommand } from './eval/report_cli.js';
 
 let dotenvLoaded = false;
 async function loadDotenvOnce(): Promise<void> {
@@ -242,7 +243,7 @@ function promptArgs(): string[] {
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === '--profile' || arg === '--provider-profile' || arg === '--provider-fallback' || arg === '--report' || arg === '--report-md' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
+    if (arg === '--profile' || arg === '--provider-profile' || arg === '--provider-fallback' || arg === '--report' || arg === '--report-md' || arg === '--limit' || arg === '--only' || arg === '--from' || arg === '--out' || arg === '--md') { index += 1; continue; }
     if (arg.startsWith('--profile=')) continue;
     if (arg.startsWith('--provider-profile=')) continue;
     if (arg.startsWith('--provider-fallback=')) continue;
@@ -687,6 +688,7 @@ async function main() {
   if (handleVersionCommand(rawArgs)) return;
   if (handleHelpCommand(rawArgs)) return;
   if (await handleHeartbeatCommand(rawArgs)) return;
+  if (await handleEvalCommand(rawArgs)) return;
   await loadDotenvOnce();
   if (await handleConfigCommand(rawArgs)) return;
   if (await handleProvidersCommand(rawArgs)) return;

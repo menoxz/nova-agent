@@ -152,11 +152,35 @@ Each eval run writes:
 
 Scenario checks support required tools (`expectedTools`), valid alternative tools (`expectedAnyTools`), forbidden tools, final-answer substrings, and step/tool-call budgets.
 
+### Read-only report and trend CLI
+
+Use the main Nova CLI to inspect existing local eval reports without invoking an LLM, tools, `NovaAgent`, dotenv, live providers, or CI remote services:
+
+```bash
+nova eval list [--limit N] [--json]
+nova eval report latest|<evalRunId> [--json]
+nova eval summary latest|<evalRunId> [--markdown]
+nova eval summary <evalRunId> --out tmp/eval-summary.md
+nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+```
+
+These commands are intentionally report-only and read only structured `.nova/evals/*/report.json` files. They do not read `.env`, `report.md`, raw `.nova/traces`, raw prompts, or secret files. Existing `.nova/evals` artifacts are never rewritten; `summary --out` refuses to write under `.nova/evals`.
+
+Safe output excludes raw `finalAnswer` and `checks.actual`. Summaries include metadata, pass/fail/error counts, pass rate, gates, and failed scenario ids/names/status with truncated redacted errors. Compare output includes pass-rate/passed/failed/error/total deltas, gates status changes, failed scenarios before/after, newly failed scenarios, and recovered scenarios in stable JSON or Markdown for local automation.
+
+Validation:
+
+```bash
+npm run eval:report-smoke
+npm run eval:report
+```
+
 Current default scenarios cover:
 
 1. repository orientation with read-only behavior
 2. targeted source file read
 3. safe git status via the read-only git tool
+4. eval report/trend read-only CLI safety
 
 ## Reading results to improve ReAct
 

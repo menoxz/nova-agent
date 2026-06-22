@@ -1,15 +1,15 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose',
+  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose', 'json', 'markdown',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -73,6 +73,7 @@ function globalHelp(): string {
       ['approvals', 'List/approve/deny approval requests.'],
       ['conversations', 'Show/summary/compact stored conversations.'],
       ['heartbeat', 'Safe disabled-by-default planning ticks for autonomous-task metadata.'],
+      ['eval', 'Read-only local eval report list/summary/compare commands.'],
     ]),
     '',
     section('Main flags', [
@@ -314,6 +315,24 @@ function heartbeatHelp(): string {
   ].join('\n');
 }
 
+function evalHelp(): string {
+  return [
+    'Nova CLI help — eval reports',
+    '',
+    section('Commands', [
+      ['nova eval list [--limit N] [--json]', 'List local .nova/evals/*/report.json runs, latest first.'],
+      ['nova eval report latest|<evalRunId> [--json]', 'Show a safe report summary without finalAnswer/check actual.'],
+      ['nova eval summary latest|<evalRunId> [--markdown]', 'Print a safe Markdown summary.'],
+      ['nova eval summary <evalRunId> --out <path>', 'Write the Markdown summary outside .nova/evals.'],
+      ['nova eval compare <previousRunId> <currentRunId> [--json|--markdown]', 'Compare pass rate, failed scenarios, gates and deltas.'],
+    ]),
+    '',
+    'Eval report commands are read-only for existing eval runs: they only read structured .nova/evals/*/report.json artifacts, never report.md, traces, prompts, .env or secrets. They do not require LLM_API_KEY and do not instantiate NovaAgent or tools.',
+    '',
+    'Live/mock eval execution remains available through npm run eval or src/eval/runner.ts; this CLI topic is only for report/trend reading.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -326,6 +345,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'approvals': return approvalsHelp();
     case 'conversations': return conversationsHelp();
     case 'heartbeat': return heartbeatHelp();
+    case 'eval': return evalHelp();
     case 'global': return globalHelp();
   }
 }

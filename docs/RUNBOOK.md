@@ -35,6 +35,14 @@ nova heartbeat report latest
 npm run heartbeat:smoke
 npm run eval:heartbeat
 
+# Eval Report / Trend V1 — lecture locale read-only des report.json
+nova eval list --json
+nova eval report latest
+nova eval summary latest --out tmp/eval-summary.md
+nova eval compare <previousRunId> <currentRunId> --json
+npm run eval:report-smoke
+npm run eval:report
+
 # Smoke test Agent Profiles V1
 npm run profiles:smoke
 
@@ -107,6 +115,24 @@ nova heartbeat report latest
 ```
 
 `tick --dry-run` ne lit pas `.env`, ne requiert pas `LLM_API_KEY`, n'instancie pas `NovaAgent`, n'exécute aucun tool et écrit uniquement `.nova/heartbeat/state.json`, `.nova/heartbeat/ticks/*.json`, `.nova/heartbeat/ticks/*.md` et un lock temporaire anti-overlap. Les tâches `shell`, `write`, `git`, `network`, `memory-write`, `auto-resume` sont bloquées.
+
+## Eval Report / Trend V1
+
+Pour inspecter les runs eval locaux sans appeler de provider ni relire les traces brutes :
+
+```bash
+nova eval list [--limit N] [--json]
+nova eval report latest|<evalRunId> [--json]
+nova eval summary latest|<evalRunId> [--markdown]
+nova eval summary <evalRunId> --out tmp/eval-summary.md
+nova eval compare <previousRunId> <currentRunId> [--json|--markdown]
+```
+
+Ces commandes s'arrêtent avant dotenv, `NovaAgent`, setup tools et la vérification `LLM_API_KEY`. Elles lisent seulement `.nova/evals/*/report.json`, rejettent les ids avec traversal/séparateurs, n'exposent pas `finalAnswer` ni `checks.actual`, et ne modifient jamais les rapports existants sous `.nova/evals`.
+
+`compare` est prévu pour automation locale stable : pass rate delta, deltas passed/failed/errors/total, gates previous/current, scénarios échoués avant/après, nouveaux échecs et scénarios récupérés.
+
+Validation dédiée : `npm run eval:report-smoke` puis `npm run eval:report`.
 
 ## Configuration (.env)
 
