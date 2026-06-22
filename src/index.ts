@@ -34,7 +34,7 @@ import type { LLMConfig, AgentConfig, StepDisplay } from './types.js';
 import { resolveConfigProfile } from './profiles/index.js';
 import { ApprovalManager } from './approval/index.js';
 import { ConversationStore, CurrentSessionStore, RunReplayManager, RunResumeManager, SessionStore } from './session/index.js';
-import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay } from './config/index.js';
+import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay, sanitizeProjectLoadResultForDisplay } from './config/index.js';
 import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.js';
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
 import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, shouldTreatAsUnknownCommand } from './cli/help.js';
@@ -404,7 +404,7 @@ async function handleConfigCommand(args: string[]): Promise<boolean> {
   if (action === 'show') {
     await loadDotenvOnce();
     const runtime = result.ok ? sanitizeConfigForDisplay(loadConfig()) : null;
-    console.log(JSON.stringify({ project: result, runtime }, null, 2));
+    console.log(JSON.stringify({ project: sanitizeProjectLoadResultForDisplay(result), runtime }, null, 2));
     process.exitCode = result.ok ? 0 : 1;
     return true;
   }

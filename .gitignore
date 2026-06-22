@@ -11,6 +11,15 @@ coverage/
 .env.*
 !.env.example
 
+# Private keys, certificates and token files (never commit credentials)
+*.key
+*.pem
+*.cert
+*.crt
+*.p12
+*.pfx
+*.token
+
 # Local Nova runtime state
 .nova/
 

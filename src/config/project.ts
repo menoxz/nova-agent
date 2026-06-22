@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import type { AgentConfig } from '../types.js';
 import { containsSecretLike } from '../memory/redaction.js';
@@ -262,6 +262,49 @@ export function explainProjectConfig(config?: ProjectConfig): string[] {
 
 export function sanitizeConfigForDisplay(config: AgentConfig): AgentConfig & { llm: AgentConfig['llm'] & { apiKey: string } } {
   return { ...config, llm: { ...config.llm, apiKey: config.llm.apiKey ? '[REDACTED:env]' : '' } };
+}
+
+// Make a ProjectConfigLoadResult safe to echo (e.g. `nova config show`): never leak the
+// absolute config path and never print a secret-like value, while keeping plain identifiers
+// (profile, session.projectId/userId/title) visible for usefulness.
+export function sanitizeProjectLoadResultForDisplay(result: ProjectConfigLoadResult): ProjectConfigLoadResult {
+  // Deep clone (so the caller's result is never mutated) while masking any secret-like string.
+  const safe = redactSecretLikeDeep({ ...result });
+  // Show only the project-relative tail of the config path, never the absolute filesystem path.
+  if (typeof result.path === 'string') safe.path = redactProjectConfigPath(result.path);
+  // Mirror the runtime echo: route any llm block through the shared sanitizer so a present
+  // apiKey is masked with the same [REDACTED:env] token.
+  if (safe.config) safe.config = sanitizeProjectConfigForDisplay(safe.config);
+  return safe;
+}
+
+function sanitizeProjectConfigForDisplay(config: ProjectConfig): ProjectConfig {
+  // A valid project config cannot carry an apiKey (rejected at load), but route an llm block
+  // through the shared display sanitizer for defence-in-depth. Skip when llm is absent: there
+  // is no apiKey to mask and sanitizeConfigForDisplay dereferences config.llm.apiKey directly.
+  if (!config.llm) return config;
+  return sanitizeConfigForDisplay(config as unknown as AgentConfig) as unknown as ProjectConfig;
+}
+
+function redactProjectConfigPath(path: string): string {
+  // The config path is always <projectRoot>/.nova/config.json. Show only the project-relative
+  // tail (matching the .nova/config.json convention used elsewhere in this module); fall back to
+  // the basename when the path escapes the cwd, or to a masked token if anything looks unsafe.
+  const rel = relative(process.cwd(), path);
+  const tail = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : basename(path);
+  const normalized = tail.split(/[\\/]+/).filter(Boolean).join('/');
+  return normalized && !containsSecretLike(normalized) ? normalized : '[REDACTED:path]';
+}
+
+function redactSecretLikeDeep<T>(value: T): T {
+  if (typeof value === 'string') return (containsSecretLike(value) ? '[REDACTED:secret-like]' : value) as T;
+  if (Array.isArray(value)) return value.map((item) => redactSecretLikeDeep(item)) as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) out[key] = redactSecretLikeDeep(child);
+    return out as T;
+  }
+  return value;
 }
 
 function findForbiddenSecrets(value: unknown, path: string[] = []): string[] {
