@@ -17,13 +17,34 @@ Ces commandes ne nécessitent pas `LLM_API_KEY`, ne créent pas `NovaAgent`, ne 
 
 ## Profils intégrés V1
 
+Le catalogue intégré reprend la structure opencode observée localement : `providerID/modelID`, priorités de modèles (`gpt-5`, `claude-sonnet-4`, `gemini-3-pro`) et petits modèles (`claude-haiku-4.5`, `gemini-2.5-flash`, `gpt-5-mini`). Nova garde toutefois une surface volontairement limitée aux adapters déjà supportés par son client LLM V1 (`openrouter`, `openmodel`, `openai`, `anthropic`, `deepseek`). Les providers opencode nécessitant des SDK/options additionnels (`google`, `mistral`, `groq`, `xai`, etc.) sont exposés via OpenRouter quand un modèle utile existe, au lieu d'ajouter de nouveaux clients non implémentés.
+
 | ID | Provider | Base URL | Modèle | Protocole |
 | --- | --- | --- | --- | --- |
 | `openrouter-deepseek-v4-flash` | `openrouter` | `https://openrouter.ai/api/v1` | `openmodel/deepseek-v4-flash` | OpenAI-compatible chat completions |
+| `openrouter-openai-gpt-5` | `openrouter` | `https://openrouter.ai/api/v1` | `openai/gpt-5` | OpenAI-compatible chat completions |
+| `openrouter-openai-gpt-5-mini` | `openrouter` | `https://openrouter.ai/api/v1` | `openai/gpt-5-mini` | OpenAI-compatible chat completions |
+| `openrouter-openai-gpt-5-chat` | `openrouter` | `https://openrouter.ai/api/v1` | `openai/gpt-5-chat` | OpenAI-compatible chat completions |
+| `openrouter-openai-gpt-5-5` | `openrouter` | `https://openrouter.ai/api/v1` | `openai/gpt-5.5` | OpenAI-compatible chat completions |
+| `openrouter-anthropic-claude-sonnet-4` | `openrouter` | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4` | OpenAI-compatible chat completions |
+| `openrouter-anthropic-claude-haiku-4-5` | `openrouter` | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-4.5` | OpenAI-compatible chat completions |
+| `openrouter-google-gemini-3-pro-preview` | `openrouter` | `https://openrouter.ai/api/v1` | `google/gemini-3-pro-preview` | OpenAI-compatible chat completions |
+| `openrouter-google-gemini-2-5-flash` | `openrouter` | `https://openrouter.ai/api/v1` | `google/gemini-2.5-flash` | OpenAI-compatible chat completions |
+| `openrouter-deepseek-v4-pro` | `openrouter` | `https://openrouter.ai/api/v1` | `deepseek/deepseek-v4-pro` | OpenAI-compatible chat completions |
+| `openrouter-qwen-plus` | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen-plus` | OpenAI-compatible chat completions |
+| `openrouter-mistral-large` | `openrouter` | `https://openrouter.ai/api/v1` | `mistralai/mistral-large-3-675b-instruct-2512` | OpenAI-compatible chat completions |
+| `openrouter-groq-llama-3-3-70b` | `openrouter` | `https://openrouter.ai/api/v1` | `groq/llama-3.3-70b-versatile` | OpenAI-compatible chat completions |
 | `openmodel-deepseek-v4-flash` | `openmodel` | `https://api.openmodel.ai/v1` | `deepseek-v4-flash` | Anthropic-compatible messages |
+| `openmodel-kimi-k2-5-free` | `openmodel` | `https://api.openmodel.ai/v1` | `kimi-k2.5-free` | Anthropic-compatible messages |
 | `openai-gpt-4o-mini` | `openai` | `https://api.openai.com/v1` | `gpt-4o-mini` | OpenAI-compatible chat completions |
+| `openai-gpt-5` | `openai` | `https://api.openai.com/v1` | `gpt-5` | OpenAI-compatible chat completions |
+| `openai-gpt-5-mini` | `openai` | `https://api.openai.com/v1` | `gpt-5-mini` | OpenAI-compatible chat completions |
+| `openai-gpt-4-1-mini` | `openai` | `https://api.openai.com/v1` | `gpt-4.1-mini` | OpenAI-compatible chat completions |
 | `anthropic-claude-sonnet` | `anthropic` | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514` | Anthropic-compatible messages |
+| `anthropic-claude-sonnet-4-5` | `anthropic` | `https://api.anthropic.com/v1` | `claude-sonnet-4-5-20250929` | Anthropic-compatible messages |
+| `anthropic-claude-haiku-4-5` | `anthropic` | `https://api.anthropic.com/v1` | `claude-haiku-4-5-20251001` | Anthropic-compatible messages |
 | `deepseek-chat` | `deepseek` | `https://api.deepseek.com/v1` | `deepseek-chat` | OpenAI-compatible chat completions |
+| `deepseek-v4-pro` | `deepseek` | `https://api.deepseek.com/v1` | `deepseek-v4-pro` | OpenAI-compatible chat completions |
 
 ## Précédence
 

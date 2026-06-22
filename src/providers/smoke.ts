@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime } from './index.js';
+import { listProviderProfiles } from './profiles.js';
 
 function runNova(args: string[], env: NodeJS.ProcessEnv = {}): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(process.execPath, ['--import', 'tsx', 'src/index.ts', ...args], {
@@ -15,6 +16,12 @@ function runNova(args: string[], env: NodeJS.ProcessEnv = {}): { status: number 
 
 async function main(): Promise<void> {
   assert.ok(getProviderProfile(DEFAULT_PROVIDER_PROFILE_ID), 'default provider profile exists');
+  const profiles = listProviderProfiles();
+  assert.ok(profiles.length >= 20, 'catalog includes expanded provider/model profiles');
+  assert.equal(new Set(profiles.map((profile) => profile.id)).size, profiles.length, 'profile ids are unique');
+  for (const id of ['openrouter-openai-gpt-5', 'openrouter-anthropic-claude-sonnet-4', 'openrouter-google-gemini-3-pro-preview', 'openai-gpt-5-mini', 'anthropic-claude-haiku-4-5', 'deepseek-v4-pro', 'openmodel-kimi-k2-5-free']) {
+    assert.ok(getProviderProfile(id), `expanded opencode-inspired profile exists: ${id}`);
+  }
   const resolved = resolveProviderRuntime({ env: { LLM_MODEL: 'env-model' }, project: { llm: { providerProfile: 'openmodel-deepseek-v4-flash', fallbackProfiles: ['openai-gpt-4o-mini'] } } });
   assert.equal(resolved.primary.model, 'env-model', 'env model override wins over config profile');
   assert.equal(resolved.fallbackEnabled, true, 'fallback is explicit opt-in');
@@ -28,6 +35,7 @@ async function main(): Promise<void> {
   const list = runNova(['providers', 'list']);
   assert.equal(list.status, 0, `providers list exits 0: ${list.stderr}`);
   assert.match(list.stdout, /openrouter-deepseek-v4-flash/, 'providers list includes default profile');
+  assert.match(list.stdout, /openrouter-openai-gpt-5/, 'providers list includes expanded profile');
   assert.doesNotMatch(list.stderr + list.stdout, /LLM_API_KEY not set/, 'providers list does not require LLM_API_KEY');
 
   const show = runNova(['providers', 'show', 'openmodel-deepseek-v4-flash']);
