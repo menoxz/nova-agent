@@ -40,6 +40,7 @@ import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
 import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, shouldTreatAsUnknownCommand } from './cli/help.js';
 import { loadBatchItems, runBatch } from './batch/index.js';
+import { TuiReplayRenderer } from './tui/index.js';
 
 function getArg(name: string): string | undefined {
   const directIndex = process.argv.indexOf(`--${name}`);
@@ -413,6 +414,21 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
   return true;
 }
 
+async function handleTuiCommand(config: AgentConfig, args: string[]): Promise<boolean> {
+  const [area, action, ...rest] = args;
+  if (area !== 'tui') return false;
+  if (action === 'replay' && rest[0]) {
+    const eventStore = new StreamingEventLogStore({ ...config.streaming?.eventLog, enabled: true });
+    const events = await eventStore.read(rest[0]);
+    console.log(new TuiReplayRenderer().render(events, { title: `Nova TUI replay · ${rest[0]}` }));
+    return true;
+  }
+  if (action === 'replay') return missingArgument('nova tui replay <logId>', 'tui');
+  console.error(chalk.red(renderUnknownCommand(args, 'tui')));
+  process.exitCode = 1;
+  return true;
+}
+
 function handleHelpCommand(args: string[]): boolean {
   const topic = helpTopicFromArgs(args);
   if (!topic && args[0] === 'help') {
@@ -471,6 +487,7 @@ async function main() {
   if (handleHelpCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
   const config = loadConfig();
+  if (await handleTuiCommand(config, rawArgs)) return;
   if (await handleRuntimeCommand(config, rawArgs)) return;
   if (await handleBatchCommand(config, rawArgs)) return;
   if (shouldTreatAsUnknownCommand(rawArgs)) {

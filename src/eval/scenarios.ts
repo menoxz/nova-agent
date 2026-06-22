@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'tui-prototype-v0',
+    name: 'TUI Prototype V0 event log replay',
+    description: 'TUI Prototype V0 should render saved RuntimeStreamingEvent logs in a minimal terminal UI without starting a daemon, web dashboard or new persistence layer.',
+    tags: ['tui', 'streaming', 'event-log', 'cli', 'safety'],
+    prompt: 'Verify Nova TUI Prototype V0: nova tui replay <logId> exists and is documented, reads existing RuntimeStreamingEvent/event log JSONL, renders minimal terminal status, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, requires no LLM_API_KEY, and introduces no daemon, dashboard web, scheduler, queue, batch dashboard or new persistence. Do not modify files.',
+    expectedAnyTools: ['tui:smoke', 'streaming:log-smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['tui', 'replay', 'RuntimeStreamingEvent', 'metrics', 'tools', 'daemon'],
+    mock: {
+      tools: ['tui:smoke'],
+      finalAnswer: 'TUI Prototype V0 adds nova tui replay <logId>, reuses existing RuntimeStreamingEvent JSONL logs, renders terminal status, metrics/tokens, tools, collapsed reasoning, final answer and errors safely, works without LLM_API_KEY, and adds no daemon, web dashboard, scheduler, queue, batch dashboard or new persistence layer.',
+    },
+  },
+  {
     id: 'batch-mode-v1',
     name: 'Batch Mode V1 sequential prompt files',
     description: 'Batch mode should run prompt lists from .txt or .json sequentially, produce a structured JSON report, support streaming/event-log/report/continue-on-error options, and stay safe in non-interactive use without scheduler/daemon/TUI/parallelism.',

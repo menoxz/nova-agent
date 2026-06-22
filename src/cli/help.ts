@@ -1,6 +1,6 @@
-export type CliHelpTopic = 'global' | 'batch' | 'streaming' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
 
 const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report']);
 const knownBooleanFlags = new Set([
@@ -22,6 +22,7 @@ function normalizeTopic(value: string | undefined): CliHelpTopic | undefined {
   if (normalized === 'approval') return 'approvals';
   if (normalized === 'conversation') return 'conversations';
   if (normalized === 'stream') return 'streaming';
+  if (normalized === 'terminal-ui') return 'tui';
   if (normalized === 'global' || cliHelpTopics.includes(normalized as CliHelpTopic)) return normalized as CliHelpTopic;
   return undefined;
 }
@@ -57,6 +58,7 @@ function globalHelp(): string {
     '',
     section('Topics', [
       ['batch', 'Sequential non-interactive prompt files with JSON reports.'],
+      ['tui', 'Terminal UI prototype for event-log replay.'],
       ['streaming', 'Live output, event logs, replay.'],
       ['config', 'Project config show/init/validate/explain.'],
       ['sessions', 'List/show/current/use local sessions.'],
@@ -85,6 +87,19 @@ function globalHelp(): string {
       ['npx tsx src/index.ts --stream "résume le projet"', 'One-shot streaming prompt.'],
       ['npm run start -- --help', 'With npm scripts, put CLI args after --.'],
     ]),
+  ].join('\n');
+}
+
+function tuiHelp(): string {
+  return [
+    'Nova CLI help — tui',
+    '',
+    section('Commands', [
+      ['nova tui replay <logId>', 'Render a terminal UI snapshot from a saved streaming event log.'],
+      ['nova streaming logs', 'List available log IDs.'],
+    ]),
+    '',
+    'TUI Prototype V0 is read-only and reuses existing RuntimeStreamingEvent JSONL logs. It does not start a daemon, web dashboard, scheduler, or new persistence layer.',
   ].join('\n');
 }
 
@@ -232,6 +247,7 @@ function conversationsHelp(): string {
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
+    case 'tui': return tuiHelp();
     case 'streaming': return streamingHelp();
     case 'config': return configHelp();
     case 'sessions': return sessionsHelp();

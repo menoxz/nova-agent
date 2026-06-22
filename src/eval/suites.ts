@@ -23,6 +23,7 @@ export const evalSuites = {
   llm: ['llm-robustness-v1'],
   cli: ['cli-help-command-ux-v1'],
   batch: ['batch-mode-v1'],
+  tui: ['tui-prototype-v0'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

@@ -17,6 +17,7 @@ Si le binaire `nova` est installé ou lié localement :
 nova --help
 nova help streaming
 nova batch --help
+nova tui --help
 nova config validate
 ```
 
@@ -38,6 +39,7 @@ nova help streaming
 nova streaming --help
 nova config --help
 nova batch --help
+nova tui --help
 nova sessions --help
 nova runs --help
 nova approvals --help
@@ -58,6 +60,15 @@ nova conversations --help
 | `--event-log` | En batch, active les logs JSONL redacted par item. |
 | `--report <path>` | En batch, choisit le chemin du rapport JSON. |
 | `--continue-on-error` | En batch, continue après une erreur d'item. |
+
+## TUI Prototype V0
+
+```bash
+nova streaming logs
+nova tui replay <logId>
+```
+
+`nova tui replay <logId>` relit les event logs streaming existants et affiche une snapshot terminale sûre : statut, metrics/tokens, tools, reasoning collapsed, final answer ou erreur. La commande est read-only et ne nécessite pas `LLM_API_KEY`.
 
 ## Commandes runtime sûres
 

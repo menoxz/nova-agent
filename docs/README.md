@@ -82,6 +82,7 @@ nova-agent/
 | [config-file.md](config-file.md) | Config File V1: `.nova/config.json`, defaults projet sûrs, validation stricte, CLI config |
 | [cli-usage.md](cli-usage.md) | CLI Help / Command UX V1: aide intégrée, flags, commandes sûres et erreurs pédagogiques |
 | [batch-mode.md](batch-mode.md) | Batch Mode V1: prompts `.txt`/`.json`, exécution séquentielle, rapport JSON, streaming/event-log |
+| [tui-prototype.md](tui-prototype.md) | TUI Prototype V0: `nova tui replay <logId>` depuis les event logs streaming existants |
 | [llm-robustness.md](llm-robustness.md) | LLM Robustness V1: timeout, retries/backoff, classification d'erreurs provider, diagnostics CLI |
 | [streaming-ux.md](streaming-ux.md) | Streaming UX V1: tokens live, timer, coût, outils, thinking/reasoning pliable, fallback non-streaming |
 | [streaming-event-log.md](streaming-event-log.md) | Streaming Event Log / Replay V1: JSONL redacted, replay CLI sans LLM/tools |
