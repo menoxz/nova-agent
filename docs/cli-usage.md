@@ -232,4 +232,4 @@ npm run eval:slo
 npm run typecheck
 ```
 
-`check:fast` est le garde-fou rapide pendant l'itération et avant petits commits. `check` est le garde-fou complet local pour un module terminé : il regroupe typecheck, smokes clés et evals mock release/quality/providers sans nécessiter de vraie clé LLM.
+`check:fast` est le garde-fou rapide pendant l'itération et avant petits commits : il inclut `eval:slo-smoke` sans nécessiter de vraie clé LLM. `check` est le garde-fou complet local pour un module terminé : il regroupe typecheck, smokes clés et evals mock release/quality/providers/heartbeat/report/slo sans clé LLM réelle.

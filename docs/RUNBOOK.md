@@ -13,8 +13,8 @@ npx tsx src/index.ts "Ta question ici"
 npm run typecheck
 
 # Quality Gate V1 — avant commit d'un module terminé
-npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans LLM_API_KEY
-npm run check        # complet local: smokes clés + eval release/quality/providers, sans clé LLM réelle
+npm run check:fast   # rapide: typecheck + smokes essentiels + eval:slo-smoke, sans LLM_API_KEY
+npm run check        # complet local/release-grade: smokes clés + evals mock incluant eval:slo, sans clé LLM réelle
 
 # Provider Profiles / Fallback contrôlé V1
 nova providers list
@@ -88,11 +88,11 @@ npm install <package>
 
 ## Quality Gate V1
 
-Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commit : il regroupe les validations rapides essentielles (`typecheck`, aide/version CLI, binaire local/installé) et ne nécessite pas `LLM_API_KEY`.
+Utiliser `npm run check:fast` pendant l'itération ou juste avant un petit commit : il regroupe les validations rapides essentielles (`typecheck`, aide/version CLI, heartbeat, rapport eval, `eval:slo-smoke`, binaire local/installé) et ne nécessite pas `LLM_API_KEY`.
 
-Utiliser `npm run check` avant de considérer un module terminé : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `providers`, `streaming:log`, `batch`, `tui`, `bin`) et evals mock `release`/`quality`/`providers`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
+Utiliser `npm run check` avant de considérer un module terminé ou prêt pour une gate locale release-grade : il exécute une validation locale proportionnée avec typecheck, smokes clés (`cli`, `config`, `providers`, `streaming:log`, `batch`, `heartbeat`, `eval:report-smoke`, `eval:slo-smoke`, `tui`, `bin`) et evals mock `release`/`quality`/`providers`/`heartbeat`/`report`/`slo`. Cette commande ne publie rien, ne pousse rien, ne tague rien, n'ajoute pas de CI distante et ne dépend pas d'une vraie clé LLM.
 
-Si `check:fast` échoue, corriger avant de lancer `check`. Si `check` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
+Utiliser `npm run eval:slo-smoke` pour vérifier rapidement la CLI dashboard/SLO sur fixtures temporaires sanitizées. Utiliser `npm run eval:slo` quand la gate doit exécuter la suite SLO mock complète et écrire un rapport eval local. Si `check:fast` échoue, corriger avant de lancer `check`. Si `check`, `eval:slo-smoke` ou `eval:slo` échoue après un changement local, traiter l'échec comme une régression jusqu'à preuve du contraire.
 
 ## Batch reports et CI mode
 
@@ -137,7 +137,9 @@ Ces commandes s'arrêtent avant dotenv, `NovaAgent`, setup tools et la vérifica
 
 `compare` est prévu pour automation locale stable : pass rate delta, deltas passed/failed/errors/total, gates previous/current, scénarios échoués avant/après, nouveaux échecs et scénarios récupérés.
 
-`dashboard` (alias `slo`) produit un objet JSON stable `schemaVersion: 1` ou une sortie humaine avec pass rate, erreurs, gates, budgets tool-call configurés, readiness et régression optionnelle via `--previous`. Hors périmètre : dashboard web, provider live, tools, daemon/autonomie, traces brutes, prompts, secrets et corps eval bruts.
+`dashboard` (alias `slo`) produit un objet JSON stable `schemaVersion: 1` ou une sortie humaine avec pass rate, erreurs, gates, budgets tool-call configurés, readiness et régression optionnelle via `--previous`. Interpréter les résultats uniquement via les sorties sanitizées du CLI (`nova eval report`, `nova eval summary`, `nova eval compare`, `nova eval dashboard`/`slo`) ou les synthèses/rapports redacted générés par les scripts, pas en ouvrant manuellement les corps bruts `.nova/evals`.
+
+Interprétation SLO : un échec de gate signifie que le pass rate, les erreurs ou les budgets configurés ne respectent pas la barre locale; `readiness` liste les bloqueurs à lever avant de considérer la validation prête; une `regression` avec `--previous` indique une baisse de pass rate, une hausse d'erreurs ou des scénarios précédemment verts devenus rouges. Les rapports consultables doivent rester des synthèses/redactions; ne pas inspecter `.env`, secrets, prompts, raw `.nova/traces`, raw `.nova/evals`, raw `.nova/reports`, `finalAnswer`/`checks.actual` ni lancer provider live/tools/daemon/autonomie.
 
 Validation dédiée : `npm run eval:report-smoke`, `npm run eval:slo-smoke`, `npm run eval:report` puis `npm run eval:slo`.
 

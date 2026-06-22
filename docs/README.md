@@ -24,8 +24,8 @@ nova --help
 nova --version
 
 # Quality gate local avant commit/module terminé
-npm run check:fast   # rapide: typecheck + CLI/bin smokes, sans clé LLM
-npm run check        # complet local: smokes clés + eval release/quality/providers, sans clé LLM réelle
+npm run check:fast   # rapide: typecheck + smokes essentiels + eval:slo-smoke, sans clé LLM
+npm run check        # complet local: smokes clés + evals mock incluant eval:slo, sans clé LLM réelle
 ```
 
 ## Stack
