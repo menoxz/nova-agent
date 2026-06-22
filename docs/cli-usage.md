@@ -8,6 +8,7 @@ Depuis le dépôt, le chemin le plus explicite est :
 
 ```bash
 npx tsx src/index.ts --help
+npx tsx src/index.ts --version
 npx tsx src/index.ts --stream "résume le projet"
 ```
 
@@ -16,6 +17,7 @@ Le binaire local du dépôt peut aussi être testé sans installation globale :
 ```bash
 npm run build
 node bin/nova.js --help
+node bin/nova.js --version
 ```
 
 Si le binaire `nova` est installé ou lié localement :
@@ -23,6 +25,8 @@ Si le binaire `nova` est installé ou lié localement :
 ```bash
 npm link
 nova --help
+nova --version
+nova version
 nova help streaming
 nova batch --help
 nova tui --help
@@ -42,6 +46,8 @@ Ces commandes sont read-only et ne nécessitent pas `LLM_API_KEY` :
 
 ```bash
 nova --help
+nova --version
+nova version
 nova help
 nova help streaming
 nova streaming --help
@@ -58,6 +64,7 @@ nova conversations --help
 
 | Flag | Description |
 | --- | --- |
+| `--version` / `-v` | Affiche la version du package depuis `package.json` sans LLM/tools. |
 | `--profile <id>` | Utilise un profil agent, par exemple `nova.builder`. |
 | `--stream` / `--no-stream` | Force le streaming ou le fallback non-streaming. |
 | `--stream-mode=compact\|normal\|verbose` | Définit le niveau de détail du rendu live. |
@@ -83,6 +90,8 @@ nova tui replay <logId> --verbose
 ## Commandes runtime sûres
 
 Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; elles ne déclenchent pas de LLM/tools.
+
+`nova --version`, `nova -v` et `nova version` affichent la version de `package.json` sans lire la configuration LLM, sans nécessiter `LLM_API_KEY` et sans déclencher tools/agent.
 
 `nova batch <file>` est différent : il exécute des prompts et nécessite donc `LLM_API_KEY`. Son aide (`nova batch --help`) reste disponible sans clé.
 

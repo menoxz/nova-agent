@@ -24,6 +24,7 @@ export const evalSuites = {
   cli: ['cli-help-command-ux-v1'],
   batch: ['batch-mode-v1'],
   tui: ['tui-prototype-v0'],
+  release: ['release-versioning-v1'],
 } as const;
 
 export type EvalSuiteName = keyof typeof evalSuites;

@@ -18,8 +18,10 @@ npx tsx src/index.ts "Read soul.md and summarize Nova's principles"
 # Tester le binaire local/installable
 npm run build
 node bin/nova.js --help
+node bin/nova.js --version
 npm link
 nova --help
+nova --version
 ```
 
 ## Stack
@@ -71,6 +73,7 @@ nova-agent/
 | [FILES.md](FILES.md) | Documentation fichier par fichier |
 | [DECISIONS.md](DECISIONS.md) | Décisions clés et leur justification |
 | [ROADMAP.md](ROADMAP.md) | Prochaines itérations et améliorations |
+| [../CHANGELOG.md](../CHANGELOG.md) | Release notes initiales et modules livrés pour la version package courante |
 | [RUNBOOK.md](RUNBOOK.md) | Commandes, débogage, extension |
 | [policy/README.md](policy/README.md) | Policy/Permissions V1: profils, règles, audit, smoke/eval sécurité |
 | [mcp/README.md](mcp/README.md) | Serveur MCP stdio V1, outils read-only, sécurité et setup client |

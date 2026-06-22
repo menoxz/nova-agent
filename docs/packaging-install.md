@@ -26,6 +26,7 @@ Le wrapper binaire est `bin/nova.js` :
 
 ```bash
 node bin/nova.js --help
+node bin/nova.js --version
 node bin/nova.js tui --help
 ```
 
@@ -43,6 +44,7 @@ Depuis le dépôt :
 ```bash
 npm link
 nova --help
+nova version
 nova batch prompts.txt
 nova tui replay <logId>
 ```
@@ -52,6 +54,7 @@ Depuis un autre dossier sans modifier le registre npm :
 ```bash
 npm link C:\jeanluc\nova-agent
 nova --help
+nova --version
 ```
 
 En développement, le wrapper fonctionne même si `dist/` est absent grâce au fallback `tsx`. Pour vérifier le chemin installé/buildé, exécuter `npm run build` avant `npm link`.
@@ -60,14 +63,16 @@ En développement, le wrapper fonctionne même si `dist/` est absent grâce au f
 
 ```bash
 npm run build       # compile TypeScript vers dist/
-npm run bin:smoke   # vérifie node bin/nova.js + npm link + nova --help sans clé LLM
+npm run bin:smoke   # vérifie node bin/nova.js + npm link + aide/version sans clé LLM
 ```
+
+`node bin/nova.js --version` et `nova --version` utilisent la version de `package.json`. Ces chemins sont des commandes metadata-only : ils ne nécessitent pas `LLM_API_KEY` et ne déclenchent ni agent, ni LLM, ni tools.
 
 ## Champs package
 
 - `main`: `dist/index.js`
 - `bin.nova`: `./bin/nova.js`
-- `files`: `bin/`, `dist/`, `docs/`, `soul.md`
+- `files`: `bin/`, `dist/`, `docs/`, `CHANGELOG.md`, `soul.md`
 
 ## Limites V1
 

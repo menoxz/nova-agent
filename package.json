@@ -11,6 +11,7 @@
     "bin/",
     "dist/",
     "docs/",
+    "CHANGELOG.md",
     "soul.md"
   ],
   "scripts": {
@@ -68,6 +69,7 @@
     "eval:cli": "tsx src/eval/runner.ts --suite cli --mode mock",
     "eval:batch": "tsx src/eval/runner.ts --suite batch --mode mock",
     "eval:tui": "tsx src/eval/runner.ts --suite tui --mode mock",
+    "eval:release": "tsx src/eval/runner.ts --suite release --mode mock",
     "eval:replay": "tsx src/eval/runner.ts --mode replay",
     "eval": "tsx src/eval/runner.ts"
   },

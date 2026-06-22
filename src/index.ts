@@ -39,6 +39,7 @@ import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeCon
 import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.js';
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
 import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, shouldTreatAsUnknownCommand } from './cli/help.js';
+import { renderNovaVersion } from './cli/version.js';
 import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
 import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
 import { TuiReplayRenderer } from './tui/index.js';
@@ -536,6 +537,13 @@ function handleHelpCommand(args: string[]): boolean {
   return true;
 }
 
+function handleVersionCommand(args: string[]): boolean {
+  const [first] = args;
+  if (first !== '--version' && first !== '-v' && first !== 'version') return false;
+  console.log(renderNovaVersion());
+  return true;
+}
+
 // ─── Display Helpers ────────────────────────────────────────────────────────
 
 function showWelcome(): void {
@@ -579,6 +587,7 @@ function printSteps(steps: StepDisplay[]): void {
 
 async function main() {
   const rawArgs = process.argv.slice(2);
+  if (handleVersionCommand(rawArgs)) return;
   if (handleHelpCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
   const config = loadConfig();

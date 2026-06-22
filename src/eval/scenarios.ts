@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'release-versioning-v1',
+    name: 'Release Notes and Versioning V1',
+    description: 'Version commands and release notes should expose the package version safely without requiring LLM credentials or changing release/publish state.',
+    tags: ['cli', 'version', 'release-notes', 'packaging', 'docs', 'safety'],
+    prompt: 'Verify Nova Release Notes / Versioning V1: nova --version, nova -v and nova version print the package.json version consistently without LLM_API_KEY and without invoking LLM/tools; nova --help documents the version or version option; bin/nova.js --version works after build/packaging; CHANGELOG.md documents modules delivered through TUI V0.1; docs/README.md, docs/cli-usage.md and packaging docs mention version usage; no npm publish, tag, push, packaging refactor or provider/fallback change. Do not modify files.',
+    expectedAnyTools: ['cli:smoke', 'bin:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['version', 'package.json', 'CHANGELOG', 'bin/nova.js', 'LLM_API_KEY'],
+    mock: {
+      tools: ['cli:smoke', 'bin:smoke'],
+      finalAnswer: 'Release Notes / Versioning V1 adds nova --version, nova -v and nova version using package.json as the version source, documents the version option in nova --help, verifies bin/nova.js --version after build/local packaging, adds an initial CHANGELOG covering delivered modules through TUI V0.1, updates user docs, requires no LLM_API_KEY, invokes no LLM/tools, and does not publish, tag, push, refactor packaging or change providers/fallback.',
+    },
+  },
+  {
     id: 'tui-prototype-v0',
     name: 'TUI Prototype V0.1 event log replay and latest',
     description: 'TUI Prototype V0.1 should render saved RuntimeStreamingEvent logs in a minimal terminal UI, support latest and compact/verbose modes, and avoid daemon, web dashboard or new persistence.',

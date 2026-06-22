@@ -1,3 +1,5 @@
+import { readNovaPackageInfo } from './version.js';
+
 export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations';
 
 export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
@@ -5,6 +7,7 @@ export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'conf
 const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from', 'mode']);
 const knownBooleanFlags = new Set([
   'help', 'h',
+  'version', 'v',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
   'event-log', 'continue-on-error', 'dry-run', 'compact', 'verbose',
 ]);
@@ -46,12 +49,15 @@ export function isKnownGlobalFlag(arg: string): boolean {
 }
 
 function globalHelp(): string {
+  const packageInfo = readNovaPackageInfo();
   return [
-    'Nova Agent — CLI',
+    `Nova Agent — CLI v${packageInfo.version}`,
     '',
     section('Usage', [
       ['nova "<prompt>"', 'Run one prompt (requires LLM_API_KEY).'],
       ['nova', 'Start interactive mode (requires LLM_API_KEY).'],
+      ['nova --version', 'Print package version without invoking LLM/tools.'],
+      ['nova version', 'Print package version without invoking LLM/tools.'],
       ['nova help [topic]', 'Show help without invoking LLM/tools.'],
       ['nova <topic> --help', 'Show domain help without invoking LLM/tools.'],
     ]),
@@ -68,6 +74,7 @@ function globalHelp(): string {
     ]),
     '',
     section('Main flags', [
+      ['--version, -v', 'Print the package version from package.json.'],
       ['--profile <id>', 'Use an agent profile, e.g. nova.builder.'],
       ['--stream', 'Force streaming output.'],
       ['--no-stream', 'Force non-streaming generateText fallback.'],

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 type CliResult = { status: number | null; stdout: string; stderr: string };
 
@@ -20,8 +21,19 @@ function assertOkHelp(args: string[], expected: string[]): void {
   assert.doesNotMatch(result.stderr + result.stdout, /LLM_API_KEY not set/, `${args.join(' ')} must not require LLM_API_KEY`);
 }
 
+function assertOkVersion(args: string[], expectedVersion: string): void {
+  const result = runNova(args);
+  assert.equal(result.status, 0, `${args.join(' ')} should exit 0: ${result.stderr}`);
+  assert.equal(result.stdout.trim(), `nova-agent ${expectedVersion}`, `${args.join(' ')} should print package version`);
+  assert.doesNotMatch(result.stderr + result.stdout, /LLM_API_KEY not set/, `${args.join(' ')} must not require LLM_API_KEY`);
+}
+
 async function main(): Promise<void> {
-  assertOkHelp(['--help'], ['Nova Agent', 'Main flags', '--profile', '--stream-mode']);
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf-8')) as { version: string };
+  assertOkHelp(['--help'], ['Nova Agent', `v${packageJson.version}`, 'Main flags', '--version', '--profile', '--stream-mode']);
+  assertOkVersion(['--version'], packageJson.version);
+  assertOkVersion(['-v'], packageJson.version);
+  assertOkVersion(['version'], packageJson.version);
   assertOkHelp(['help'], ['Topics', 'streaming', 'conversations']);
   assertOkHelp(['streaming', '--help'], ['streaming', 'streaming replay <logId>', '--thinking']);
   assertOkHelp(['config', '--help'], ['config show', 'Precedence', 'never secrets']);

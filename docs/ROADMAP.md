@@ -51,6 +51,7 @@
 - [x] **Batch Mode V1** — `nova batch <file>` séquentiel, entrées `.txt`/`.json`, rapport JSON, options streaming/event-log/report/continue-on-error (`docs/batch-mode.md`, `src/batch`)
 - [x] **TUI Prototype V0.1** — replay/latest terminal des `RuntimeStreamingEvent`/event logs existants: modes compact/verbose, timeline, metrics, tools, reasoning, final/erreur (`docs/tui-prototype.md`, `src/tui`)
 - [x] **Packaging / Install UX V1** — wrapper `bin/nova.js`, `bin.nova` fiable, build/local link, docs dev vs installed et smoke binaire (`docs/packaging-install.md`)
+- [x] **Release Notes / Versioning V1** — `nova --version`/`nova version`, version package en aide CLI, changelog initial et smokes binaires/version (`CHANGELOG.md`, `src/cli/version.ts`)
 - [ ] **Mémoire persistante**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
