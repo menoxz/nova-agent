@@ -402,6 +402,7 @@ async function handleConfigCommand(args: string[]): Promise<boolean> {
   if (action === 'explain') { console.log(explainProjectConfig(result.config).join('\n')); if (!result.ok) process.exitCode = 1; return true; }
   if (action === 'init') { const force = rest.includes('--force'); const initialized = initProjectConfig(process.cwd(), force); console.log(JSON.stringify({ path: initialized.path, ok: initialized.ok, errors: initialized.errors, config: initialized.config }, null, 2)); process.exitCode = initialized.ok ? 0 : 1; return true; }
   if (action === 'show') {
+    await loadDotenvOnce();
     const runtime = result.ok ? sanitizeConfigForDisplay(loadConfig()) : null;
     console.log(JSON.stringify({ project: result, runtime }, null, 2));
     process.exitCode = result.ok ? 0 : 1;
