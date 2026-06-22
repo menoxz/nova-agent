@@ -39,7 +39,8 @@ import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeCon
 import { StreamingCliRenderer, StreamingEventLogStore } from './streaming/index.js';
 import type { StreamingMode, StreamingThinkingMode } from './streaming/index.js';
 import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, shouldTreatAsUnknownCommand } from './cli/help.js';
-import { loadBatchItems, runBatch } from './batch/index.js';
+import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
+import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
 import { TuiReplayRenderer } from './tui/index.js';
 
 function getArg(name: string): string | undefined {
@@ -218,11 +219,10 @@ function promptArgs(): string[] {
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === '--profile') { index += 1; continue; }
-    if (arg === '--report') { index += 1; continue; }
+    if (arg === '--profile' || arg === '--report' || arg === '--limit' || arg === '--only' || arg === '--from') { index += 1; continue; }
     if (arg.startsWith('--profile=')) continue;
     if (arg.startsWith('--report=')) continue;
-    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error') continue;
+    if (arg === '--stream' || arg === '--no-stream' || arg === '--stream-compact' || arg === '--stream-verbose' || arg === '--no-stream-metrics' || arg === '--no-stream-tools' || arg === '--event-log' || arg === '--continue-on-error' || arg === '--dry-run') continue;
     if (arg === '--thinking' || arg === '--stream-mode') { index += 1; continue; }
     if (arg.startsWith('--thinking=') || arg.startsWith('--stream-mode=')) continue;
     result.push(arg);
@@ -232,7 +232,7 @@ function promptArgs(): string[] {
 
 function positionalArgs(args: string[]): string[] {
   const values: string[] = [];
-  const optionsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report']);
+  const optionsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg) continue;
@@ -388,7 +388,15 @@ async function handleConfigCommand(args: string[]): Promise<boolean> {
 async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<boolean> {
   if (args[0] !== 'batch') return false;
   const file = positionalArgs(args.slice(1))[0];
-  if (!file) return missingArgument('nova batch <file> [--stream] [--event-log] [--report <path>] [--continue-on-error]', 'batch');
+  if (!file) return missingArgument('nova batch <file> [--dry-run] [--limit N] [--only id1,id2] [--from id]', 'batch');
+  let batchOptions: BatchRunOptions;
+  try {
+    batchOptions = parseBatchOptions(config);
+  } catch (err) {
+    console.error(chalk.red(`✖ Batch option error: ${err instanceof Error ? err.message : String(err)}`));
+    process.exitCode = 1;
+    return true;
+  }
   try {
     await loadBatchItems(file);
   } catch (err) {
@@ -397,6 +405,19 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
     process.exitCode = 1;
     return true;
   }
+  if (batchOptions.dryRun) {
+    try {
+      const report = await dryRunBatch(file, batchOptions);
+      printBatchDryRun(report.items.filter((item) => item.skipReason === 'Dry run: item validated but not executed.'), report.items.filter((item) => item.skipReason && item.skipReason !== 'Dry run: item validated but not executed.'));
+      console.log(chalk.gray(`Report: ${report.reportPath}`));
+      process.exitCode = 0;
+      return true;
+    } catch (err) {
+      console.error(chalk.red(`✖ Batch dry-run error: ${err instanceof Error ? err.message : String(err)}`));
+      process.exitCode = 1;
+      return true;
+    }
+  }
   if (!config.llm.apiKey) {
     console.error(chalk.red('✖ Error: LLM_API_KEY not set. Batch mode executes prompts and requires an LLM key.'));
     process.exitCode = 1;
@@ -404,14 +425,58 @@ async function handleBatchCommand(config: AgentConfig, args: string[]): Promise<
   }
   const tools = setupTools();
   const report = await runBatch(config, tools, file, {
+    ...batchOptions,
+    onItemStart: ({ item, index, total }) => printBatchItemStart(item, index, total),
+    onItemFinish: ({ report, index, total }) => printBatchItemFinish(report, index, total),
+  });
+  printBatchSummary(report);
+  process.exitCode = report.status === 'completed' ? 0 : 1;
+  return true;
+}
+
+function parseBatchOptions(config: AgentConfig): BatchRunOptions {
+  const limitValue = getArg('limit');
+  const limit = limitValue === undefined ? undefined : parseInt(limitValue, 10);
+  if (limitValue !== undefined && (!Number.isFinite(limit ?? NaN) || (limit ?? 0) < 1)) throw new Error('--limit must be a positive integer');
+  const onlyValue = getArg('only');
+  const onlyIds = onlyValue === undefined ? undefined : onlyValue.split(',').map((id) => id.trim()).filter(Boolean);
+  if (onlyValue !== undefined && !onlyIds?.length) throw new Error('--only must contain at least one item id');
+  const fromId = getArg('from');
+  if (fromId !== undefined && !fromId.trim()) throw new Error('--from must contain an item id');
+  return {
     streaming: shouldStream(config),
     eventLog: hasFlag('event-log'),
     reportPath: getArg('report'),
     continueOnError: hasFlag('continue-on-error'),
-  });
-  console.log(JSON.stringify({ batchId: report.batchId, status: report.status, counts: report.counts, reportPath: report.reportPath }, null, 2));
-  process.exitCode = report.status === 'completed' ? 0 : 1;
-  return true;
+    dryRun: hasFlag('dry-run'),
+    limit,
+    onlyIds,
+    fromId,
+  };
+}
+
+function printBatchItemStart(item: BatchItem, index: number, total: number): void {
+  console.log(chalk.cyan(`\n[${index}/${total}] ${item.id}`));
+}
+
+function printBatchItemFinish(report: BatchItemReport, index: number, total: number): void {
+  const icon = report.status === 'success' ? chalk.green('✓') : report.status === 'error' ? chalk.red('✖') : chalk.gray('-');
+  const detail = report.status === 'success' ? report.answerPreview : report.error ?? report.skipReason;
+  console.log(`${icon} [${index}/${total}] ${report.id} ${chalk.gray(`${report.durationMs}ms`)}${detail ? ` — ${detail}` : ''}`);
+}
+
+function printBatchDryRun(selected: BatchItemReport[], skipped: BatchItemReport[]): void {
+  console.log(chalk.cyanBright.bold('Batch dry-run'));
+  console.log(chalk.gray(`validated ${selected.length} selected item(s), ${skipped.length} skipped by filters`));
+  for (const item of selected) console.log(`${chalk.green('✓')} ${item.id} ${chalk.gray(item.promptPreview)}`);
+  for (const item of skipped) console.log(`${chalk.gray('-')} ${item.id} ${chalk.gray(item.skipReason ?? 'skipped')}`);
+}
+
+function printBatchSummary(report: Awaited<ReturnType<typeof runBatch>>): void {
+  console.log('');
+  console.log(chalk.cyanBright.bold('Batch summary'));
+  console.log(`status=${report.status} success=${report.counts.success} error=${report.counts.error} skipped=${report.counts.skipped} total=${report.counts.total}`);
+  console.log(chalk.gray(`Report: ${report.reportPath}`));
 }
 
 async function handleTuiCommand(config: AgentConfig, args: string[]): Promise<boolean> {

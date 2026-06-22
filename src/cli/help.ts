@@ -2,11 +2,11 @@ export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'config' |
 
 export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'config', 'sessions', 'runs', 'approvals', 'conversations'];
 
-const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report']);
+const knownFlagsWithValues = new Set(['profile', 'stream-mode', 'thinking', 'report', 'limit', 'only', 'from']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error',
+  'event-log', 'continue-on-error', 'dry-run',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -80,6 +80,10 @@ function globalHelp(): string {
       ['--event-log', 'For batch: persist event logs for each item.'],
       ['--report <path>', 'For batch: write report JSON to a custom path.'],
       ['--continue-on-error', 'For batch: keep running after an item error.'],
+      ['--dry-run', 'For batch: validate and display selected items without LLM/tools.'],
+      ['--limit N', 'For batch: select at most N executable items.'],
+      ['--only id1,id2', 'For batch: select only listed item ids.'],
+      ['--from id', 'For batch: resume selection starting at id.'],
     ]),
     '',
     section('Recommended local usage', [
@@ -112,6 +116,7 @@ function batchHelp(): string {
       ['nova batch prompts.txt --stream', 'Stream each item while still writing a report.'],
       ['nova batch prompts.json --event-log', 'Persist redacted per-item event logs.'],
       ['nova batch prompts.json --report .nova/batch/report.json', 'Write report to a custom path.'],
+      ['nova batch prompts.json --dry-run', 'Validate and display selected items without LLM/tools/API key.'],
     ]),
     '',
     section('Formats', [
@@ -124,6 +129,10 @@ function batchHelp(): string {
       ['--event-log', 'Enable redacted JSONL event logs for each item.'],
       ['--report <path>', 'Write the structured JSON report at this path.'],
       ['--continue-on-error', 'Continue after item errors; default is stop and mark remaining skipped.'],
+      ['--dry-run', 'Validate input and filters, write report, do not execute LLM/tools.'],
+      ['--limit N', 'Select at most N executable items.'],
+      ['--only id1,id2', 'Select only the listed item ids.'],
+      ['--from id', 'Resume selection starting at item id.'],
     ]),
     '',
     'Batch V1 is sequential: no scheduler, daemon, TUI, parallelism, or extra batch-level retry loop.',

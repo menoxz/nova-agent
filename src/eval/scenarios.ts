@@ -20,17 +20,17 @@ export const defaultScenarios: EvalScenario[] = [
   {
     id: 'batch-mode-v1',
     name: 'Batch Mode V1 sequential prompt files',
-    description: 'Batch mode should run prompt lists from .txt or .json sequentially, produce a structured JSON report, support streaming/event-log/report/continue-on-error options, and stay safe in non-interactive use without scheduler/daemon/TUI/parallelism.',
+    description: 'Batch mode should run prompt lists from .txt or .json sequentially, produce a structured JSON report, support streaming/event-log/report/continue-on-error plus dry-run/filter polish options, and stay safe in non-interactive use without scheduler/daemon/TUI/parallelism.',
     tags: ['batch', 'cli', 'report', 'streaming', 'safety'],
-    prompt: 'Verify Nova Batch Mode V1: nova batch <file> supports .txt prompt-per-line with empty/comment lines ignored and .json array items with id/prompt validation; runs sequentially; writes a structured JSON report with batchId, statuses, durations, previews, metrics and event log/run references when available; supports --stream, --event-log, --report <path>, --continue-on-error; no scheduler, daemon, TUI, parallelism or extra batch retry loop; docs/smoke/eval are updated. Do not modify files.',
+    prompt: 'Verify Nova Batch Mode V1.1: nova batch <file> supports .txt prompt-per-line with empty/comment lines ignored and .json array items with id/prompt validation; runs sequentially; writes a structured JSON report with batchId, statuses, durations, previews, metrics, skip reasons and event log/run references when available; supports --stream, --event-log, --report <path>, --continue-on-error, --dry-run without LLM_API_KEY/tools, --limit N, --only id1,id2 and --from id; console output shows progress, item success/error and report path; no scheduler, daemon, TUI, parallelism or extra batch retry loop; docs/smoke/eval are updated. Do not modify files.',
     expectedAnyTools: ['batch:smoke', 'cli:smoke', 'streaming:log-smoke', 'read_file', 'grep'],
     forbiddenTools: ['write_file', 'bash'],
     maxToolCalls: 8,
     maxSteps: 8,
-    requiredAnswerIncludes: ['batch', '.txt', '.json', 'report', 'sequential', '--continue-on-error'],
+    requiredAnswerIncludes: ['batch', '.txt', '.json', 'report', 'sequential', '--continue-on-error', '--dry-run', '--limit'],
     mock: {
       tools: ['batch:smoke'],
-      finalAnswer: 'Batch Mode V1 adds nova batch <file> for sequential .txt and .json prompt files with educational validation, structured JSON reports containing batchId/status/duration/previews/metrics/event-log/run references when available, supports --stream, --event-log, --report and --continue-on-error, and avoids scheduler, daemon, TUI, parallelism and custom batch retry loops.',
+      finalAnswer: 'Batch Mode V1.1 supports nova batch <file> for sequential .txt and .json prompt files with educational validation, structured JSON reports containing batchId/status/duration/previews/metrics/skip reasons/event-log/run references when available, supports --stream, --event-log, --report, --continue-on-error, --dry-run without LLM_API_KEY/tools, --limit, --only and --from, improves console progress output, and avoids scheduler, daemon, TUI, parallelism and custom batch retry loops.',
     },
   },
   {

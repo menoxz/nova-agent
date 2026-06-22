@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
-import { loadBatchItems, parseJsonBatch, parseTxtBatch } from './parser.js';
+import { dryRunBatch, loadBatchItems, parseJsonBatch, parseTxtBatch, planBatchItems } from './index.js';
 
 function runNova(args: string[]) {
   return spawnSync(process.execPath, ['--import', 'tsx', 'src/index.ts', ...args], {
@@ -34,6 +34,17 @@ async function main(): Promise<void> {
     await writeFile(jsonPath, JSON.stringify([{ id: 'json-1', prompt: 'hello json' }]), 'utf-8');
     assert.equal((await loadBatchItems(txtPath)).items.length, 1, 'loads .txt file');
     assert.equal((await loadBatchItems(jsonPath)).items[0]?.id, 'json-1', 'loads .json file');
+
+    const plan = planBatchItems(jsonItems, { onlyIds: ['task_2'], fromId: 'task-1', limit: 1 });
+    assert.deepEqual(plan.selected.map((item) => item.id), ['task_2'], 'filters select expected id');
+    assert.equal(plan.skippedBefore.length, 1, 'filters record skipped items');
+
+    await mkdir('tmp', { recursive: true });
+    const reportPath = join('tmp', 'batch-dry-smoke-report.json');
+    const dry = await dryRunBatch(jsonPath, { reportPath, limit: 1 });
+    assert.equal(dry.options.dryRun, true, 'dry-run report marks dry run');
+    assert.equal(dry.counts.total, 1, 'dry-run reports selected total');
+    assert.equal(dry.items[0]?.skipReason, 'Dry run: item validated but not executed.', 'dry-run item explains no execution');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -47,6 +58,21 @@ async function main(): Promise<void> {
   assert.equal(missing.status, 1, 'missing batch file exits 1');
   assert.match(missing.stderr ?? '', /Missing argument\. Usage: nova batch <file>/, 'missing batch file explained');
   assert.doesNotMatch((missing.stderr ?? '') + (missing.stdout ?? ''), /LLM_API_KEY not set/, 'missing batch file does not reach LLM key check');
+
+  const cliRoot = await mkdtemp(join(tmpdir(), 'nova-batch-cli-smoke-'));
+  try {
+    const cliJson = join(cliRoot, 'cli-prompts.json');
+    await mkdir('tmp', { recursive: true });
+    const cliReport = join('tmp', 'batch-cli-dry-smoke-report.json');
+    await writeFile(cliJson, JSON.stringify([{ id: 'a', prompt: 'A' }, { id: 'b', prompt: 'B' }, { id: 'c', prompt: 'C' }]), 'utf-8');
+    const dryRun = runNova(['batch', cliJson, '--dry-run', '--from', 'b', '--limit', '1', '--report', cliReport]);
+    assert.equal(dryRun.status, 0, `dry-run exits 0: ${dryRun.stderr}`);
+    assert.match(dryRun.stdout ?? '', /Batch dry-run/, 'dry-run prints summary');
+    assert.match(dryRun.stdout ?? '', /✓ b/, 'dry-run prints selected id');
+    assert.doesNotMatch((dryRun.stderr ?? '') + (dryRun.stdout ?? ''), /LLM_API_KEY not set/, 'dry-run does not require LLM key');
+  } finally {
+    await rm(cliRoot, { recursive: true, force: true });
+  }
 
   console.log('batch:smoke passed');
 }

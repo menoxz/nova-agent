@@ -11,6 +11,9 @@ nova batch prompts.json --stream
 nova batch prompts.json --event-log
 nova batch prompts.json --report .nova/batch/report.json
 nova batch prompts.json --continue-on-error
+nova batch prompts.json --dry-run
+nova batch prompts.json --only task-1,task-2
+nova batch prompts.json --from task-2 --limit 5
 ```
 
 Depuis le dépôt sans installer le binaire :
@@ -64,8 +67,34 @@ Validation V1 :
 | `--event-log` | Active les logs JSONL redacted par item sous `.nova/streaming/events`. |
 | `--report <path>` | Écrit le rapport JSON à un chemin choisi. Par défaut : `.nova/batch/<batchId>.json`. |
 | `--continue-on-error` | Continue après une erreur d'item. Par défaut, Nova s'arrête et marque le reste `skipped`. |
+| `--dry-run` | Valide le fichier, applique les filtres, affiche les items et écrit un rapport sans LLM/tools ni `LLM_API_KEY`. |
+| `--limit N` | Sélectionne au plus `N` items à exécuter/valider. |
+| `--only id1,id2` | Sélectionne uniquement les ids listés. |
+| `--from id` | Reprend la sélection à partir de l'id donné. |
 
 `--event-log` force le chemin d'exécution streaming en interne pour capturer les événements, même si `--stream` n'est pas demandé. Sans `--stream`, les événements sont persistés mais pas affichés live.
+
+## Dry-run et filtres
+
+`--dry-run` est le chemin recommandé avant une exécution longue :
+
+```bash
+nova batch prompts.json --dry-run --from task-2 --limit 3
+```
+
+Le dry-run :
+
+- parse et valide le fichier ;
+- vérifie que `--only` / `--from` référencent des ids existants ;
+- affiche les items sélectionnés ;
+- écrit un rapport JSON avec les items sélectionnés marqués `skipped` et `skipReason: "Dry run: item validated but not executed."` ;
+- ne vérifie pas `LLM_API_KEY` et ne crée pas d'agent/tools.
+
+Les filtres sont appliqués dans cet ordre :
+
+1. `--from id` ignore les items avant `id` ;
+2. `--only id1,id2` conserve seulement ces ids ;
+3. `--limit N` borne le nombre d'items sélectionnés.
 
 ## Rapport JSON
 
@@ -102,6 +131,12 @@ Exemple de structure :
       "metrics": {},
       "run": { "sessionId": "...", "runId": "..." },
       "eventLog": { "logId": "...", "path": "..." }
+    },
+    {
+      "id": "task-2",
+      "status": "skipped",
+      "skipReason": "Skipped by --limit 1.",
+      "promptPreview": "..."
     }
   ]
 }

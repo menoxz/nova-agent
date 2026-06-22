@@ -11,6 +11,12 @@ export interface BatchRunOptions {
   eventLog?: boolean;
   reportPath?: string;
   continueOnError?: boolean;
+  dryRun?: boolean;
+  limit?: number;
+  onlyIds?: string[];
+  fromId?: string;
+  onItemStart?: (input: { item: BatchItem; index: number; total: number }) => void | Promise<void>;
+  onItemFinish?: (input: { item: BatchItem; report: BatchItemReport; index: number; total: number }) => void | Promise<void>;
 }
 
 export type BatchItemStatus = 'success' | 'error' | 'skipped';
@@ -25,6 +31,7 @@ export interface BatchItemReport {
   promptPreview: string;
   answerPreview?: string;
   error?: string;
+  skipReason?: string;
   metrics?: ResponseTokenMetrics;
   run?: {
     sessionId?: string;
@@ -49,6 +56,10 @@ export interface BatchReport {
     streaming: boolean;
     eventLog: boolean;
     continueOnError: boolean;
+    dryRun: boolean;
+    limit?: number;
+    onlyIds?: string[];
+    fromId?: string;
   };
   counts: {
     total: number;

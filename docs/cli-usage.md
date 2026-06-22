@@ -90,6 +90,7 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 nova batch prompts.txt
 nova batch prompts.json --stream --event-log
 nova batch prompts.json --report .nova/batch/report.json --continue-on-error
+nova batch prompts.json --dry-run --from task-2 --limit 3
 ```
 
 ### Streaming

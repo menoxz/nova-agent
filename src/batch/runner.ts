@@ -18,30 +18,34 @@ const PREVIEW_CHARS = 500;
 
 export async function runBatch(config: AgentConfig, tools: ToolRegistry, filePath: string, options: BatchRunOptions = {}): Promise<BatchReport> {
   const loaded = await loadBatchItems(filePath);
+  const plan = planBatchItems(loaded.items, options);
   const batchId = `batch_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
   const reportPath = resolveBatchReportPath(options.reportPath ?? `.nova/batch/${batchId}.json`);
-  const items: BatchItemReport[] = [];
+  const items: BatchItemReport[] = [...plan.skippedBefore];
   const runConfig = batchConfig(config, options);
   const requestedStreaming = options.streaming ?? runConfig.streaming?.enabled === true;
   const internalStreaming = requestedStreaming || options.eventLog === true;
 
-  for (const [index, item] of loaded.items.entries()) {
+  for (const [index, item] of plan.selected.entries()) {
+    await Promise.resolve(options.onItemStart?.({ item, index: index + 1, total: plan.selected.length })).catch(() => undefined);
     const result = await runBatchItem(runConfig, tools, item, { ...options, requestedStreaming, internalStreaming });
     items.push(result);
+    await Promise.resolve(options.onItemFinish?.({ item, report: result, index: index + 1, total: plan.selected.length })).catch(() => undefined);
     if (result.status === 'error' && !options.continueOnError) {
-      for (const skipped of loaded.items.slice(index + 1)) items.push(skippedItemReport(skipped));
+      for (const skipped of plan.selected.slice(index + 1)) items.push(skippedItemReport(skipped, 'Skipped because a previous batch item failed and --continue-on-error was not set.'));
       break;
     }
   }
+  items.push(...plan.skippedAfter);
 
   const finishedAtMs = Date.now();
   const counts = countItems(items);
   const report: BatchReport = {
     schemaVersion: 1,
     batchId,
-    status: reportStatus(counts),
+    status: reportStatus(items),
     inputFile: loaded.path,
     reportPath,
     startedAt,
@@ -51,12 +55,88 @@ export async function runBatch(config: AgentConfig, tools: ToolRegistry, filePat
       streaming: requestedStreaming,
       eventLog: options.eventLog === true,
       continueOnError: options.continueOnError === true,
+      dryRun: false,
+      limit: options.limit,
+      onlyIds: options.onlyIds,
+      fromId: options.fromId,
     },
     counts,
     items,
   };
   await writeBatchReport(reportPath, report);
   return report;
+}
+
+export async function dryRunBatch(filePath: string, options: BatchRunOptions = {}): Promise<BatchReport> {
+  const loaded = await loadBatchItems(filePath);
+  const plan = planBatchItems(loaded.items, options);
+  const batchId = `batch_dry_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
+  const startedAtMs = Date.now();
+  const reportPath = resolveBatchReportPath(options.reportPath ?? `.nova/batch/${batchId}.json`);
+  const selectedReports = plan.selected.map((item) => skippedItemReport(item, 'Dry run: item validated but not executed.'));
+  const items = [...plan.skippedBefore, ...selectedReports, ...plan.skippedAfter];
+  const finishedAtMs = Date.now();
+  const counts = countItems(items);
+  const report: BatchReport = {
+    schemaVersion: 1,
+    batchId,
+    status: 'completed',
+    inputFile: loaded.path,
+    reportPath,
+    startedAt: new Date(startedAtMs).toISOString(),
+    finishedAt: new Date(finishedAtMs).toISOString(),
+    durationMs: finishedAtMs - startedAtMs,
+    options: {
+      streaming: false,
+      eventLog: false,
+      continueOnError: options.continueOnError === true,
+      dryRun: true,
+      limit: options.limit,
+      onlyIds: options.onlyIds,
+      fromId: options.fromId,
+    },
+    counts,
+    items,
+  };
+  await writeBatchReport(reportPath, report);
+  return report;
+}
+
+export interface BatchSelectionPlan {
+  selected: BatchItem[];
+  skippedBefore: BatchItemReport[];
+  skippedAfter: BatchItemReport[];
+}
+
+export function planBatchItems(items: BatchItem[], options: Pick<BatchRunOptions, 'limit' | 'onlyIds' | 'fromId'> = {}): BatchSelectionPlan {
+  const only = options.onlyIds?.length ? new Set(options.onlyIds) : undefined;
+  if (only) {
+    const ids = new Set(items.map((item) => item.id));
+    const missing = [...only].filter((id) => !ids.has(id));
+    if (missing.length) throw new Error(`Unknown --only id(s): ${missing.join(', ')}. Available ids: ${items.map((item) => item.id).join(', ')}`);
+  }
+  let fromSeen = options.fromId ? false : true;
+  if (options.fromId && !items.some((item) => item.id === options.fromId)) throw new Error(`Unknown --from id: ${options.fromId}. Available ids: ${items.map((item) => item.id).join(', ')}`);
+  const selected: BatchItem[] = [];
+  const skippedBefore: BatchItemReport[] = [];
+  const skippedAfter: BatchItemReport[] = [];
+  for (const item of items) {
+    if (!fromSeen) {
+      if (item.id === options.fromId) fromSeen = true;
+      else { skippedBefore.push(skippedItemReport(item, `Skipped by --from ${options.fromId}.`)); continue; }
+    }
+    if (only && !only.has(item.id)) {
+      skippedBefore.push(skippedItemReport(item, 'Skipped by --only filter.'));
+      continue;
+    }
+    if (typeof options.limit === 'number' && selected.length >= options.limit) {
+      skippedAfter.push(skippedItemReport(item, `Skipped by --limit ${options.limit}.`));
+      continue;
+    }
+    selected.push(item);
+  }
+  if (!selected.length) throw new Error('Batch selection matched no items. Adjust --only, --from or --limit.');
+  return { selected, skippedBefore, skippedAfter };
 }
 
 function batchConfig(config: AgentConfig, options: BatchRunOptions): AgentConfig {
@@ -171,7 +251,7 @@ function eventLogReference(config: AgentConfig, event: RuntimeStreamingEvent | u
   return { logId, path: store.pathForLogId(logId) };
 }
 
-function skippedItemReport(item: BatchItem): BatchItemReport {
+function skippedItemReport(item: BatchItem, reason: string): BatchItemReport {
   const now = new Date().toISOString();
   return {
     id: item.id,
@@ -180,7 +260,7 @@ function skippedItemReport(item: BatchItem): BatchItemReport {
     finishedAt: now,
     durationMs: 0,
     promptPreview: safePreview(item.prompt),
-    error: 'Skipped because a previous batch item failed and --continue-on-error was not set.',
+    skipReason: reason,
   };
 }
 
@@ -193,8 +273,10 @@ function countItems(items: BatchItemReport[]): BatchReport['counts'] {
   };
 }
 
-function reportStatus(counts: BatchReport['counts']): BatchReportStatus {
+function reportStatus(items: BatchItemReport[]): BatchReportStatus {
+  const counts = countItems(items);
   if (counts.error === 0 && counts.skipped === 0) return 'completed';
+  if (counts.error === 0) return 'completed';
   if (counts.success > 0) return 'partial';
   return 'failed';
 }
