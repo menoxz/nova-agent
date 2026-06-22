@@ -6,7 +6,8 @@ import { join, resolve } from 'node:path';
 import { createPolicyAuditEvent } from './audit.js';
 import { evaluatePolicy } from './engine.js';
 import { getPolicyProfile, listSelectablePolicyProfiles } from './profiles.js';
-import { containsPrivateKeyMaterial, redactString } from './redact.js';
+import { containsPrivateKeyMaterial, redactString, redactUnknown } from './redact.js';
+import { capText } from './output.js';
 import { resolvePolicyPath } from './path.js';
 import type { CapabilityCategory, PolicyRequest } from './types.js';
 
@@ -45,8 +46,11 @@ async function main(): Promise<void> {
     for (const [label, path] of [
       ['traversal', '../package.json'],
       ['outside root', resolve(process.cwd(), 'package.json')],
+      ['NUL path', `${safeFile}\0suffix`],
       ['.env', join(tmpRoot, '.env')],
+      ['.env.local', join(tmpRoot, '.env.local')],
       ['.git', join(tmpRoot, '.git/config')],
+      ['mixed separators .git', `${tmpRoot.replace(/\\/g, '/')}/nested\\.git/config`],
       ['node_modules', join(tmpRoot, 'node_modules/pkg/index.js')],
       ['raw .nova traces', join(tmpRoot, '.nova/traces/run.json')],
       ['raw .nova evals', join(tmpRoot, '.nova/evals/report.json')],
@@ -60,6 +64,7 @@ async function main(): Promise<void> {
     expectDecision('safe read', request({ path: safeFile }), 'allow');
     expectDecision('policy deny traversal', request({ path: '../package.json' }), 'deny');
     expectDecision('policy deny outside root', request({ path: resolve(process.cwd(), '..', 'outside.txt') }), 'deny');
+    expectDecision('policy deny multi-path', request({ paths: [safeFile, join(tmpRoot, '.env.local')] }), 'deny');
     expectDecision('deny private key content', request({ contentPreview: await import('node:fs/promises').then((fs) => fs.readFile(keyFile, 'utf-8')) }), 'deny');
 
     const childCapability: CapabilityCategory = 'shell';
@@ -78,10 +83,21 @@ async function main(): Promise<void> {
     expectDecision('trusted-local asks shell', request({ profileId: 'trusted-local', capability: 'shell', toolName: 'bash', readOnly: false }), 'ask');
     expectDecision('trusted-local asks network', request({ profileId: 'trusted-local', capability: 'network', toolName: 'web_search', readOnly: true }), 'ask');
     expectDecision('trusted-local asks memory', request({ profileId: 'trusted-local', capability: 'memory', toolName: 'todo', readOnly: false }), 'ask');
+    expectDecision('ci-eval denies write', request({ profileId: 'ci-eval', capability: 'write', toolName: 'write_file', readOnly: false, path: safeFile }), 'deny');
+    expectDecision('ci-eval denies shell', request({ profileId: 'ci-eval', capability: 'shell', toolName: 'bash', readOnly: false }), 'deny');
+    expectDecision('ci-eval denies network', request({ profileId: 'ci-eval', capability: 'network', toolName: 'web_fetch', readOnly: true }), 'deny');
+    expectDecision('ci-eval denies memory', request({ profileId: 'ci-eval', capability: 'memory', toolName: 'memory_write', readOnly: false }), 'deny');
+    expectDecision('future-autonomous denied', request({ profileId: 'future-autonomous', capability: 'read', path: safeFile }), 'deny');
 
     const redacted = redactString('token=synthetic_token_value_12345 password=synthetic_password_12345');
     assert(redacted.includes('<redacted>'), 'synthetic secrets should be redacted');
     assert(!redacted.includes('synthetic_token_value_12345'), 'synthetic token value leaked');
+    const redactedUnknown = redactUnknown({ token: 'synthetic_token_value_12345', nested: { value: 'sk-policySmokeSecret1234567890' }, list: [1, 2, 3] }, { maxArrayItems: 2 });
+    assert(!JSON.stringify(redactedUnknown).includes('synthetic_token_value_12345'), 'redactUnknown redacts secret-like keys');
+    assert(!JSON.stringify(redactedUnknown).includes('sk-policySmokeSecret1234567890'), 'redactUnknown redacts secret-like string values');
+    assert(JSON.stringify(redactedUnknown).includes('truncated 1 items'), 'redactUnknown caps arrays');
+    const capped = capText('x'.repeat(1500), 1000);
+    assert(capped.truncated && capped.text.includes('truncated 500 chars'), 'capText reports truncation');
     assert(containsPrivateKeyMaterial('-----BEGIN PRIVATE KEY-----\nsynthetic'), 'private key detector should match');
 
     const profile = getPolicyProfile('readonly');

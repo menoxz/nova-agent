@@ -24,7 +24,11 @@ function runNova(args: string[], cwd: string) {
 }
 
 async function writeReport(root: string, report: EvalReport): Promise<void> {
-  const dir = join(root, '.nova', 'evals', report.evalRunId);
+  await writeReportAt(root, report.evalRunId, report);
+}
+
+async function writeReportAt(root: string, evalRunId: string, report: EvalReport): Promise<void> {
+  const dir = join(root, '.nova', 'evals', evalRunId);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf-8');
 }
@@ -59,7 +63,20 @@ async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-eval-report-smoke-'));
   try {
     await writeReport(root, fixture('run-previous', 2, 0, 0, '2026-01-01T00:00:00.000Z'));
-    await writeReport(root, fixture('run-current', 1, 1, 1, '2026-01-02T00:00:00.000Z'));
+    const currentReport = fixture('run-current', 1, 1, 1, '2026-01-02T00:00:00.000Z');
+    currentReport.gates?.results.push({
+      name: 'safe_actual_object',
+      passed: false,
+      expected: 'object redacted and truncated',
+      actual: { token: SECRET, nested: { note: `unsafe ${SECRET}`, long: 'x'.repeat(220) } },
+    });
+    await writeReport(root, currentReport);
+    await mkdir(join(root, '.nova', 'evals', 'missing-report'), { recursive: true });
+    await writeFile(join(root, '.nova', 'evals', 'invalid-json', 'report.json'), '{', 'utf-8').catch(async () => {
+      await mkdir(join(root, '.nova', 'evals', 'invalid-json'), { recursive: true });
+      await writeFile(join(root, '.nova', 'evals', 'invalid-json', 'report.json'), '{', 'utf-8');
+    });
+    await writeReportAt(root, 'mismatch-run', fixture('different-run-id', 1, 0, 0, '2026-01-03T00:00:00.000Z'));
 
     const list = runNova(['eval', 'list', '--json'], root);
     assert.equal(list.status, 0, `eval list exits 0: ${list.stderr}`);
@@ -67,11 +84,17 @@ async function main(): Promise<void> {
     const listed = JSON.parse(list.stdout) as Array<{ evalRunId: string }>;
     assert.deepEqual(listed.map((item) => item.evalRunId), ['run-current', 'run-previous'], 'list sorts latest first');
 
+    const limited = runNova(['eval', 'list', '--json', '--limit', '1'], root);
+    assert.equal(limited.status, 0, `eval list --limit exits 0: ${limited.stderr}`);
+    assert.deepEqual((JSON.parse(limited.stdout) as Array<{ evalRunId: string }>).map((item) => item.evalRunId), ['run-current'], '--limit 1 returns one latest valid report and ignores invalid report dirs');
+
     const latest = runNova(['eval', 'report', 'latest', '--json'], root);
     assert.equal(latest.status, 0, `latest report exits 0: ${latest.stderr}`);
     assert.match(latest.stdout, /run-current/, 'latest resolves current run');
     assert.doesNotMatch(latest.stdout + latest.stderr, new RegExp(SECRET, 'g'), 'report output redacts raw answer/check actual/secret');
     assert.doesNotMatch(latest.stdout, /finalAnswer|"checks"/, 'report output does not expose raw finalAnswer or checks');
+    assert.match(latest.stdout, /safe_actual_object/, 'report includes gate actual object metadata');
+    assert.match(latest.stdout, /\[REDACTED\]|token/, 'report redacts secret-like fields inside gate actual objects');
 
     const markdown = runNova(['eval', 'summary', 'latest', '--markdown'], root);
     assert.equal(markdown.status, 0, `summary markdown exits 0: ${markdown.stderr}`);
@@ -93,6 +116,17 @@ async function main(): Promise<void> {
     assert.deepEqual(comparison.recovered, [], 'recovered scenarios are stable');
     assert.doesNotMatch(compare.stdout + compare.stderr, new RegExp(SECRET, 'g'), 'compare output is safe');
 
+    const compareMarkdown = runNova(['eval', 'compare', 'run-previous', 'run-current', '--markdown'], root);
+    assert.equal(compareMarkdown.status, 0, `compare markdown exits 0: ${compareMarkdown.stderr}`);
+    assert.match(compareMarkdown.stdout, /# Nova Eval Compare/, 'compare markdown prints Markdown');
+    assert.match(compareMarkdown.stdout, /## Newly failed/, 'compare markdown includes failure sections');
+    assert.doesNotMatch(compareMarkdown.stdout + compareMarkdown.stderr, new RegExp(SECRET, 'g'), 'compare markdown output is safe');
+
+    const mismatch = runNova(['eval', 'report', 'mismatch-run'], root);
+    assert.equal(mismatch.status, 1, 'evalRunId mismatch exits 1');
+    assert.match(mismatch.stderr, /Eval report id mismatch/, 'evalRunId mismatch is rejected');
+    assert.doesNotMatch(mismatch.stderr + mismatch.stdout, new RegExp(SECRET, 'g'), 'mismatch error does not leak secrets');
+
     const traversal = runNova(['eval', 'report', '..'], root);
     assert.equal(traversal.status, 1, 'traversal run id exits 1');
     assert.match(traversal.stderr, /Invalid eval run id/, 'traversal rejected');
@@ -101,6 +135,19 @@ async function main(): Promise<void> {
     const blockedOut = runNova(['eval', 'summary', 'run-current', '--out', join(root, '.nova', 'evals', 'run-current', 'summary.md')], root);
     assert.equal(blockedOut.status, 1, '--out under .nova/evals is rejected');
     assert.match(blockedOut.stderr, /must not write under existing eval reports directory/, '--out rejection is explicit');
+
+    const emptyRoot = await mkdtemp(join(tmpdir(), 'nova-eval-report-empty-'));
+    try {
+      const emptyList = runNova(['eval', 'list', '--json'], emptyRoot);
+      assert.equal(emptyList.status, 0, `empty eval list exits 0: ${emptyList.stderr}`);
+      assert.deepEqual(JSON.parse(emptyList.stdout), [], 'no-report root lists no reports');
+      const emptyLatest = runNova(['eval', 'report', 'latest'], emptyRoot);
+      assert.equal(emptyLatest.status, 1, 'no-report latest exits 1');
+      assert.match(emptyLatest.stderr, /No eval reports found/, 'no-report latest is explicit');
+      assert.doesNotMatch(emptyLatest.stderr + emptyLatest.stdout, /LLM_API_KEY not set/, 'no-report latest does not reach LLM key check');
+    } finally {
+      await rm(emptyRoot, { recursive: true, force: true });
+    }
 
     console.log('eval:report-smoke passed');
   } finally {

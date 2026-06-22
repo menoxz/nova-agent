@@ -36,12 +36,22 @@ async function main(): Promise<void> {
   const resolved = resolveProviderRuntime({ env: { LLM_MODEL: 'env-model' }, project: { llm: { providerProfile: 'openmodel-deepseek-v4-flash', fallbackProfiles: ['openai-gpt-4o-mini'] } } });
   assert.equal(resolved.primary.model, 'env-model', 'env model override wins over config profile');
   assert.equal(resolved.fallbackEnabled, true, 'fallback is explicit opt-in');
+  const cliResolved = resolveProviderRuntime({ cliProfileId: 'openmodel-deepseek-v4-flash', env: { LLM_MODEL: 'env-model', LLM_BASE_URL: 'not a url' } });
+  assert.equal(cliResolved.primary.model, 'deepseek-v4-flash', 'CLI explicit provider profile ignores env model override');
+  assert.equal(cliResolved.primary.baseUrl, 'https://api.openmodel.ai/v1', 'CLI explicit provider profile ignores env baseUrl override');
+  const unknownFallback = resolveProviderRuntime({ env: { NOVA_PROVIDER_FALLBACK: 'missing-fallback' } });
+  assert.ok(unknownFallback.errors.some((error) => /Unknown fallback provider profile: missing-fallback/.test(error)), 'unknown fallback id is reported');
+  const repeatedFallback = resolveProviderRuntime({ env: { NOVA_PROVIDER_FALLBACK: DEFAULT_PROVIDER_PROFILE_ID } });
+  assert.ok(repeatedFallback.warnings.some((warning) => /repeats primary profile/.test(warning)), 'repeated primary fallback warning is reported');
   const doctor = providerDoctor(resolved, { LLM_API_KEY: 'synthetic-secret-value' });
   assert.equal(doctor.apiKey.status, 'present', 'doctor reports key presence');
   assert.doesNotMatch(JSON.stringify(doctor), /synthetic-secret-value/, 'doctor never prints key value');
   assert.equal(doctor.fallback.automaticSilentFallback, false, 'fallback is not silent/automatic');
   const credentialUrl = providerDoctor(resolveProviderRuntime({ env: { LLM_BASE_URL: 'https://user:password@example.test/v1' } }));
   assert.doesNotMatch(JSON.stringify(credentialUrl), /user:password/, 'doctor redacts credential URLs');
+  const invalidUrl = providerDoctor(resolveProviderRuntime({ env: { LLM_BASE_URL: 'https://user:password@' } }));
+  assert.doesNotMatch(JSON.stringify(invalidUrl), /user:password/, 'invalid baseUrl display redacts credentials');
+  assert.ok(getProviderDirectoryEntry('OpenRouter'), 'directory lookup supports exact name case-insensitively');
 
   const list = runNova(['providers', 'list']);
   assert.equal(list.status, 0, `providers list exits 0: ${list.stderr}`);
@@ -63,6 +73,11 @@ async function main(): Promise<void> {
   assert.match(cliDoctor.stdout, /"status": "present"/, 'doctor reports key present');
   assert.doesNotMatch(cliDoctor.stdout + cliDoctor.stderr, /synthetic-secret-value/, 'doctor output excludes key value');
   assert.doesNotMatch(cliDoctor.stdout + cliDoctor.stderr, /LLM_API_KEY not set/, 'doctor does not reach LLM key check');
+
+  const cliIgnoresEnvModel = runNova(['--provider-profile', 'openmodel-deepseek-v4-flash', 'providers', 'doctor'], { LLM_MODEL: 'env-model-should-not-win' });
+  assert.equal(cliIgnoresEnvModel.status, 0, `CLI profile doctor exits 0: ${cliIgnoresEnvModel.stderr}`);
+  assert.match(cliIgnoresEnvModel.stdout, /"model": "deepseek-v4-flash"/, 'CLI explicit profile keeps profile model');
+  assert.doesNotMatch(cliIgnoresEnvModel.stdout, /env-model-should-not-win/, 'CLI explicit profile ignores env model in display');
 
   const unknown = runNova(['--provider-profile', 'missing-profile', 'providers', 'doctor']);
   assert.equal(unknown.status, 1, 'unknown provider profile exits 1 in doctor');

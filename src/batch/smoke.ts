@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
-import { dryRunBatch, loadBatchItems, parseJsonBatch, parseTxtBatch, planBatchItems } from './index.js';
+import { dryRunBatch, loadBatchItems, parseJsonBatch, parseTxtBatch, planBatchItems, renderBatchMarkdownReport } from './index.js';
+
+const SYNTHETIC_SECRET = 'sk-batchSmokeSecret1234567890';
 
 function runNova(args: string[]) {
   return spawnSync(process.execPath, ['--import', 'tsx', 'src/index.ts', ...args], {
@@ -25,15 +27,23 @@ async function main(): Promise<void> {
   assert.throws(() => parseJsonBatch('{'), /Invalid batch JSON/, 'invalid json explained');
   assert.throws(() => parseJsonBatch(JSON.stringify([{ id: 'bad id', prompt: 'x' }])), /unsafe id/, 'unsafe id explained');
   assert.throws(() => parseJsonBatch(JSON.stringify([{ id: 'dupe', prompt: 'x' }, { id: 'dupe', prompt: 'y' }])), /duplicate id/, 'duplicate id explained');
+  assert.throws(() => parseTxtBatch(' \n# ignored\n// ignored\n'), /contains no prompts/, 'empty txt is rejected');
+  assert.throws(() => parseJsonBatch('[]'), /contains no items/, 'empty json is rejected');
+  assert.throws(() => planBatchItems(jsonItems, { onlyIds: ['missing'] }), /Unknown --only id/, 'unknown --only is rejected');
+  assert.throws(() => planBatchItems(jsonItems, { fromId: 'missing' }), /Unknown --from id/, 'unknown --from is rejected');
+  assert.throws(() => planBatchItems(jsonItems, { limit: 0 }), /matched no items|limit/, 'invalid direct limit does not select silently');
 
   const root = await mkdtemp(join(tmpdir(), 'nova-batch-smoke-'));
   try {
     const txtPath = join(root, 'prompts.txt');
     const jsonPath = join(root, 'prompts.json');
+    const mdPath = join(root, 'prompts.md');
     await writeFile(txtPath, 'hello\n', 'utf-8');
     await writeFile(jsonPath, JSON.stringify([{ id: 'json-1', prompt: 'hello json' }]), 'utf-8');
+    await writeFile(mdPath, '# not supported\n', 'utf-8');
     assert.equal((await loadBatchItems(txtPath)).items.length, 1, 'loads .txt file');
     assert.equal((await loadBatchItems(jsonPath)).items[0]?.id, 'json-1', 'loads .json file');
+    await assert.rejects(() => loadBatchItems(mdPath), /Unsupported batch file extension/, 'unsupported extension is rejected');
 
     const plan = planBatchItems(jsonItems, { onlyIds: ['task_2'], fromId: 'task-1', limit: 1 });
     assert.deepEqual(plan.selected.map((item) => item.id), ['task_2'], 'filters select expected id');
@@ -54,6 +64,22 @@ async function main(): Promise<void> {
     assert.match(markdown, /## Summary/, 'markdown report has summary');
     assert.match(markdown, /\| ID \| Status \| Duration \| Tokens \| Cost \| Run \| Event log \|/, 'markdown report has items table');
     assert.match(markdown, /Dry run: item validated but not executed\./, 'markdown report includes dry-run detail');
+
+    const unsafeJson = join(root, 'unsafe-prompts.json');
+    await writeFile(unsafeJson, JSON.stringify([{ id: 'pipe-task', prompt: `Prompt with | pipe, \`inline\`, fence \`\`\` and token=${SYNTHETIC_SECRET}` }]), 'utf-8');
+    const unsafeMarkdown = join('tmp', 'batch-dry-smoke-unsafe.md');
+    const unsafe = await dryRunBatch(unsafeJson, { reportMarkdownPath: unsafeMarkdown, ci: true });
+    assert.doesNotMatch(unsafe.items[0]?.promptPreview ?? '', new RegExp(SYNTHETIC_SECRET, 'g'), 'prompt preview redacts secrets');
+    const unsafeMarkdownText = await readFile(unsafeMarkdown, 'utf-8');
+    assert.doesNotMatch(unsafeMarkdownText, new RegExp(SYNTHETIC_SECRET, 'g'), 'markdown prompt preview redacts secrets');
+    assert.match(unsafeMarkdownText, /token=<redacted>/, 'markdown keeps safe redaction marker');
+    assert.match(unsafeMarkdownText, /\| pipe/, 'markdown preserves pipe inside fenced prompt preview');
+    assert.match(unsafeMarkdownText, /``\u200b`/, 'markdown breaks nested triple backticks inside fenced prompt preview');
+
+    const escaped = renderBatchMarkdownReport({ ...dry, items: [{ ...dry.items[0]!, id: 'id|with`tick', skipReason: 'pipe | and `tick`' }] });
+    assert.match(escaped, /id\\\|with\\`tick/, 'markdown table escapes pipe and backtick in item id');
+
+    await assert.rejects(() => dryRunBatch(jsonPath, { reportPath: join(process.cwd(), '..', 'batch-outside.json') }), /Batch report path/, 'report path outside workspace is rejected');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -89,6 +115,22 @@ async function main(): Promise<void> {
     assert.match(ciRun.stdout ?? '', /BATCH_REPORT_MD path=/, 'ci prints markdown report path');
     assert.match(ciRun.stdout ?? '', /BATCH_ITEM id=b status=skipped/, 'ci prints selected item line');
     assert.doesNotMatch((ciRun.stderr ?? '') + (ciRun.stdout ?? ''), /LLM_API_KEY not set/, 'ci dry-run does not require LLM key');
+
+    const badLimit = runNova(['batch', cliJson, '--dry-run', '--limit', '0']);
+    assert.equal(badLimit.status, 1, 'invalid --limit exits 1');
+    assert.match(badLimit.stderr ?? '', /--limit must be a positive integer/, 'invalid --limit is explained');
+
+    const unknownOnly = runNova(['batch', cliJson, '--dry-run', '--only', 'missing']);
+    assert.equal(unknownOnly.status, 1, 'unknown --only exits 1');
+    assert.match(unknownOnly.stderr ?? '', /Unknown --only id/, 'unknown --only is explained');
+
+    const unknownFrom = runNova(['batch', cliJson, '--dry-run', '--from', 'missing']);
+    assert.equal(unknownFrom.status, 1, 'unknown --from exits 1');
+    assert.match(unknownFrom.stderr ?? '', /Unknown --from id/, 'unknown --from is explained');
+
+    const outsideReport = runNova(['batch', cliJson, '--dry-run', '--report', join(process.cwd(), '..', 'batch-outside.json')]);
+    assert.equal(outsideReport.status, 1, 'outside report path exits 1');
+    assert.match(outsideReport.stderr ?? '', /Batch report path/, 'outside report path is rejected');
   } finally {
     await rm(cliRoot, { recursive: true, force: true });
   }

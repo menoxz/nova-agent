@@ -8,7 +8,8 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { projectConfigPath } from '../config/project.js';
-import { HeartbeatStore, runHeartbeatDryRunTick } from './index.js';
+import { HeartbeatStore, planHeartbeatTask, renderHeartbeatMarkdown, runHeartbeatDryRunTick } from './index.js';
+import type { HeartbeatState, HeartbeatTaskConfig, HeartbeatTickReport } from './index.js';
 
 const repoRoot = process.cwd();
 const indexPath = resolve(repoRoot, 'src/index.ts');
@@ -31,6 +32,15 @@ async function exists(path: string): Promise<boolean> {
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-heartbeat-smoke-'));
   try {
+    const now = new Date('2026-01-02T00:00:00.000Z');
+    const task: HeartbeatTaskConfig = { id: 'boundary', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } };
+    const heartbeatState = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: 1, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: now.toISOString(), tasks: lastRunAt ? { boundary: { lastRunAt } } : {} });
+    assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-01T23:00:00.000Z'), true, now).status, 'due', 'schedule boundary is due when nextDueAt equals now');
+    assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-01T23:00:01.000Z'), true, now).status, 'skipped', 'future nextDueAt is skipped');
+    assert.equal(planHeartbeatTask(task, heartbeatState('not-a-date'), true, now).status, 'due', 'invalid stored lastRunAt is due for review');
+    assert.equal(planHeartbeatTask({ ...task, schedule: { type: 'interval', everyMinutes: 0 } }, heartbeatState(), true, now).status, 'blocked', 'invalid interval is blocked');
+    assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-02T01:00:00.000Z'), true, now).status, 'skipped', 'future lastRunAt is skipped');
+
     const noConfig = await runHeartbeatDryRunTick({ projectRoot: root });
     assert.equal(noConfig.config.enabled, false, 'heartbeat defaults disabled');
     assert.equal(noConfig.safety.llmInvoked, false, 'dry-run does not invoke LLM');
@@ -73,6 +83,19 @@ async function main(): Promise<void> {
       'controlled lock failure is propagated',
     );
     assert.equal(await exists(store.paths.lock), false, 'lock cleaned after controlled failure');
+
+    await mkdir(join(root, '.nova', 'heartbeat', 'locks'), { recursive: true });
+    await writeFile(store.paths.lock, 'pre-existing lock', 'utf-8');
+    await assert.rejects(() => runHeartbeatDryRunTick({ projectRoot: root, config: { enabled: true, tasks: [task] } }), /already in progress/, 'pre-existing lock rejects tick with EEXIST');
+    await rm(store.paths.lock, { force: true });
+
+    const markdownReport: HeartbeatTickReport = {
+      ...report,
+      tasks: [{ ...report.tasks[0]!, id: 'task|pipe', reason: 'line one | pipe\nline two' }],
+    };
+    const markdownText = renderHeartbeatMarkdown(markdownReport);
+    assert.match(markdownText, /task\\\\\|pipe/, 'heartbeat markdown escapes pipe in table cell');
+    assert.doesNotMatch(markdownText, /line one \| pipe\nline two/, 'heartbeat markdown flattens table-cell newlines');
 
     const help = runNova(['heartbeat', '--help'], root);
     assert.equal(help.status, 0, 'heartbeat help exits 0');

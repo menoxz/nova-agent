@@ -3,11 +3,25 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 import { defaultProjectConfig, explainProjectConfig, initProjectConfig, mergeProjectConfig, projectConfigPath, readProjectConfig, sanitizeConfigForDisplay } from './project.js';
 import type { AgentConfig } from '../types.js';
 
 const SYNTHETIC_HEARTBEAT_SECRET = 'sk-configHeartbeatToken1234567890';
+const repoRoot = process.cwd();
+const require = createRequire(import.meta.url);
+const tsxLoader = pathToFileURL(require.resolve('tsx')).href;
+
+function runNova(args: string[], cwd: string) {
+  return spawnSync(process.execPath, ['--import', tsxLoader, join(repoRoot, 'src/index.ts'), ...args], {
+    cwd,
+    encoding: 'utf-8',
+    env: { ...process.env, LLM_API_KEY: '', NOVA_ENABLE_WRITE_TOOLS: '' },
+  });
+}
 
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-config-smoke-'));
@@ -27,6 +41,22 @@ async function main(): Promise<void> {
     const loaded = readProjectConfig(root);
     assert.equal(loaded.ok, true, 'read validates config');
     assert.ok(explainProjectConfig(loaded.config).some((line) => line.includes('secrets/API keys')), 'explain mentions secret handling');
+
+    const cliValidate = runNova(['config', 'validate'], root);
+    assert.equal(cliValidate.status, 0, `config validate exits 0: ${cliValidate.stderr}`);
+    assert.match(cliValidate.stdout ?? '', /"ok": true/, 'config validate prints ok true');
+    const cliShow = runNova(['config', 'show'], root);
+    assert.equal(cliShow.status, 0, `config show exits 0: ${cliShow.stderr}`);
+    assert.match(cliShow.stdout ?? '', /"runtime"/, 'config show prints sanitized runtime');
+    assert.doesNotMatch((cliShow.stdout ?? '') + (cliShow.stderr ?? ''), /LLM_API_KEY not set/, 'config show does not require LLM key');
+    const cliExplain = runNova(['config', 'explain'], root);
+    assert.equal(cliExplain.status, 0, `config explain exits 0: ${cliExplain.stderr}`);
+    assert.match(cliExplain.stdout ?? '', /Precedence/, 'config explain prints precedence');
+
+    await writeFile(projectConfigPath(root), '{"schemaVersion":1,"unknown":true}\n', 'utf-8');
+    const unknownField = readProjectConfig(root);
+    assert.equal(unknownField.ok, false, 'strict schema rejects unknown root fields');
+    assert.ok(unknownField.errors.some((error) => /Unrecognized key/.test(error)), 'unknown field rejection is explained');
 
     const base: AgentConfig = {
       llm: { provider: 'env-provider', baseUrl: 'https://example.test/v1', apiKey: 'real-env-key', model: 'env-model', pricing: { currency: 'USD' } },
@@ -63,6 +93,20 @@ async function main(): Promise<void> {
     assert.equal(heartbeatSecret.ok, false, 'secret-like heartbeat config rejected');
     assert.ok(heartbeatSecret.errors.some((error) => /heartbeat\.tasks\.0\.id: secret-like value is not allowed/.test(error)), 'heartbeat secret path is explained without raw value');
     assert.doesNotMatch(heartbeatSecret.errors.join('\n'), new RegExp(SYNTHETIC_HEARTBEAT_SECRET, 'g'), 'heartbeat secret value is not echoed');
+
+    await writeFile(projectConfigPath(root), JSON.stringify({ schemaVersion: 1, heartbeat: { tasks: [{ id: 'interval-missing', kind: 'inspection', action: 'inspect', schedule: { type: 'interval' } }] } }), 'utf-8');
+    const intervalMissing = readProjectConfig(root);
+    assert.equal(intervalMissing.ok, false, 'interval schedule without everyMinutes rejected');
+    assert.ok(intervalMissing.errors.some((error) => /interval schedule requires everyMinutes/.test(error)), 'interval schedule error explained');
+
+    await writeFile(projectConfigPath(root), JSON.stringify({ schemaVersion: 1, heartbeat: { tasks: [{ id: 'manual-with-every', kind: 'inspection', action: 'inspect', schedule: { type: 'manual', everyMinutes: 5 } }] } }), 'utf-8');
+    const manualEvery = readProjectConfig(root);
+    assert.equal(manualEvery.ok, false, 'manual schedule with everyMinutes rejected');
+    assert.ok(manualEvery.errors.some((error) => /manual schedule must not set everyMinutes/.test(error)), 'manual schedule edge error explained');
+
+    await writeFile(projectConfigPath(root), JSON.stringify({ schemaVersion: 1, heartbeat: { tasks: [{ id: 'interval-too-large', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 525_601 } }] } }), 'utf-8');
+    const intervalLarge = readProjectConfig(root);
+    assert.equal(intervalLarge.ok, false, 'heartbeat interval maximum is enforced');
 
     console.log('config:smoke passed');
   } finally {
