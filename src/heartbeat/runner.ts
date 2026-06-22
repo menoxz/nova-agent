@@ -5,6 +5,7 @@ import { HEARTBEAT_SCHEMA_VERSION } from './types.js';
 import { classifyHeartbeatTaskSafety, normalizeHeartbeatSchedule, resolveHeartbeatConfig } from './config.js';
 import { heartbeatTickJsonPath, heartbeatTickMarkdownPath } from './paths.js';
 import { renderHeartbeatMarkdown } from './reporter.js';
+import { safeHeartbeatReport } from './redaction.js';
 import { HeartbeatStore } from './store.js';
 
 export async function runHeartbeatDryRunTick(input: { config?: HeartbeatConfig; projectRoot?: string; now?: Date }): Promise<HeartbeatTickReport> {
@@ -46,9 +47,10 @@ export async function runHeartbeatDryRunTick(input: { config?: HeartbeatConfig; 
       },
       paths,
     };
-    await store.writeTick(report, renderHeartbeatMarkdown(report));
+    const safeReport = safeHeartbeatReport(report);
+    await store.writeTick(safeReport, renderHeartbeatMarkdown(safeReport), paths);
     await store.writeState(nextState(state, report));
-    return report;
+    return safeReport;
   });
 }
 

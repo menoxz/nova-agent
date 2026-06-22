@@ -4,6 +4,7 @@ import { resolveHeartbeatConfig } from './config.js';
 import { classifyHeartbeatTaskSafety, normalizeHeartbeatSchedule } from './config.js';
 import { HeartbeatStore } from './store.js';
 import { runHeartbeatDryRunTick } from './runner.js';
+import { safeHeartbeatPath, safeHeartbeatReport, safeHeartbeatTaskResult, safeHeartbeatText } from './redaction.js';
 import type { HeartbeatConfig } from './types.js';
 
 export * from './types.js';
@@ -12,6 +13,7 @@ export * from './paths.js';
 export * from './store.js';
 export * from './runner.js';
 export * from './reporter.js';
+export * from './redaction.js';
 
 export async function handleHeartbeatCommand(args: string[]): Promise<boolean> {
   const [area, action, ...rest] = args;
@@ -33,14 +35,18 @@ function heartbeatConfigFrom(project: ProjectConfigLoadResult): HeartbeatConfig 
 function printHeartbeatValidate(project: ProjectConfigLoadResult): true {
   const heartbeat = resolveHeartbeatConfig(heartbeatConfigFrom(project));
   const tasks = heartbeat.tasks.map((task) => ({
-    id: task.id,
-    kind: task.kind,
-    action: task.action,
+    safety: classifyHeartbeatTaskSafety(task),
+    task,
+  })).map(({ task, safety }) => ({
+    id: safeHeartbeatText(task.id),
+    name: safeHeartbeatText(task.name),
+    kind: safeHeartbeatText(task.kind),
+    action: safeHeartbeatText(task.action),
     enabled: task.enabled !== false,
     schedule: normalizeHeartbeatSchedule(task.schedule),
-    safety: classifyHeartbeatTaskSafety(task),
+    safety: { ...safety, reason: safeHeartbeatText(safety.reason) },
   }));
-  console.log(JSON.stringify({ path: project.path, present: project.present, ok: project.ok, errors: project.errors, heartbeat: { ...heartbeat, tasks } }, null, 2));
+  console.log(JSON.stringify({ path: safeHeartbeatPath(project.path), present: project.present, ok: project.ok, errors: project.errors.map((error) => safeHeartbeatText(error)), heartbeat: { ...heartbeat, tasks } }, null, 2));
   process.exitCode = project.ok ? 0 : 1;
   return true;
 }
@@ -50,7 +56,7 @@ async function printHeartbeatStatus(project: ProjectConfigLoadResult): Promise<t
   const heartbeat = resolveHeartbeatConfig(project.config?.heartbeat);
   const store = new HeartbeatStore();
   const state = await store.readState(heartbeat.enabled);
-  console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, taskCount: heartbeat.tasks.length, statePath: store.paths.state, ticksDir: store.paths.ticks, lockPath: store.paths.lock, lastTickId: state.lastTickId, lastTickAt: state.lastTickAt }, null, 2));
+  console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, taskCount: heartbeat.tasks.length, statePath: safeHeartbeatPath(store.paths.state), ticksDir: safeHeartbeatPath(store.paths.ticks), lockPath: safeHeartbeatPath(store.paths.lock), lastTickId: safeHeartbeatText(state.lastTickId), lastTickAt: state.lastTickAt }, null, 2));
   return true;
 }
 
@@ -60,7 +66,7 @@ async function printHeartbeatTasks(project: ProjectConfigLoadResult): Promise<tr
   const store = new HeartbeatStore();
   const state = await store.readState(heartbeat.enabled);
   const { planHeartbeatTask } = await import('./runner.js');
-  console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, tasks: heartbeat.tasks.map((task) => planHeartbeatTask(task, state, heartbeat.enabled, new Date())) }, null, 2));
+  console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, tasks: heartbeat.tasks.map((task) => safeHeartbeatTaskResult(planHeartbeatTask(task, state, heartbeat.enabled, new Date()))) }, null, 2));
   return true;
 }
 
@@ -72,7 +78,7 @@ async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: strin
     console.log(JSON.stringify(report, null, 2));
     process.exitCode = 0;
   } catch (err) {
-    console.error(`Heartbeat tick failed: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`Heartbeat tick failed: ${safeHeartbeatText(err instanceof Error ? err.message : String(err))}`);
     process.exitCode = 1;
   }
   return true;
@@ -85,12 +91,12 @@ async function printLatestHeartbeatReport(): Promise<true> {
     process.exitCode = 1;
     return true;
   }
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(safeHeartbeatReport(report), null, 2));
   return true;
 }
 
 function printInvalidProject(project: ProjectConfigLoadResult): true {
-  console.error(`Invalid Nova project config at ${project.path}: ${project.errors.join('; ')}`);
+  console.error(`Invalid Nova project config at ${safeHeartbeatPath(project.path)}: ${project.errors.map((error) => safeHeartbeatText(error)).join('; ')}`);
   process.exitCode = 1;
   return true;
 }

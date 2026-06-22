@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { defaultProjectConfig, explainProjectConfig, initProjectConfig, mergeProjectConfig, projectConfigPath, readProjectConfig, sanitizeConfigForDisplay } from './project.js';
 import type { AgentConfig } from '../types.js';
 
+const SYNTHETIC_HEARTBEAT_SECRET = 'sk-configHeartbeatToken1234567890';
+
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-config-smoke-'));
   try {
@@ -49,6 +51,18 @@ async function main(): Promise<void> {
     const secret = readProjectConfig(root);
     assert.equal(secret.ok, false, 'secret-like config rejected');
     assert.ok(secret.errors.some((error) => /secret/i.test(error)), 'secret rejection explained');
+
+    await writeFile(projectConfigPath(root), JSON.stringify({
+      schemaVersion: 1,
+      heartbeat: {
+        enabled: true,
+        tasks: [{ id: SYNTHETIC_HEARTBEAT_SECRET, kind: 'inspection', action: 'inspect', schedule: { type: 'manual' } }],
+      },
+    }, null, 2), 'utf-8');
+    const heartbeatSecret = readProjectConfig(root);
+    assert.equal(heartbeatSecret.ok, false, 'secret-like heartbeat config rejected');
+    assert.ok(heartbeatSecret.errors.some((error) => /heartbeat\.tasks\.0\.id: secret-like value is not allowed/.test(error)), 'heartbeat secret path is explained without raw value');
+    assert.doesNotMatch(heartbeatSecret.errors.join('\n'), new RegExp(SYNTHETIC_HEARTBEAT_SECRET, 'g'), 'heartbeat secret value is not echoed');
 
     console.log('config:smoke passed');
   } finally {

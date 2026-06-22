@@ -113,7 +113,7 @@ Cela évite de casser les workflows `.env` existants.
 - pas de private key ;
 - pas de credential URL.
 
-Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `.env` ou l'environnement système.
+Le loader rejette les clés et valeurs secret-like, y compris dans `heartbeat.tasks[]`, sans réimprimer la valeur brute. Les clés LLM restent dans `.env` ou l'environnement système.
 
 ## Champs supportés V1
 
@@ -125,7 +125,7 @@ Le loader rejette les clés et valeurs secret-like. Les clés LLM restent dans `
 - `context.*`
 - `streaming.enabled/mode/showTokens/showTools/showThinking/thinkingMode/showMetrics/showCost/refreshMs/eventLog.*`
 - `memory.*`
-- `heartbeat.enabled/tasks[]` — désactivé par défaut; dry-run planning uniquement (`inspection`, `eval`, `batch-dry-run`, `maintenance` reconnus, actions dangereuses bloquées)
+- `heartbeat.enabled/tasks[]` — désactivé par défaut; dry-run planning uniquement (`inspection`, `eval`, `batch-dry-run`, `maintenance` reconnus, actions dangereuses bloquées); ids de tâches uniques requis; valeurs secret-like rejetées et rapports heartbeat redacted/report-safe
 - `session.*`
 - `session.conversation.*`
 - `runs.*`

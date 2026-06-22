@@ -140,7 +140,7 @@ export const projectConfigSchema = z.object({
   }).strict().optional().superRefine((heartbeat, ctx) => {
     const seen = new Set<string>();
     for (const [index, task] of (heartbeat?.tasks ?? []).entries()) {
-      if (seen.has(task.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tasks', index, 'id'], message: `duplicate heartbeat task id "${task.id}"` });
+      if (seen.has(task.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tasks', index, 'id'], message: 'duplicate heartbeat task id' });
       seen.add(task.id);
     }
   }),

@@ -60,10 +60,10 @@ export class HeartbeatStore {
     }
   }
 
-  async writeTick(report: HeartbeatTickReport, markdown: string): Promise<void> {
+  async writeTick(report: HeartbeatTickReport, markdown: string, writePaths = report.paths): Promise<void> {
     await this.ensure();
-    await writeFileAtomic(report.paths.json, `${JSON.stringify(report, null, 2)}\n`);
-    await writeFileAtomic(report.paths.markdown, markdown);
+    await writeFileAtomic(writePaths.json, `${JSON.stringify(report, null, 2)}\n`);
+    await writeFileAtomic(writePaths.markdown, markdown);
   }
 
   async latestTickReport(): Promise<HeartbeatTickReport | undefined> {

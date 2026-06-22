@@ -1,6 +1,8 @@
 import type { HeartbeatTickReport } from './types.js';
+import { safeHeartbeatReport } from './redaction.js';
 
 export function renderHeartbeatMarkdown(report: HeartbeatTickReport): string {
+  report = safeHeartbeatReport(report);
   const lines: string[] = [];
   lines.push(`# Nova Heartbeat Report — ${escapeMarkdown(report.tickId)}`);
   lines.push('');
