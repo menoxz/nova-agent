@@ -37,16 +37,17 @@ These commands are the preferred release-candidate dry-run baseline:
 
 ```bash
 npm pkg get files scripts.prepack scripts.build scripts.check scripts.check:fast
+npm run release:readiness
 npm pack --dry-run --ignore-scripts
 ```
 
-`npm pkg get ...` reads selected manifest fields only. `npm pack --dry-run --ignore-scripts` asks npm to calculate and print package contents while suppressing lifecycle scripts; it must not run `prepack`, must not build `dist`, and must not create a package tarball.
+`npm pkg get ...` reads selected manifest fields only. `npm run release:readiness` is the repeatable local Release Readiness Gate V1: it runs `npm pack --dry-run --ignore-scripts --json`, verifies required package entries, and rejects forbidden/sensitive entries from the generated manifest. `npm pack --dry-run --ignore-scripts` asks npm to calculate and print package contents while suppressing lifecycle scripts; it must not run `prepack`, must not build `dist`, and must not create a package tarball.
 
 Review the dry-run output for:
 
 - expected `bin/nova.js` wrapper;
 - expected `dist/index.js` and other already-built runtime files if a release candidate requires them;
-- slim manifest contents: `README.md`, `CHANGELOG.md`, `soul.md`, selected `docs/`, `bin/`, and `dist/`;
+- slim manifest contents: `README.md`, `CHANGELOG.md`, `soul.md`, selected `docs/`, `bin/`, `dist/`, and `scripts/assert-release-readiness.mjs`;
 - absence of source-only or sensitive files such as `.env`, prompts, raw `.nova` artifacts, credentials, temporary logs, and unrelated development outputs.
 
 ## Why normal `npm pack` is not pure read-only
@@ -69,7 +70,7 @@ Confirm these before treating a candidate as release-ready:
 - `CHANGELOG.md` contains the intended release notes.
 - `dist/index.js` exists for a build-backed package candidate.
 - `bin.nova` points to `./bin/nova.js`, and the wrapper supports help/version without requiring `LLM_API_KEY`.
-- `files` keeps the package slim: `bin/`, `dist/`, selected operator/user docs, `CHANGELOG.md`, and `soul.md` only.
+- `files` keeps the package slim: `bin/`, `dist/`, `scripts/assert-release-readiness.mjs`, selected operator/user docs, `CHANGELOG.md`, and `soul.md` only.
 - Package docs include the release/operator checklist when it is selected for shipped docs.
 - No secrets, credentials, prompts, raw `.nova` traces/evals/reports, or private local artifacts appear in the pack manifest.
 
@@ -115,6 +116,7 @@ node bin/nova.js --help
 node bin/nova.js --version
 npm run security:readonly-audit
 npm run security:readonly-smoke
+npm run release:readiness
 npm pack --dry-run --ignore-scripts
 ```
 
@@ -157,6 +159,10 @@ Copy this template into the task report or release notes.
 - Exit code:
 - Package contents summary:
 - Unexpected files: none / list
+
+- Command: `npm run release:readiness`
+- Exit code:
+- Notes:
 
 ### Preconditions
 

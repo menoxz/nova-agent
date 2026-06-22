@@ -105,8 +105,11 @@ Pour une vérification release-candidate sans effet de publication, suivre `docs
 La commande packaging pure read-only est :
 
 ```bash
+npm run release:readiness
 npm pack --dry-run --ignore-scripts
 ```
+
+`npm run release:readiness` est la gate locale répétable Release Readiness Gate V1 : elle parse le manifeste JSON de `npm pack --dry-run --ignore-scripts`, confirme les entrées requises (`dist/index.js`, `bin/nova.js`, checklist RC) et bloque les entrées interdites/sensibles (`.env`, `.nova`, `node_modules`, `tmp`, `.vscode`, `src/`, artefacts smoke hors docs). Elle ne publie pas, ne tague pas, ne pousse pas, n'appelle pas de provider live et ne démarre pas d'autonomie.
 
 Ne pas remplacer cette commande par `npm pack` normal : le lifecycle `prepack` lance `npm run build`, donc écrit `dist/` avant de créer un tarball. Les simulations d'installation (`npm link`, installation tarball en dossier temporaire) mutent l'état npm global ou des dossiers externes et exigent une autorisation explicite avec nettoyage documenté.
 

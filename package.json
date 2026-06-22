@@ -10,6 +10,7 @@
   "files": [
     "bin/",
     "dist/",
+    "scripts/assert-release-readiness.mjs",
     "!dist/**/*smoke*.js",
     "!dist/**/*smoke*.d.ts",
     "docs/packaging-install.md",
@@ -24,6 +25,7 @@
   "scripts": {
     "build": "tsc",
     "prepack": "npm run build",
+    "release:readiness": "node scripts/assert-release-readiness.mjs",
     "check:fast": "npm run typecheck && npm run cli:smoke && npm run heartbeat:smoke && npm run eval:report-smoke && npm run eval:slo-smoke && npm run bin:smoke",
     "test:targeted-v1": "npm run typecheck && npm run heartbeat:smoke && npm run eval:report-smoke && npm run batch:smoke && npm run config:smoke && npm run providers:smoke && npm run policy:smoke",
     "check": "npm run typecheck && npm run cli:smoke && npm run config:smoke && npm run providers:smoke && npm run streaming:log-smoke && npm run batch:smoke && npm run heartbeat:smoke && npm run eval:report-smoke && npm run eval:slo-smoke && npm run tui:smoke && npm run bin:smoke && npm run eval:release && npm run eval:quality && npm run eval:providers && npm run eval:heartbeat && npm run eval:report && npm run eval:slo",
