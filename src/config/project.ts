@@ -264,7 +264,7 @@ export function explainProjectConfig(config?: ProjectConfig): string[] {
   if (config.context) lines.push(`- context: enabled=${config.context.enabled ?? 'default'}, tokenBudget=${config.context.tokenBudget ?? 'default'}, conversationSummary=${config.context.includeConversationSummary ?? 'default'}.`);
   if (config.streaming) lines.push(`- streaming: enabled=${config.streaming.enabled ?? 'default'}, mode=${config.streaming.mode ?? 'default'}, tokens=${config.streaming.showTokens ?? 'default'}, tools=${config.streaming.showTools ?? 'default'}, thinking=${config.streaming.thinkingMode ?? (config.streaming.showThinking === false ? 'hidden' : 'default')}, eventLog=${config.streaming.eventLog?.enabled ?? 'default'}.`);
   if (config.memory) lines.push(`- memory: enabled=${config.memory.enabled ?? 'default'}, defaultScope=${config.memory.defaultScope ?? 'default'}.`);
-  if (config.heartbeat) lines.push(`- heartbeat: enabled=${config.heartbeat.enabled ?? false}, tasks=${config.heartbeat.tasks?.length ?? 0}; V1 is dry-run planning only and starts no daemon.`);
+  if (config.heartbeat) lines.push(`- heartbeat: enabled=${config.heartbeat.enabled ?? false}, tasks=${config.heartbeat.tasks?.length ?? 0}; V2 is dry-run planning only and starts no daemon.`);
   if (config.runs || config.session?.defaultBudget) lines.push('- runs: default run budgets are applied to session.defaultBudget unless env overrides them.');
   if (config.toolConstraints) lines.push('- toolConstraints: project defaults constrain available tools; policy still has final authority.');
   return lines;

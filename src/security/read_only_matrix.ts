@@ -222,7 +222,7 @@ export const readOnlySafetyMatrix: readonly SafetyMatrixEntry[] = [
     orchestratorReadOnlyCompatible: false,
     flags: { ...noRisk, filesystemWrites: 'mutating', provider: true, createsAgent: true, registersOrExecutesTools: true },
     sourceRefs: ['src/heartbeat/runner.ts', 'src/heartbeat/reporter.ts'],
-    rationale: 'Heartbeat V1 is planning-only; non-dry-run/autonomous execution must remain blocked/not represented as read-only.',
+    rationale: 'Heartbeat V2 is planning-only; non-dry-run/autonomous execution must remain blocked/not represented as read-only.',
   }),
   safeCli('cli.heartbeat.report', 'nova heartbeat report latest', 'Reads safe heartbeat report output with redaction; no autonomous task execution.', ['src/heartbeat/index.ts', 'src/heartbeat/smoke.ts']),
   safeCli('cli.sessions.list-show-current', 'nova sessions list|show|current', 'Reads local session metadata; may expose session metadata and must not be used for raw secret/artifact dumping.', ['src/index.ts', 'src/session/index.ts']),
@@ -473,7 +473,7 @@ export const readOnlySafetyMatrix: readonly SafetyMatrixEntry[] = [
     rationale: 'Network access is not local/offline/static and must not be included in read-only command audit.',
   }),
 
-  blockedCategory('category.daemon-autonomy', 'daemon/autonomy/background execution', 'No daemon, scheduler, or autonomous live action is in V1 read-only scope.', { provider: true, createsAgent: true, registersOrExecutesTools: true, filesystemWrites: 'mutating' }, ['src/heartbeat/reporter.ts', 'docs/heartbeat.md']),
+  blockedCategory('category.daemon-autonomy', 'daemon/autonomy/background execution', 'No daemon, scheduler, or autonomous live action is in V2 read-only scope.', { provider: true, createsAgent: true, registersOrExecutesTools: true, filesystemWrites: 'mutating' }, ['src/heartbeat/reporter.ts', 'docs/heartbeat.md']),
   blockedCategory('category.provider-live', 'provider/LLM live calls', 'Any provider/LLM prompt path requires credentials and may execute tools; never classify as read-only.', { provider: true, secretsEnvRisk: true, createsAgent: true, registersOrExecutesTools: true }, ['src/index.ts', 'src/agent.ts']),
   blockedCategory('category.release-network', 'publish/tag/push/PR/release network', 'Publishing, tagging, pushing, and PR creation mutate remote state and are explicitly out of scope.', { shell: true, git: true, network: true, secretsEnvRisk: true, filesystemWrites: 'mutating' }, ['README.md', 'docs/packaging-install.md']),
   blockedCategory('category.sensitive-artifacts', '.env/secrets/raw .nova/traces/evals/reports/outside-root', 'Sensitive artifacts and raw internal reports are denied for read-only orchestration and should only surface via sanitized summaries.', { secretsEnvRisk: true, rawNovaRisk: true, outsideRootRisk: true }, ['src/policy/path.ts', 'docs/policy/README.md']),

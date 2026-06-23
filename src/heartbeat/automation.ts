@@ -83,9 +83,33 @@ function resolveSchedule(tickEveryMinutes: number | undefined, tickAt: string | 
     return { kind: 'daily', at: parseClockHHMM(tickAt) };
   }
   if (typeof tickEveryMinutes === 'number' && Number.isFinite(tickEveryMinutes) && tickEveryMinutes > 0) {
-    return { kind: 'interval', everyMinutes: Math.trunc(tickEveryMinutes) };
+    const everyMinutes = Math.trunc(tickEveryMinutes);
+    assertRepresentableInterval(everyMinutes);
+    return { kind: 'interval', everyMinutes };
   }
   throw new HeartbeatScheduleError('Automation export requires either --at <HH:MM> or --every <duration>.');
+}
+
+/**
+ * Single consistency gate for automation intervals. Accepts only cadences that
+ * cron, systemd, AND windows can all express identically: 1–59 minutes, whole
+ * hours (60..1380 in steps of 60 = up to 23h), or exactly 1440 (daily). Every
+ * other value (e.g. 90, 1439, 1500) is rejected uniformly BEFORE any renderer
+ * runs, so the three exported manifests always carry the same meaning. Pure:
+ * no clock, no I/O.
+ */
+function assertRepresentableInterval(n: number): void {
+  const ok =
+    (n >= 1 && n <= 59) ||
+    (n % 60 === 0 && n / 60 >= 1 && n / 60 <= 23) ||
+    n === 1440;
+  if (!ok) {
+    throw new HeartbeatScheduleError(
+      `Unsupported heartbeat interval: ${n} minute(s). ` +
+        `Representable cadences are 1-59 minutes, whole hours (60..1380 in steps of 60 = up to 23h), ` +
+        `or exactly 1440 (daily). For other daily times use --at HH:MM.`,
+    );
+  }
 }
 
 /**
@@ -145,11 +169,18 @@ function renderCron(schedule: AutomationSchedule): string {
 }
 
 function cronSpec(schedule: AutomationSchedule): string {
-  if (schedule.kind === 'interval' && schedule.everyMinutes) {
-    return `*/${schedule.everyMinutes} * * * *`;
-  }
   if (schedule.kind === 'daily' && schedule.at) {
     return `${schedule.at.m} ${schedule.at.h} * * *`;
+  }
+  if (schedule.kind === 'interval' && schedule.everyMinutes) {
+    const n = schedule.everyMinutes; // gate-validated upstream: 1..59 ∪ {60,120,…,1380} ∪ {1440}
+    if (n < 60) {
+      return `*/${n} * * * *`; // 1..59 minutes
+    }
+    if (n < 1440) {
+      return `0 */${n / 60} * * *`; // whole hours 1..23
+    }
+    return '0 0 * * *'; // n === 1440 -> daily 00:00
   }
   throw new HeartbeatScheduleError('Invalid automation schedule.');
 }
@@ -197,11 +228,15 @@ function renderWindows(schedule: AutomationSchedule): string {
 }
 
 function windowsWhen(schedule: AutomationSchedule): string {
-  if (schedule.kind === 'interval' && schedule.everyMinutes) {
-    return `/SC MINUTE /MO ${schedule.everyMinutes}`;
-  }
   if (schedule.kind === 'daily' && schedule.at) {
     return `/SC DAILY /ST ${pad2(schedule.at.h)}:${pad2(schedule.at.m)}`;
+  }
+  if (schedule.kind === 'interval' && schedule.everyMinutes) {
+    const n = schedule.everyMinutes; // gate-validated upstream: never exceeds 1380 below 1440
+    if (n < 1440) {
+      return `/SC MINUTE /MO ${n}`; // 1..1380 all valid for schtasks
+    }
+    return '/SC DAILY /ST 00:00'; // n === 1440 -> daily 00:00
   }
   throw new HeartbeatScheduleError('Invalid automation schedule.');
 }

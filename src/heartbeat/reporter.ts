@@ -34,7 +34,7 @@ export function renderHeartbeatMarkdown(report: HeartbeatTickReport): string {
     lines.push(`| ${escapeCell(task.id)} | ${escapeCell(task.kind)} | ${escapeCell(task.action ?? '-')} | ${escapeCell(schedule)} | ${escapeCell(task.status)} | ${escapeCell(task.reason)} |`);
   }
   lines.push('');
-  lines.push('Heartbeat V1 is planning-only: no daemon, no LLM call, no tool execution and no autonomous write/shell/git/network/memory action.');
+  lines.push('Heartbeat V2 is planning-only: no daemon, no LLM call, no tool execution and no autonomous write/shell/git/network/memory action.');
   return `${lines.join('\n')}\n`;
 }
 

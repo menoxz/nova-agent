@@ -10,11 +10,16 @@ import { pathToFileURL } from 'node:url';
 import { projectConfigPath } from '../config/project.js';
 import {
   buildAutomationManifest,
+  computePlanId,
+  configDigest,
   defaultTickEveryMinutes,
   HeartbeatScheduleError,
   HeartbeatStore,
   isInQuietHours,
+  MAX_HORIZON_MINUTES,
+  MAX_OCCURRENCES,
   nextIntervalOccurrence,
+  parseClockHHMM,
   parseDurationMinutes,
   planHeartbeatTask,
   projectHeartbeatPlan,
@@ -22,9 +27,13 @@ import {
   renderHeartbeatMarkdown,
   resolveHeartbeatConfig,
   runHeartbeatDryRunTick,
+  safeHeartbeatManifest,
+  safeHeartbeatPlanReport,
+  safeHeartbeatText,
+  stableStringify,
   validateTimezone,
 } from './index.js';
-import type { HeartbeatPlanReport, HeartbeatQuietWindow, HeartbeatState, HeartbeatTaskConfig, HeartbeatTickReport } from './index.js';
+import type { HeartbeatAutomationManifest, HeartbeatPlanReport, HeartbeatQuietWindow, HeartbeatState, HeartbeatTaskConfig, HeartbeatTickReport, PlanIdInputs } from './index.js';
 
 const repoRoot = process.cwd();
 const indexPath = resolve(repoRoot, 'src/index.ts');
@@ -351,8 +360,193 @@ async function main(): Promise<void> {
       assert.match((escape.stdout ?? '') + (escape.stderr ?? ''), /must be a relative path that stays under \.nova\/heartbeat/, 'sandbox escape is rejected with a clear message');
       assert.equal(await exists(join(planRoot, '.nova', 'escape.txt')), false, 'sandbox escape writes no file');
       assert.doesNotMatch((escape.stdout ?? '') + (escape.stderr ?? ''), /[A-Za-z]:\\|\/(?:tmp|Users|home|var)\//, 'sandbox escape error leaks no absolute path');
+
+      // §4.10 sandbox — an absolute --out and a deep ../.. traversal are rejected with the same message.
+      const absOut = resolve(tmpdir(), 'nova-smoke-escape-abs.txt');
+      const escapeAbs = runNova(['heartbeat', 'automation', 'export', '--target', 'cron', '--every', '15m', '--out', absOut], planRoot);
+      assert.equal(escapeAbs.status, 1, 'an absolute --out exits 1');
+      assert.match((escapeAbs.stdout ?? '') + (escapeAbs.stderr ?? ''), /must be a relative path that stays under \.nova\/heartbeat/, 'absolute --out is rejected with the sandbox message');
+      assert.equal(await exists(absOut), false, 'absolute --out writes no file outside the sandbox');
+      assert.doesNotMatch((escapeAbs.stdout ?? '') + (escapeAbs.stderr ?? ''), /[A-Za-z]:\\|\/(?:tmp|Users|home|var)\//, 'absolute --out error leaks no absolute path');
+
+      const escapeDeep = runNova(['heartbeat', 'automation', 'export', '--target', 'cron', '--every', '15m', '--out', join('..', '..', 'nova-smoke-escape-deep.txt')], planRoot);
+      assert.equal(escapeDeep.status, 1, 'a ../.. traversal --out exits 1');
+      assert.match((escapeDeep.stdout ?? '') + (escapeDeep.stderr ?? ''), /must be a relative path that stays under \.nova\/heartbeat/, 'deep traversal --out is rejected with the sandbox message');
+      assert.equal(await exists(resolve(planRoot, '..', '..', 'nova-smoke-escape-deep.txt')), false, 'deep traversal --out writes no file outside the sandbox');
     } finally {
       await rm(planRoot, { recursive: true, force: true });
+    }
+
+    // §4.1 automation cron — gate-valid cadences render identically representable cron specs.
+    {
+      const dailyCron = buildAutomationManifest({ target: 'cron', tickEveryMinutes: 1440, timezone: 'UTC' });
+      assert.ok(dailyCron.body.includes('0 0 * * *'), 'cron 1440 renders daily 00:00');
+      const twoHourCron = buildAutomationManifest({ target: 'cron', tickEveryMinutes: 120, timezone: 'UTC' });
+      assert.ok(twoHourCron.body.includes('0 */2 * * *'), 'cron 120 renders every-2-hours');
+      const hourlyCron = buildAutomationManifest({ target: 'cron', tickEveryMinutes: 60, timezone: 'UTC' });
+      assert.ok(hourlyCron.body.includes('0 */1 * * *'), 'cron 60 renders the hourly whole-hour spec');
+      assert.throws(() => buildAutomationManifest({ target: 'cron', tickEveryMinutes: 90, timezone: 'UTC' }), HeartbeatScheduleError, 'cron rejects the non-representable 90m cadence');
+    }
+
+    // §4.2 automation windows — the consistency gate accepts whole hours up to 1380 and rejects 1439/90 uniformly.
+    {
+      const dailyWin = buildAutomationManifest({ target: 'windows-task', tickEveryMinutes: 1440, timezone: 'UTC' });
+      assert.ok(dailyWin.body.includes('/SC DAILY /ST 00:00'), 'windows 1440 renders the daily schedule');
+      const maxHourWin = buildAutomationManifest({ target: 'windows-task', tickEveryMinutes: 1380, timezone: 'UTC' });
+      assert.ok(maxHourWin.body.includes('/SC MINUTE /MO 1380'), 'windows 1380 (23h) renders a minute cadence');
+      assert.throws(() => buildAutomationManifest({ target: 'windows-task', tickEveryMinutes: 1439, timezone: 'UTC' }), HeartbeatScheduleError, 'windows rejects 1439 (not a whole hour, not daily)');
+      assert.throws(() => buildAutomationManifest({ target: 'windows-task', tickEveryMinutes: 90, timezone: 'UTC' }), HeartbeatScheduleError, 'windows rejects the non-representable 90m cadence');
+    }
+
+    // §4.3 parseDurationMinutes — non-integer numbers, malformed strings, and sub-minute inputs all throw; overflow clamps.
+    {
+      assert.throws(() => parseDurationMinutes(1.5), HeartbeatScheduleError, 'a non-integer number is rejected');
+      assert.throws(() => parseDurationMinutes('1.5h'), HeartbeatScheduleError, 'a non-integer string is rejected');
+      for (const sub of ['0', '00', 0]) {
+        assert.throws(() => parseDurationMinutes(sub), HeartbeatScheduleError, `a sub-minute duration ${JSON.stringify(sub)} is rejected`);
+      }
+      assert.equal(parseDurationMinutes('120'), 120, 'a bare integer string parses to minutes');
+      assert.equal(parseDurationMinutes(120), 120, 'a bare integer number parses to minutes');
+    }
+
+    // §4.4 parseClockHHMM — zero-padded 24-hour clocks parse; out-of-range and unpadded values throw.
+    {
+      assert.deepEqual(parseClockHHMM('00:00'), { h: 0, m: 0 }, 'midnight parses');
+      assert.deepEqual(parseClockHHMM('23:59'), { h: 23, m: 59 }, 'last minute of the day parses');
+      assert.deepEqual(parseClockHHMM('09:05'), { h: 9, m: 5 }, 'a zero-padded morning time parses');
+      for (const bad of ['24:00', '7:60', '9:5', '12:60', '-1:00']) {
+        assert.throws(() => parseClockHHMM(bad), /Invalid clock value/, `parseClockHHMM rejects ${JSON.stringify(bad)}`);
+      }
+    }
+
+    // §4.5 projection cap — a huge horizon at a 1-minute cadence is capped at MAX_OCCURRENCES, never maxPerTask.
+    {
+      const capped = projectIntervalOccurrences({ nowMs: 0, horizonMin: MAX_HORIZON_MINUTES, everyMin: 1, maxPerTask: 999_999 });
+      assert.equal(capped.length, MAX_OCCURRENCES, 'projection length is hard-capped at MAX_OCCURRENCES');
+    }
+
+    // §4.6 horizon clamp — both a giant string duration and a giant number clamp to MAX_HORIZON_MINUTES.
+    {
+      assert.equal(parseDurationMinutes('999999999d'), MAX_HORIZON_MINUTES, 'an enormous day-duration string clamps to the horizon');
+      assert.equal(parseDurationMinutes(MAX_HORIZON_MINUTES + 10), MAX_HORIZON_MINUTES, 'an over-horizon number clamps to the horizon');
+    }
+
+    // §4.7 quiet-hours suppression — a wrap-past-midnight window suppresses only the covered occurrences.
+    {
+      const quietNow = Date.parse('2024-01-01T21:00:00.000Z');
+      const quietTask: HeartbeatTaskConfig = { id: 'inspect-langs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 120, anchor: new Date(quietNow).toISOString() } };
+      const wrapPlan = projectHeartbeatPlan({
+        config: { enabled: true, timezone: 'UTC', quietHours: [{ start: '22:00', end: '06:00' }], tasks: [quietTask] },
+        state: heartbeatState(),
+        nowMs: quietNow,
+        horizonMinutes: 600,
+        maxPerTask: 10,
+        heartbeatId: 'heartbeat_smoke',
+      });
+      const classes = wrapPlan.tasks[0]!.occurrences.map((occ) => `${occ.at}:${occ.classification}`);
+      assert.deepEqual(
+        classes,
+        [
+          '2024-01-01T21:00:00.000Z:would_run',
+          '2024-01-01T23:00:00.000Z:quiet_hours',
+          '2024-01-02T01:00:00.000Z:quiet_hours',
+          '2024-01-02T03:00:00.000Z:quiet_hours',
+          '2024-01-02T05:00:00.000Z:quiet_hours',
+          '2024-01-02T07:00:00.000Z:would_run',
+        ],
+        'a wrapping quiet window suppresses only the covered occurrences (end is exclusive)',
+      );
+      assert.equal(wrapPlan.counts.quietHours, 4, 'plan counts exactly the four suppressed occurrences');
+      assert.equal(wrapPlan.tasks[0]!.firstDueAt, '2024-01-01T21:00:00.000Z', 'firstDueAt is the first would_run before the quiet window');
+    }
+
+    // §4.8 inert quiet window — a start === end window is treated as no window (every occurrence would_run).
+    {
+      const inertTask: HeartbeatTaskConfig = { id: 'inspect-langs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60, anchor: now.toISOString() } };
+      const inertPlan = projectHeartbeatPlan({
+        config: { enabled: true, timezone: 'UTC', quietHours: [{ start: '03:00', end: '03:00' }], tasks: [inertTask] },
+        state: heartbeatState(),
+        nowMs: now.getTime(),
+        horizonMinutes: 300,
+        maxPerTask: 10,
+        heartbeatId: 'heartbeat_smoke',
+      });
+      assert.ok(inertPlan.tasks[0]!.occurrences.every((occ) => occ.classification === 'would_run'), 'a zero-width quiet window suppresses nothing');
+      assert.equal(inertPlan.counts.quietHours, 0, 'a zero-width quiet window counts no suppressions');
+    }
+
+    // §4.9 redaction depth — synthetic secrets and high-entropy blobs are scrubbed from plan and manifest projections.
+    {
+      const ENTROPY_BLOB = 'Zk9Q2mWf'.repeat(7);
+      assert.equal(safeHeartbeatText(SYNTHETIC_SECRET), '<redacted>', 'a known secret pattern is redacted to the value sentinel');
+      assert.equal(safeHeartbeatText(ENTROPY_BLOB), '[REDACTED:secret-like]', 'a high-entropy blob is caught by the secret-like sentinel');
+
+      const planTaskUnsafe: HeartbeatTaskConfig = { id: 'inspect-langs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60, anchor: now.toISOString() } };
+      const rawPlan = projectHeartbeatPlan({ config: { enabled: true, timezone: 'UTC', tasks: [planTaskUnsafe] }, state: heartbeatState(), nowMs: now.getTime(), horizonMinutes: 120, maxPerTask: 5, heartbeatId: 'heartbeat_smoke' });
+      const poisonedPlan: HeartbeatPlanReport = {
+        ...rawPlan,
+        tasks: [{
+          ...rawPlan.tasks[0]!,
+          name: `name ${ENTROPY_BLOB}`,
+          reason: `token=${SYNTHETIC_SECRET}`,
+          occurrences: rawPlan.tasks[0]!.occurrences.map((occ, i) => (i === 0 ? { ...occ, note: `leak ${ENTROPY_BLOB} ${SYNTHETIC_SECRET}` } : occ)),
+        }],
+        safety: { ...rawPlan.safety, notes: [...rawPlan.safety.notes, `note ${SYNTHETIC_SECRET}`] },
+      };
+      const safePlan = safeHeartbeatPlanReport(poisonedPlan);
+      const safePlanJson = JSON.stringify(safePlan);
+      assert.doesNotMatch(safePlanJson, new RegExp(SYNTHETIC_SECRET, 'g'), 'safeHeartbeatPlanReport scrubs the synthetic secret');
+      assert.doesNotMatch(safePlanJson, new RegExp(ENTROPY_BLOB, 'g'), 'safeHeartbeatPlanReport scrubs the high-entropy blob');
+      assert.ok(safePlanJson.includes('[REDACTED:secret-like]'), 'safeHeartbeatPlanReport leaves the secret-like sentinel behind');
+      assert.equal(safePlan.safety.secretsIncluded, false, 'safeHeartbeatPlanReport forces secretsIncluded false');
+      assert.equal(safePlan.safety.schedulerInstalled, false, 'safeHeartbeatPlanReport forces schedulerInstalled false');
+
+      const rawManifest = buildAutomationManifest({ target: 'cron', tickEveryMinutes: 15, timezone: 'UTC' });
+      const poisonedManifest: HeartbeatAutomationManifest = {
+        ...rawManifest,
+        body: `${rawManifest.body}\n# leak ${ENTROPY_BLOB} token=${SYNTHETIC_SECRET}`,
+        paths: { file: `automation/${ENTROPY_BLOB}.txt` },
+      };
+      const safeManifest = safeHeartbeatManifest(poisonedManifest);
+      const safeManifestJson = JSON.stringify(safeManifest);
+      assert.doesNotMatch(safeManifestJson, new RegExp(SYNTHETIC_SECRET, 'g'), 'safeHeartbeatManifest scrubs the synthetic secret');
+      assert.doesNotMatch(safeManifestJson, new RegExp(ENTROPY_BLOB, 'g'), 'safeHeartbeatManifest scrubs the high-entropy blob');
+      assert.equal(safeManifest.installed, false, 'safeHeartbeatManifest keeps installed false');
+    }
+
+    // §4.11 anchor precedence — explicit anchor beats stored lastRunAt beats nowMs, proven by three distinct first occurrences.
+    {
+      const everyMin = 30;
+      const baseTask = (anchor?: string): HeartbeatTaskConfig => ({ id: 'anchor-task', kind: 'inspection', action: 'inspect', schedule: anchor ? { type: 'interval', everyMinutes: everyMin, anchor } : { type: 'interval', everyMinutes: everyMin } });
+      const anchorNow = Date.parse('2026-01-02T00:05:00.000Z');
+      const stateWith = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: 1, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: new Date(anchorNow).toISOString(), tasks: lastRunAt ? { 'anchor-task': { lastRunAt } } : {} });
+      const firstOf = (task: HeartbeatTaskConfig, state: HeartbeatState): string | undefined =>
+        projectHeartbeatPlan({ config: { enabled: true, timezone: 'UTC', tasks: [task] }, state, nowMs: anchorNow, horizonMinutes: 180, maxPerTask: 5, heartbeatId: 'heartbeat_smoke' }).tasks[0]!.occurrences[0]?.at;
+      // A — explicit anchor 00:10 wins even with a conflicting stored lastRunAt 00:00.
+      assert.equal(firstOf(baseTask('2026-01-02T00:10:00.000Z'), stateWith('2026-01-02T00:00:00.000Z')), '2026-01-02T00:10:00.000Z', 'explicit anchor takes precedence over lastRunAt');
+      // B — no anchor: stored lastRunAt 00:00 sets the phase, first occurrence is 00:30.
+      assert.equal(firstOf(baseTask(), stateWith('2026-01-02T00:00:00.000Z')), '2026-01-02T00:30:00.000Z', 'stored lastRunAt sets the phase when no anchor is given');
+      // C — neither anchor nor lastRunAt: phase falls back to nowMs, first occurrence is nowMs itself.
+      assert.equal(firstOf(baseTask(), stateWith()), '2026-01-02T00:05:00.000Z', 'nowMs is the fallback anchor (inclusive first occurrence)');
+    }
+
+    // §4.12 planId stability — the id excludes heartbeatId, so two instances with the same inputs share a planId.
+    {
+      const idTask: HeartbeatTaskConfig = { id: 'inspect-langs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60, anchor: now.toISOString() } };
+      const common = { config: { enabled: true, timezone: 'UTC', tasks: [idTask] }, state: heartbeatState(), nowMs: now.getTime(), horizonMinutes: 180, maxPerTask: 5 };
+      const planA = projectHeartbeatPlan({ ...common, heartbeatId: 'heartbeat_alpha' });
+      const planB = projectHeartbeatPlan({ ...common, heartbeatId: 'heartbeat_beta' });
+      assert.equal(planA.planId, planB.planId, 'planId is identical across heartbeat instances with the same inputs');
+      assert.notEqual(planA.heartbeatId, planB.heartbeatId, 'the two plans still carry distinct heartbeat ids');
+      const idInputs: PlanIdInputs = { generatedForNow: now.toISOString(), horizonMinutes: 180, maxPerTask: 5, timezone: 'UTC', configDigest: configDigest(common.config) };
+      assert.equal(computePlanId(idInputs), computePlanId({ ...idInputs }), 'computePlanId is a pure function of its inputs');
+    }
+
+    // §4.13 stableStringify — object key order is normalized while array order is preserved.
+    {
+      assert.equal(stableStringify({ b: 1, a: { d: 2, c: 3 } }), '{"a":{"c":3,"d":2},"b":1}', 'object keys are sorted deeply');
+      assert.equal(stableStringify({ a: 1, b: 2 }), stableStringify({ b: 2, a: 1 }), 'key order does not affect the digest input');
+      assert.equal(stableStringify({ x: [3, 1, 2] }), '{"x":[3,1,2]}', 'array order is preserved');
     }
 
     console.log('heartbeat:smoke passed');

@@ -146,7 +146,7 @@ Add to `heartbeatHelp()` (after the `tick`/`report` rows):
 ```
   nova heartbeat plan [--now <iso>] [--horizon <dur>] [--max <N>] [--json]
       Project upcoming task occurrences within a horizon (read-only, no execution).
-      Writes a redacted plan to .nova/heartbeat/plans/. Default horizon 24h, max 10.
+      Writes a redacted plan to .nova/heartbeat/plans/. Default horizon 6h, max 50.
 
   nova heartbeat automation export --target <windows-task|systemd|cron>
                                    [--every <dur> | --at <HH:MM>] [--stdout]

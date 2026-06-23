@@ -46,11 +46,11 @@ export function classifyHeartbeatTaskSafety(task: HeartbeatTaskConfig): Heartbea
   const kind = task.kind.trim();
   const action = task.action?.trim();
   if (!kind) return { status: 'blocked', reason: 'Task kind is empty.' };
-  if (DANGEROUS.has(kind)) return { status: 'blocked', reason: `Dangerous task kind "${kind}" is not supported by Heartbeat V1.` };
-  if (action && DANGEROUS.has(action)) return { status: 'blocked', reason: `Dangerous action "${action}" is not supported by Heartbeat V1.` };
-  if (!SAFE_KINDS.has(kind)) return { status: 'blocked', reason: `Unsupported task kind "${kind}". V1 recognizes inspection, eval, batch-dry-run and maintenance only.` };
-  if (action && !SAFE_ACTIONS.has(action)) return { status: 'needs_user_action', reason: `Unsupported action "${action}" requires explicit user review; V1 only plans safe dry-runs.` };
-  return { status: 'ok', reason: 'Recognized safe planning kind; V1 will not execute it.' };
+  if (DANGEROUS.has(kind)) return { status: 'blocked', reason: `Dangerous task kind "${kind}" is not supported by Heartbeat V2.` };
+  if (action && DANGEROUS.has(action)) return { status: 'blocked', reason: `Dangerous action "${action}" is not supported by Heartbeat V2.` };
+  if (!SAFE_KINDS.has(kind)) return { status: 'blocked', reason: `Unsupported task kind "${kind}". V2 recognizes inspection, eval, batch-dry-run and maintenance only.` };
+  if (action && !SAFE_ACTIONS.has(action)) return { status: 'needs_user_action', reason: `Unsupported action "${action}" requires explicit user review; V2 only plans safe dry-runs.` };
+  return { status: 'ok', reason: 'Recognized safe planning kind; V2 will not execute it.' };
 }
 
 export function isHeartbeatDangerousKind(value: HeartbeatTaskKind | HeartbeatTaskAction): boolean {

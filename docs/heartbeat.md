@@ -1,8 +1,8 @@
-# Heartbeat / Autonomous Tasks V1 — première tranche sûre
+# Heartbeat / Autonomous Tasks V2 — planification & automatisation (dry-run, désactivé par défaut)
 
-Heartbeat V1 ajoute une planification locale **dry-run uniquement** pour préparer de futures tâches autonomes sans les exécuter.
+Heartbeat V2 étend la première tranche V1 (ticks de planification **dry-run uniquement**) avec deux commandes purement consultatives — `plan` et `automation export` — sans jamais exécuter de tâche, installer de planificateur, ni appeler de LLM/tool/réseau. Toutes les garanties V1 ci-dessous restent valables verbatim.
 
-## Garanties V1
+## Garanties (V1, préservées en V2)
 
 - Désactivé par défaut (`heartbeat.enabled` absent ou `false`).
 - Aucun daemon, cron, service Windows/systemd ou boucle long-running.
@@ -53,7 +53,7 @@ Exemple `.nova/config.json` :
 }
 ```
 
-Types reconnus : `inspection`, `eval`, `batch-dry-run`, `maintenance`. Ils sont seulement planifiés : V1 ne les exécute jamais.
+Types reconnus : `inspection`, `eval`, `batch-dry-run`, `maintenance`. Ils sont seulement planifiés : Heartbeat ne les exécute jamais.
 
 Les champs `id`, `name`, `kind`, `action`, `reason` et les chemins de rapport sont redacted au moment des sorties/rapports. L'état interne peut conserver les ids validés nécessaires à la planification, mais les contenus secret-like sont rejetés dès la lecture de `.nova/config.json`.
 
@@ -89,6 +89,20 @@ Génère un **manifeste opérateur inerte** (`installed: false`) que vous pouvez
 - `--out <relpath>` doit rester **sous `.nova/heartbeat/`**. Un chemin qui s'en échappe ⇒ sortie 1, **aucun fichier écrit**, et le message d'erreur ne divulgue aucun chemin absolu.
 
 Sans `--stdout` ni `--out`, le manifeste est écrit sous `.nova/heartbeat/automation/<target>.txt`.
+
+#### Cadences représentables (porte unique de cohérence)
+
+Une **porte de cohérence unique** valide la cadence **avant** tout rendu, de façon **identique** pour `cron`, `systemd` et `windows-task` :
+
+- **Acceptées** : `1`–`59` minutes ; heures pleines `60, 120, … 1380` (jusqu'à 23 h, multiples de 60) ; et exactement `1440` (quotidien).
+- **Rejetées uniformément** : toute autre valeur (par ex. `90m`, `1439m`, `1500m`) ⇒ **sortie 1** avec un message d'erreur unique, **même si une cible donnée pourrait l'exprimer**. Aucun manifeste n'est rendu ni écrit.
+
+Notes d'horloge et d'export :
+
+- `--at <HH:MM>` exige un format **zéro-padé sur 2 chiffres** (`parseClockHHMM`), p. ex. `09:05` (et non `9:5`).
+- `--every 1d` (= `1440` min) exporte un planning **quotidien à `00:00`**.
+- Une fenêtre de quiet hours où `start == end` est **inerte** (aucune suppression).
+- Pour `cron`, une cadence horaire `60m` s'exporte en `0 */1 * * *` (et non `0 * * * *`).
 
 ## Validation
 

@@ -1,9 +1,9 @@
 # ADR-001 — Heartbeat Planning & Automation (planning-only, dry-run, disabled-by-default)
 
-- **Status:** Proposed
+- **Status:** Accepted / Implemented (Heartbeat V2 livré)
 - **Date:** 2026-06-22
 - **Deciders:** Architecture
-- **Scope:** `src/heartbeat/**`, `src/config/project.ts`, `src/cli/help.ts` (design only — no code in this ADR)
+- **Scope:** `src/heartbeat/**`, `src/config/project.ts`, `src/cli/help.ts` (implémenté et inerte — `nova heartbeat plan` et `automation export` sont livrés ; aucun planificateur n'est installé)
 - **Supersedes:** none (first ADR recorded under `docs/adr/`; `docs/adr/` is created by this change)
 - **Companion:** [`ADR-001-heartbeat-planning-automation-breakdown.md`](./ADR-001-heartbeat-planning-automation-breakdown.md) (per-file module breakdown, test plan, implementer task template)
 
@@ -73,7 +73,7 @@ nova heartbeat plan [--now <iso>] [--horizon <duration>] [--max <N>] [--json]
 - **Read-only with respect to `state.json`** — unlike `tick`, `plan` never mutates heartbeat state (lower blast radius; idempotent).
 - Persists a **redacted** artifact pair under `.nova/heartbeat/plans/<planId>.{json,md}`.
 - **Deterministic `planId`** = `plan_<sha256(now|horizon|max|timezone|configDigest)>` (first 16 hex). Same inputs → same id → idempotent overwrite with identical bytes. No wall-clock/random in the id.
-- `--horizon` accepts `90m` / `24h` / `7d` (suffix `m|h|d`, bare integer = minutes); default `24h`. `--max` default `10`, hard-capped.
+- `--horizon` accepts `90m` / `24h` / `7d` (suffix `m|h|d`, bare integer = minutes); default `6h`. `--max` default `50`, hard-capped.
 
 ### D3 — Automation manifest export: `nova heartbeat automation export`
 

@@ -93,7 +93,7 @@ async function printHeartbeatTasks(project: ProjectConfigLoadResult): Promise<tr
 
 async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: string[]): Promise<true> {
   if (!project.ok) return printInvalidProject(project);
-  if (!rest.includes('--dry-run')) return heartbeatUsageError('Heartbeat V1 supports only explicit dry-run ticks. Usage: nova heartbeat tick --dry-run');
+  if (!rest.includes('--dry-run')) return heartbeatUsageError('Heartbeat V2 supports only explicit dry-run ticks. Usage: nova heartbeat tick --dry-run');
   try {
     const report = await runHeartbeatDryRunTick({ config: project.config?.heartbeat });
     console.log(JSON.stringify(report, null, 2));
@@ -108,7 +108,7 @@ async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: strin
 async function printLatestHeartbeatReport(): Promise<true> {
   const report = await new HeartbeatStore().latestTickReport();
   if (!report) {
-    console.error('No heartbeat reports found. Run `nova heartbeat tick --dry-run` first; V1 never starts a daemon automatically.');
+    console.error('No heartbeat reports found. Run `nova heartbeat tick --dry-run` first; V2 never starts a daemon automatically.');
     process.exitCode = 1;
     return true;
   }
@@ -124,7 +124,7 @@ function printInvalidProject(project: ProjectConfigLoadResult): true {
 
 function heartbeatUsageError(message: string): true {
   console.error(message);
-  console.error('Run `nova heartbeat --help` for supported V1 commands.');
+  console.error('Run `nova heartbeat --help` for supported V2 commands.');
   process.exitCode = 1;
   return true;
 }

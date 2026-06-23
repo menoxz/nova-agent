@@ -9,6 +9,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - CI/CD GitHub Actions pipeline added — `.github/workflows/ci.yml` (typecheck, build, and the offline smoke + mock eval `check` gate on push to `main` and on pull requests) and `.github/workflows/release.yml` (npm publish on `v*` tags, inert until the `NPM_TOKEN` repository secret is configured).
+- **Live-LLM execution gate & ReAct injection seam (Phase 1)** — explicit `NOVA_ENABLE_LIVE_LLM` opt-in keeps live model calls disabled by default, plus an injectable `model?` seam that lets the ReAct loop run fully offline under a mock model (`dd5ed49`).
+- **Heartbeat V2 — Planning & Automation** — two purely consultative commands on top of the V1 dry-run ticks: `nova heartbeat plan` (offline, deterministic schedule projection; default `6h` horizon / `50` max occurrences) and `nova heartbeat automation export` (operator-installable cron / systemd timer / Windows Task Scheduler manifests). No daemon, scheduler install, LLM/tool, or network call; writes remain under `.nova/heartbeat/` only.
+- **Heartbeat interval consistency gate** — single `assertRepresentableInterval` check applied identically across the cron, systemd, and Windows renderers: accepts 1–59 minutes, whole hours 60–1380, and exactly 1440; rejects non-representable intervals (e.g. 90 / 1439 / 1500) with exit code 1.
+
+### Fixed
+
+- **Heartbeat cron `*/N` collapse (BUG-1)** — cron minute expressions no longer collapse; hourly cadences now render as hour-band cron (e.g. `60m` ⇒ `0 */1 * * *`).
+- **Heartbeat Windows `/MO` for long intervals (BUG-2)** — Windows Task Scheduler `/MO` modifier is now emitted correctly for intervals ≥ 1440 minutes.
+- **Single-source agent/tool protocol (Phase 1)** — removed the duplicated protocol definition so the agent and tools share one source of truth (`dd5ed49`).
+- **Grep mid-file line numbers (Phase 1)** — the grep tool now reports correct line numbers for matches past the first line (`f2977ed`).
+
+### Security
+
+- **Heartbeat symlink jail-escape hardening (RISK-1)** — `src/utils/safe_io.ts` now resolves and rejects symlink-based escapes from the `.nova/heartbeat/` sandbox.
+
+### Tests
+
+- **13-case Heartbeat smoke matrix** — added to `src/heartbeat/smoke.ts` and wired into `npm run check` / `npm run check:fast`, covering the BUG-1/BUG-2 fixes and the interval-representability accept/reject boundaries.
+- **Offline ReAct `agent:smoke` (Phase 1)** — deterministic ReAct loop smoke driven by the injectable mock model (`dd5ed49`).
+- **Per-tool `tools:smoke` (Phase 1)** — exercises `execute()` across the 8 read-only built-in tools (`f2977ed`).
+
+### Docs
+
+- **ADR-001 reconciled** — status moved `Proposed` → `Accepted / Implemented`, with the shipped defaults recorded (proposed 24 h / 10 → shipped 6 h / 50).
+- **Heartbeat docs promoted V1 → V2** — `docs/heartbeat.md` now documents the `plan` and `automation export` surface; stale "V1 planning-only" strings flipped across the heartbeat docs and ADR.
+
+### Notes
+
+- Plan projection is deterministic via an injected clock and a sha256 `planId` over the inputs (RISK-2). Heartbeat invariants preserved: schema version 1, config zod `.strict()`, writes under `.nova/heartbeat/` only, package version unchanged at `0.1.0`, and no new dependencies.
 
 ## 0.1.0 — Initial local product baseline
 

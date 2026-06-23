@@ -1,6 +1,6 @@
 import { mkdir, open, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import {
   HEARTBEAT_SCHEMA_VERSION,
@@ -26,13 +26,26 @@ export class HeartbeatStore {
     await mkdir(this.paths.automationDir, { recursive: true });
   }
 
+  /**
+   * Deterministic placeholder heartbeat id for a project that has never ticked
+   * (no `state.json` yet). Derived from the project root so the same project
+   * always yields byte-identical plan artifacts across runs (RISK-2). `planId`
+   * already excludes `heartbeatId`; this only stabilises the embedded id in the
+   * persisted plan report. Once a real `state.json` exists, its persisted
+   * `heartbeatId` is used instead. Pure: hash only, no clock, no randomness.
+   */
+  private placeholderHeartbeatId(): string {
+    const digest = createHash('sha256').update(this.projectRoot).digest('hex');
+    return `heartbeat_${digest.slice(0, 8)}`;
+  }
+
   async readState(enabled = false): Promise<HeartbeatState> {
     await this.ensure();
     try {
       const parsed = JSON.parse(await readFile(this.paths.state, 'utf-8')) as Partial<HeartbeatState>;
       return {
         schemaVersion: HEARTBEAT_SCHEMA_VERSION,
-        heartbeatId: typeof parsed.heartbeatId === 'string' ? parsed.heartbeatId : `heartbeat_${randomUUID().slice(0, 8)}`,
+        heartbeatId: typeof parsed.heartbeatId === 'string' ? parsed.heartbeatId : this.placeholderHeartbeatId(),
         enabled,
         updatedAt: new Date().toISOString(),
         lastTickId: typeof parsed.lastTickId === 'string' ? parsed.lastTickId : undefined,
@@ -40,7 +53,7 @@ export class HeartbeatStore {
         tasks: parsed.tasks && typeof parsed.tasks === 'object' ? parsed.tasks as HeartbeatState['tasks'] : {},
       };
     } catch {
-      return { schemaVersion: HEARTBEAT_SCHEMA_VERSION, heartbeatId: `heartbeat_${randomUUID().slice(0, 8)}`, enabled, updatedAt: new Date().toISOString(), tasks: {} };
+      return { schemaVersion: HEARTBEAT_SCHEMA_VERSION, heartbeatId: this.placeholderHeartbeatId(), enabled, updatedAt: new Date().toISOString(), tasks: {} };
     }
   }
 

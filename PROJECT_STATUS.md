@@ -1,5 +1,41 @@
 # Project Status
 
+## Heartbeat V2 — Planning & Automation (Phase 2) — 2026-06-23
+
+Status: implemented and verified locally; tests passing (not yet committed).
+
+### Delivered
+
+- Extended Heartbeat V1 (dry-run planning ticks) with two purely consultative commands: `nova heartbeat plan` (read-only, deterministic schedule projection; default `6h` horizon / `50` max occurrences) and `nova heartbeat automation export` (operator-installable cron / systemd timer / Windows Task Scheduler manifests). No daemon, scheduler install, LLM/tool, or network call.
+- Fixed BUG-1: cron `*/N` minute expressions no longer collapse — hourly cadences render as hour-band cron (e.g. `60m` ⇒ `0 */1 * * *`).
+- Fixed BUG-2: Windows Task Scheduler `/MO` modifier is now emitted correctly for intervals ≥ 1440 minutes.
+- Added a single consistency gate `assertRepresentableInterval`, applied identically across the cron, systemd, and Windows renderers: accepts 1–59 minutes, whole hours 60–1380, and exactly 1440; rejects non-representable intervals (90 / 1439 / 1500) uniformly with exit code 1.
+- Hardened symlink jail-escape in `src/utils/safe_io.ts` (RISK-1) and made plan projection deterministic via an injected clock and a sha256 `planId` over the inputs (RISK-2).
+- Added a 13-case smoke matrix to `src/heartbeat/smoke.ts`, wired into `npm run check` and `npm run check:fast`.
+- Reconciled ADR-001 (`Proposed` → `Accepted / Implemented`) and recorded the shipped defaults (proposed 24 h / 10 → shipped 6 h / 50); promoted `docs/heartbeat.md` from V1 to V2 and flipped stale "V1 planning-only" strings across the heartbeat docs and ADR.
+- Invariants preserved: heartbeat schema stays version 1, config stays zod `.strict()`, writes stay under `.nova/heartbeat/` only, package version stays `0.1.0`, and no new dependencies were added.
+
+### Verification run
+
+- `npm run typecheck`, `npm run heartbeat:smoke` (13-case interval/representability matrix), and `npm run eval:heartbeat` pass via the offline `check` gate.
+- See the latest implementation report for exact command output and exit codes.
+
+## Phase 1 — Live-LLM gate, ReAct seam & tool smokes — 2026-06-23
+
+Status: implemented, verified, and merged to `main` (commits `dd5ed49`, `f2977ed`); CI green.
+
+### Delivered
+
+- Added an explicit live-LLM execution gate `NOVA_ENABLE_LIVE_LLM`; live model calls stay opt-in and disabled by default, preserving offline-by-default behaviour.
+- Introduced an injectable `model?` seam so the ReAct loop can be driven by a mock model, enabling a fully offline `agent:smoke`.
+- Fixed the agent/tool protocol to a single source of truth, removing the duplicated/divergent definition.
+- Added `tools:smoke` covering per-tool `execute()` across the 8 read-only built-in tools.
+- Fixed a grep tool bug that reported incorrect line numbers for mid-file matches.
+
+### Verification run
+
+- `npm run agent:smoke`, `npm run tools:smoke`, and the full `npm run check` offline gate pass; CI on `main` is green for commits `dd5ed49` and `f2977ed`.
+
 ## Release v0.1.0 Published + CI/CD — 2026-06-23
 
 Status: published and tagged.
