@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Heartbeat V3 (Slice 1) — fail-closed triple-gate execution scaffolding (ADR-002)** — a pure, side-effect-free `decideHeartbeatExecution` triple-gate (Gate A: composed `NOVA_ENABLE_HEARTBEAT_EXEC` master + per-capability `NOVA_ENABLE_LIVE_LLM`/`NOVA_ENABLE_WRITE_TOOLS` flags; Gate B: explicit approval; Gate C: execution-sandbox availability) wired into the dry-run tick behind a null sandbox probe (`src/sandbox/probe.ts` returns `null` for the whole of ADR-002). Default-off behaviour is byte-identical to V2 (dry-run, task stays `due`); with the master flag on and no sandbox the tick fails closed (`refused`, nothing executed, `lastRunAt` never advanced). The heartbeat state schema bumps 1 → 2 (additive, forward-readable). No daemon, scheduler, LLM/tool, network, or real execution — `execute`/`needs_user_action` remain inert scaffolding for later slices.
 - CI/CD GitHub Actions pipeline added — `.github/workflows/ci.yml` (typecheck, build, and the offline smoke + mock eval `check` gate on push to `main` and on pull requests) and `.github/workflows/release.yml` (npm publish on `v*` tags, inert until the `NPM_TOKEN` repository secret is configured).
 - **Live-LLM execution gate & ReAct injection seam (Phase 1)** — explicit `NOVA_ENABLE_LIVE_LLM` opt-in keeps live model calls disabled by default, plus an injectable `model?` seam that lets the ReAct loop run fully offline under a mock model (`dd5ed49`).
 - **Heartbeat V2 — Planning & Automation** — two purely consultative commands on top of the V1 dry-run ticks: `nova heartbeat plan` (offline, deterministic schedule projection; default `6h` horizon / `50` max occurrences) and `nova heartbeat automation export` (operator-installable cron / systemd timer / Windows Task Scheduler manifests). No daemon, scheduler install, LLM/tool, or network call; writes remain under `.nova/heartbeat/` only.
@@ -32,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Docs
 
+- **ADR-002 placed (Heartbeat V3)** — `docs/adr/ADR-002-heartbeat-v3.md` (Accepted) records the fail-closed triple-gate execution design and the per-slice breakdown; `docs/heartbeat.md` gains a V3 Slice 1 scaffolding note and `PROJECT_STATUS.md` a corresponding milestone row.
 - **ADR-001 reconciled** — status moved `Proposed` → `Accepted / Implemented`, with the shipped defaults recorded (proposed 24 h / 10 → shipped 6 h / 50).
 - **Heartbeat docs promoted V1 → V2** — `docs/heartbeat.md` now documents the `plan` and `automation export` surface; stale "V1 planning-only" strings flipped across the heartbeat docs and ADR.
 

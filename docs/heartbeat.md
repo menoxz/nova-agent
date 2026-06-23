@@ -2,6 +2,8 @@
 
 Heartbeat V2 étend la première tranche V1 (ticks de planification **dry-run uniquement**) avec deux commandes purement consultatives — `plan` et `automation export` — sans jamais exécuter de tâche, installer de planificateur, ni appeler de LLM/tool/réseau. Toutes les garanties V1 ci-dessous restent valables verbatim.
 
+> **V3 (Slice 1 — échafaudage *fail-closed*, désactivé par défaut).** Une première tranche V3 ajoute uniquement l'**échafaudage** d'un portail d'exécution à triple porte (`decideHeartbeatExecution`, fonction **pure**, sans I/O ni timer) : **aucune tâche n'est exécutée**. La sonde de sandbox d'exécution (`probeExecutionSandbox()`) renvoie **toujours `null`** pour toute la durée d'ADR-002 (la vraie sandbox arrive en Slice 3). Drapeau maître `NOVA_ENABLE_HEARTBEAT_EXEC` **absent** ⇒ comportement **octet-pour-octet identique à V2** (dry-run, tâche `due`) ; drapeau **présent** et aucune sandbox ⇒ le tick **échoue en sécurité** (`refused`, rien n'est exécuté, `lastRunAt` n'avance jamais). Le schéma d'état heartbeat passe de **1 à 2** (additif, lisible en avant : un état v1 se charge avec les nouveaux champs `undefined` puis est re-tamponné `schemaVersion: 2` à la prochaine écriture). Aucun daemon, planificateur, LLM/tool, réseau ni exécution réelle n'est ajouté. Détails : [`docs/adr/ADR-002-heartbeat-v3.md`](adr/ADR-002-heartbeat-v3.md).
+
 ## Garanties (V1, préservées en V2)
 
 - Désactivé par défaut (`heartbeat.enabled` absent ou `false`).

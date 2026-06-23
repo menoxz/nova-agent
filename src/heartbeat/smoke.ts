@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -10,11 +10,16 @@ import { pathToFileURL } from 'node:url';
 import { projectConfigPath } from '../config/project.js';
 import {
   buildAutomationManifest,
+  classifyHeartbeatTaskSafety,
   computePlanId,
   configDigest,
+  decideHeartbeatExecution,
   defaultTickEveryMinutes,
+  HEARTBEAT_SCHEMA_VERSION,
+  heartbeatGateA,
   HeartbeatScheduleError,
   HeartbeatStore,
+  heartbeatTaskNeeds,
   isInQuietHours,
   MAX_HORIZON_MINUTES,
   MAX_OCCURRENCES,
@@ -33,7 +38,18 @@ import {
   stableStringify,
   validateTimezone,
 } from './index.js';
-import type { HeartbeatAutomationManifest, HeartbeatPlanReport, HeartbeatQuietWindow, HeartbeatState, HeartbeatTaskConfig, HeartbeatTickReport, PlanIdInputs } from './index.js';
+import type {
+  HeartbeatAutomationManifest,
+  HeartbeatConfig,
+  HeartbeatExecutionDecidedBy,
+  HeartbeatExecutionMode,
+  HeartbeatPlanReport,
+  HeartbeatQuietWindow,
+  HeartbeatState,
+  HeartbeatTaskConfig,
+  HeartbeatTickReport,
+  PlanIdInputs,
+} from './index.js';
 
 const repoRoot = process.cwd();
 const indexPath = resolve(repoRoot, 'src/index.ts');
@@ -53,12 +69,20 @@ async function exists(path: string): Promise<boolean> {
   return access(path).then(() => true, () => false);
 }
 
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}
+
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-heartbeat-smoke-'));
   try {
     const now = new Date('2026-01-02T00:00:00.000Z');
     const task: HeartbeatTaskConfig = { id: 'boundary', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } };
-    const heartbeatState = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: 1, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: now.toISOString(), tasks: lastRunAt ? { boundary: { lastRunAt } } : {} });
+    const heartbeatState = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: HEARTBEAT_SCHEMA_VERSION, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: now.toISOString(), tasks: lastRunAt ? { boundary: { lastRunAt } } : {} });
     assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-01T23:00:00.000Z'), true, now).status, 'due', 'schedule boundary is due when nextDueAt equals now');
     assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-01T23:00:01.000Z'), true, now).status, 'skipped', 'future nextDueAt is skipped');
     assert.equal(planHeartbeatTask(task, heartbeatState('not-a-date'), true, now).status, 'due', 'invalid stored lastRunAt is due for review');
@@ -274,11 +298,22 @@ async function main(): Promise<void> {
     assert.equal(v1Resolved.timezone, 'UTC', 'a legacy config defaults to UTC');
     assert.deepEqual(v1Resolved.quietHours, [], 'a legacy config has no quiet hours');
 
-    // §2.5.7 static guard — core modules carry no self-scheduling primitives.
-    const forbiddenScheduling = /setInterval|setTimeout|setImmediate|child_process|\.exec\(|spawn\(/;
-    for (const moduleRelPath of ['src/heartbeat/schedule.ts', 'src/heartbeat/planner.ts', 'src/heartbeat/automation.ts']) {
-      const source = await readFile(resolve(repoRoot, moduleRelPath), 'utf-8');
-      assert.doesNotMatch(source, forbiddenScheduling, `${moduleRelPath} contains no scheduling primitive`);
+    // §2.5.7 / ADR-002 §D6 static guard — EVERY heartbeat module (this smoke
+    // harness excepted) carries no self-scheduling, shell, or execution
+    // primitive. Stronger than ADR-001: the whole directory is swept (not a
+    // hand-picked trio), and the forbidden set adds child_process, every
+    // exec*/spawn* form, `while (true)`, and the gate's own `.decide(` so the
+    // pure decision can never wire itself to a runtime.
+    const forbiddenExecution = /setInterval|setTimeout|setImmediate|while\s*\(\s*true\s*\)|node:child_process|child_process|\bexecFile\b|\bexecSync\b|\.exec\(|\bspawnSync\b|\bspawn\b|\.decide\(/;
+    const heartbeatDir = resolve(repoRoot, 'src/heartbeat');
+    const guardedModules = (await readdir(heartbeatDir))
+      .filter((name) => name.endsWith('.ts') && name !== 'smoke.ts')
+      .sort();
+    assert.ok(guardedModules.length >= 12, `static guard sweeps the heartbeat module set (found ${guardedModules.length})`);
+    assert.ok(guardedModules.includes('execution_gate.ts'), 'static guard includes the new execution_gate module');
+    for (const name of guardedModules) {
+      const source = await readFile(join(heartbeatDir, name), 'utf-8');
+      assert.doesNotMatch(source, forbiddenExecution, `src/heartbeat/${name} carries no spawn/timer/execute primitive`);
     }
 
     // §2.5 / §2.6 CLI — plan is read-only + deterministic; automation export is sandboxed.
@@ -519,7 +554,7 @@ async function main(): Promise<void> {
       const everyMin = 30;
       const baseTask = (anchor?: string): HeartbeatTaskConfig => ({ id: 'anchor-task', kind: 'inspection', action: 'inspect', schedule: anchor ? { type: 'interval', everyMinutes: everyMin, anchor } : { type: 'interval', everyMinutes: everyMin } });
       const anchorNow = Date.parse('2026-01-02T00:05:00.000Z');
-      const stateWith = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: 1, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: new Date(anchorNow).toISOString(), tasks: lastRunAt ? { 'anchor-task': { lastRunAt } } : {} });
+      const stateWith = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: HEARTBEAT_SCHEMA_VERSION, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: new Date(anchorNow).toISOString(), tasks: lastRunAt ? { 'anchor-task': { lastRunAt } } : {} });
       const firstOf = (task: HeartbeatTaskConfig, state: HeartbeatState): string | undefined =>
         projectHeartbeatPlan({ config: { enabled: true, timezone: 'UTC', tasks: [task] }, state, nowMs: anchorNow, horizonMinutes: 180, maxPerTask: 5, heartbeatId: 'heartbeat_smoke' }).tasks[0]!.occurrences[0]?.at;
       // A — explicit anchor 00:10 wins even with a conflicting stored lastRunAt 00:00.
@@ -547,6 +582,135 @@ async function main(): Promise<void> {
       assert.equal(stableStringify({ b: 1, a: { d: 2, c: 3 } }), '{"a":{"c":3,"d":2},"b":1}', 'object keys are sorted deeply');
       assert.equal(stableStringify({ a: 1, b: 2 }), stableStringify({ b: 2, a: 1 }), 'key order does not affect the digest input');
       assert.equal(stableStringify({ x: [3, 1, 2] }), '{"x":[3,1,2]}', 'array order is preserved');
+    }
+
+    // ===== ADR-002 Heartbeat V3 Slice 1 — fail-closed triple-gate scaffolding =====
+
+    // ADR-002 §D2 — the pure triple-gate decision table. With safety 'ok',
+    // precedence A → C → B yields four reachable modes; the eight
+    // (gateA, gateC, gateB) combinations cover the published truth table.
+    {
+      const gateCase = (a: boolean, c: boolean, b: boolean) =>
+        decideHeartbeatExecution({
+          flags: { heartbeatExec: a, liveLlm: true, writeTools: true },
+          taskNeeds: { llm: false, write: false },
+          approval: { status: b ? 'approved' : 'none' },
+          sandbox: { available: c },
+          safety: { status: 'ok' },
+        });
+      const truthTable: Array<{ a: boolean; c: boolean; b: boolean; mode: HeartbeatExecutionMode; decidedBy: HeartbeatExecutionDecidedBy }> = [
+        { a: false, c: false, b: false, mode: 'dry_run', decidedBy: 'gate-a-flags' },
+        { a: false, c: false, b: true, mode: 'dry_run', decidedBy: 'gate-a-flags' },
+        { a: false, c: true, b: false, mode: 'dry_run', decidedBy: 'gate-a-flags' },
+        { a: false, c: true, b: true, mode: 'dry_run', decidedBy: 'gate-a-flags' },
+        { a: true, c: false, b: false, mode: 'refused', decidedBy: 'gate-c-sandbox' },
+        { a: true, c: true, b: false, mode: 'needs_user_action', decidedBy: 'gate-b-approval' },
+        { a: true, c: false, b: true, mode: 'refused', decidedBy: 'gate-c-sandbox' },
+        { a: true, c: true, b: true, mode: 'execute', decidedBy: 'all-gates' },
+      ];
+      for (const row of truthTable) {
+        const decision = gateCase(row.a, row.c, row.b);
+        assert.equal(decision.mode, row.mode, `gate(a=${row.a},c=${row.c},b=${row.b}) mode is ${row.mode}`);
+        assert.equal(decision.decidedBy, row.decidedBy, `gate(a=${row.a},c=${row.c},b=${row.b}) decidedBy is ${row.decidedBy}`);
+        assert.deepEqual(decision.gate, { a: row.a, b: row.b, c: row.c }, `gate(a=${row.a},c=${row.c},b=${row.b}) echoes its booleans`);
+      }
+    }
+
+    // ADR-002 §D2 Gate A — capability composition. eval needs the LLM,
+    // maintenance needs write tools, inspection/batch-dry-run need neither; the
+    // master switch gates everything and each capability flag gates its own kind.
+    {
+      assert.deepEqual(heartbeatTaskNeeds('eval'), { llm: true, write: false }, 'eval consumes the LLM only');
+      assert.deepEqual(heartbeatTaskNeeds('maintenance'), { llm: false, write: true }, 'maintenance consumes write tools only');
+      assert.deepEqual(heartbeatTaskNeeds('inspection'), { llm: false, write: false }, 'inspection consumes neither capability');
+      assert.deepEqual(heartbeatTaskNeeds('batch-dry-run'), { llm: false, write: false }, 'batch-dry-run consumes neither capability');
+      const allOn = { heartbeatExec: true, liveLlm: true, writeTools: true };
+      assert.equal(heartbeatGateA(allOn, heartbeatTaskNeeds('eval')), true, 'eval opens Gate A when every flag is on');
+      assert.equal(heartbeatGateA({ ...allOn, liveLlm: false }, heartbeatTaskNeeds('eval')), false, 'eval closes Gate A without live LLM');
+      assert.equal(heartbeatGateA({ ...allOn, writeTools: false }, heartbeatTaskNeeds('maintenance')), false, 'maintenance closes Gate A without write tools');
+      assert.equal(heartbeatGateA({ ...allOn, writeTools: false }, heartbeatTaskNeeds('inspection')), true, 'inspection still opens Gate A without write tools');
+      assert.equal(heartbeatGateA({ heartbeatExec: false, liveLlm: true, writeTools: true }, heartbeatTaskNeeds('inspection')), false, 'the master switch closes Gate A for every kind');
+    }
+
+    // ADR-002 SI-5 — dangerous kinds can never reach 'execute'. They are
+    // non-'ok' at classification, and even if every gate is forced open the
+    // safety pre-empt pins the decision to dry_run (decidedBy 'task-safety').
+    {
+      for (const kind of ['shell', 'write', 'git', 'network', 'memory-write', 'auto-resume']) {
+        const safety = classifyHeartbeatTaskSafety({ id: `danger-${kind}`, kind, schedule: { type: 'interval', everyMinutes: 5 } });
+        assert.notEqual(safety.status, 'ok', `dangerous kind "${kind}" is never classified ok`);
+        const decision = decideHeartbeatExecution({
+          flags: { heartbeatExec: true, liveLlm: true, writeTools: true },
+          taskNeeds: heartbeatTaskNeeds(kind),
+          approval: { status: 'approved' },
+          sandbox: { available: true },
+          safety: { status: safety.status },
+        });
+        assert.equal(decision.decidedBy, 'task-safety', `dangerous kind "${kind}" is pre-empted by safety`);
+        assert.equal(decision.mode, 'dry_run', `dangerous kind "${kind}" stays dry_run`);
+        assert.notEqual(decision.mode, 'execute', `dangerous kind "${kind}" never executes`);
+      }
+    }
+
+    // ADR-002 SI-1 / SI-2 — default-off parity then fail-closed refusal, proven
+    // in-process on one temp project so the master flag is the only variable.
+    {
+      const gateRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-gate-'));
+      const gateConfig: HeartbeatConfig = { enabled: true, tasks: [{ id: 'inspect-docs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } }] };
+      const priorExec = process.env.NOVA_ENABLE_HEARTBEAT_EXEC;
+      try {
+        // SI-1 — flag OFF: byte-for-byte the V2 dry-run; the task stays 'due'.
+        delete process.env.NOVA_ENABLE_HEARTBEAT_EXEC;
+        const offTick = await runHeartbeatDryRunTick({ projectRoot: gateRoot, config: gateConfig });
+        assert.equal(offTick.schemaVersion, HEARTBEAT_SCHEMA_VERSION, 'a tick stamps the v2 schema version');
+        assert.equal(offTick.status, 'dry_run_completed', 'flag off completes a dry run');
+        assert.equal(offTick.dryRun, true, 'flag off is a dry run');
+        assert.equal(offTick.safety.autonomousActionsExecuted, false, 'flag off executes nothing');
+        assert.equal(offTick.safety.llmInvoked, false, 'flag off invokes no LLM');
+        assert.equal(offTick.safety.toolsInvoked, false, 'flag off invokes no tools');
+        assert.equal(offTick.counts.due, 1, 'the inspection task is due under default-off');
+        assert.equal(offTick.tasks[0]!.status, 'due', 'flag off leaves the task due (V2 parity)');
+        // SI-2 — flag ON, no sandbox: fail-closed refusal, still no execution.
+        process.env.NOVA_ENABLE_HEARTBEAT_EXEC = '1';
+        const onTick = await runHeartbeatDryRunTick({ projectRoot: gateRoot, config: gateConfig });
+        assert.equal(onTick.status, 'refused', 'flag on with no sandbox refuses');
+        assert.equal(onTick.dryRun, true, 'a refusal is still a dry run (nothing ran)');
+        assert.equal(onTick.safety.autonomousActionsExecuted, false, 'a refusal executes nothing');
+        assert.equal(onTick.tasks[0]!.status, 'refused', 'the due task is refused fail-closed');
+        assert.equal(onTick.counts.due, 0, 'a refused task is no longer counted due');
+      } finally {
+        restoreEnv('NOVA_ENABLE_HEARTBEAT_EXEC', priorExec);
+        await rm(gateRoot, { recursive: true, force: true });
+      }
+    }
+
+    // ADR-002 §D5 — a V1 state file (schemaVersion 1, no execution fields) is
+    // read forward: the store re-stamps schemaVersion 2, preserves lastRunAt and
+    // task history, and leaves the new execution fields undefined.
+    {
+      const migrateRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-migrate-'));
+      try {
+        const store = new HeartbeatStore(migrateRoot);
+        await store.ensure();
+        const v1State = {
+          schemaVersion: 1,
+          heartbeatId: 'heartbeat_legacy',
+          enabled: true,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          tasks: { 'inspect-docs': { lastRunAt: '2026-01-01T00:00:00.000Z', lastDryRunAt: '2026-01-01T00:00:00.000Z', lastStatus: 'due' } },
+        };
+        await writeFile(store.paths.state, `${JSON.stringify(v1State, null, 2)}\n`, 'utf-8');
+        const migrated = await store.readState(true);
+        assert.equal(migrated.schemaVersion, HEARTBEAT_SCHEMA_VERSION, 'readState re-stamps the schema version');
+        assert.equal(migrated.schemaVersion, 2, 'the re-stamped schema version is 2');
+        assert.equal(migrated.heartbeatId, 'heartbeat_legacy', 'the legacy heartbeat id is preserved');
+        assert.equal(migrated.tasks['inspect-docs']!.lastStatus, 'due', 'task history is preserved across migration');
+        assert.equal(migrated.tasks['inspect-docs']!.lastRunAt, '2026-01-01T00:00:00.000Z', 'lastRunAt is preserved across migration');
+        assert.equal(migrated.tasks['inspect-docs']!.lastExecAt, undefined, 'the new lastExecAt field defaults to undefined');
+        assert.equal(migrated.tasks['inspect-docs']!.pendingApprovalId, undefined, 'the new approval field defaults to undefined');
+      } finally {
+        await rm(migrateRoot, { recursive: true, force: true });
+      }
     }
 
     console.log('heartbeat:smoke passed');

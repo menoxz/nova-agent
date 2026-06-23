@@ -28,6 +28,7 @@ export * from './planner.js';
 export * from './automation.js';
 export * from './store.js';
 export * from './runner.js';
+export * from './execution_gate.js';
 export * from './reporter.js';
 export * from './redaction.js';
 

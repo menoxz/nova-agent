@@ -1,4 +1,4 @@
-export const HEARTBEAT_SCHEMA_VERSION = 1 as const;
+export const HEARTBEAT_SCHEMA_VERSION = 2 as const;
 
 export type HeartbeatTaskKind = 'inspection' | 'eval' | 'batch-dry-run' | 'maintenance' | string;
 export type HeartbeatTaskAction = 'inspect' | 'eval' | 'batch-dry-run' | 'maintain' | string;
@@ -29,6 +29,14 @@ export interface HeartbeatTaskState {
   lastRunAt?: string;
   lastDryRunAt?: string;
   lastStatus?: HeartbeatTaskResultStatus;
+  /** Set only when a gated execution actually ran (ADR-002; Slice 1: never). */
+  lastExecAt?: string;
+  /** Outcome of the last gated execution decision (ADR-002). */
+  lastExecStatus?: 'executed' | 'refused' | 'needs_user_action';
+  /** Approval-workflow bookkeeping; populated in ADR-002 Slice 2. */
+  pendingApprovalId?: string;
+  pendingApprovalAt?: string;
+  lastApprovalId?: string;
 }
 
 export interface HeartbeatState {
@@ -41,8 +49,8 @@ export interface HeartbeatState {
   tasks: Record<string, HeartbeatTaskState>;
 }
 
-export type HeartbeatTaskResultStatus = 'due' | 'skipped' | 'blocked' | 'needs_user_action';
-export type HeartbeatTickStatus = 'dry_run_completed' | 'blocked';
+export type HeartbeatTaskResultStatus = 'due' | 'skipped' | 'blocked' | 'needs_user_action' | 'executed' | 'refused';
+export type HeartbeatTickStatus = 'dry_run_completed' | 'blocked' | 'executed' | 'refused';
 
 export interface HeartbeatTaskResult {
   id: string;
@@ -62,7 +70,7 @@ export interface HeartbeatTickReport {
   heartbeatId: string;
   tickId: string;
   status: HeartbeatTickStatus;
-  dryRun: true;
+  dryRun: boolean;
   startedAt: string;
   finishedAt: string;
   durationMs: number;
@@ -79,9 +87,9 @@ export interface HeartbeatTickReport {
   };
   tasks: HeartbeatTaskResult[];
   safety: {
-    llmInvoked: false;
-    toolsInvoked: false;
-    autonomousActionsExecuted: false;
+    llmInvoked: boolean;
+    toolsInvoked: boolean;
+    autonomousActionsExecuted: boolean;
     secretsIncluded: false;
     contentPolicy: 'metadata-only-redacted';
     notes: string[];

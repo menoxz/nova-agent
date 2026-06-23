@@ -1,5 +1,25 @@
 # Project Status
 
+## Heartbeat V3 (Slice 1) — fail-closed triple-gate execution scaffolding — 2026-06-23
+
+Status: implemented and verified locally (offline scaffolding only; no real execution); tests passing (not yet committed).
+
+### Delivered
+
+- Added a pure, side-effect-free triple-gate `decideHeartbeatExecution` (`src/heartbeat/execution_gate.ts`): Gate A composes the `NOVA_ENABLE_HEARTBEAT_EXEC` master flag with the per-capability `NOVA_ENABLE_LIVE_LLM` / `NOVA_ENABLE_WRITE_TOOLS` flags against each task's needs; Gate C requires an available execution sandbox; Gate B requires an explicit granted approval. Precedence is A → C → B, and any non-`ok` task safety short-circuits to dry-run.
+- Added an inert execution-sandbox seam: `src/sandbox/types.ts` (`ExecutionSandbox` interface) and `src/sandbox/probe.ts` whose `probeExecutionSandbox()` returns `null` for the entirety of ADR-002 (the real sandbox is Slice 3).
+- Wired the gate into the dry-run tick at the per-task insertion point: with the master flag off the tick is byte-identical to V2 (dry-run, task stays `due`); with the master flag on and no sandbox the tick fails closed (`refused`, nothing executed, `lastRunAt` never advanced). The `execute` / `needs_user_action` outcomes remain inert scaffolding for later slices.
+- Bumped the heartbeat state schema 1 → 2 (additive, forward-readable: v1 states load with the new fields `undefined` and are re-stamped `schemaVersion: 2` on next write) and widened the tick result/safety report fields and status unions to carry the new `executed` / `refused` outcomes.
+- Strengthened the static guard across all `src/heartbeat/**` modules: a directory-wide sweep (12 guarded modules) asserts no module carries a spawn / timer / execute primitive (`setInterval`/`setTimeout`/`child_process`/`spawn`/`exec`/`.decide(` …), stronger than the ADR-001 single-file guard.
+- Extended `src/heartbeat/smoke.ts` with the 8-row §D2 truth table, the schema v1 → v2 migration check, default-off V2 parity (SI-1), fail-closed refusal (SI-2), and the FORBIDDEN-never-execute safety invariant (SI-5).
+- Placed ADR-002 (`docs/adr/ADR-002-heartbeat-v3.md`, Accepted), added the `docs/heartbeat.md` V3 note, and recorded the change in `CHANGELOG.md` `[Unreleased]`.
+- Invariants preserved: package version stays `0.1.0`, no new dependency, writes stay under `.nova/` only, and no daemon / scheduler / LLM / tool / network / real execution was added.
+
+### Verification run
+
+- `npm run typecheck`, `npm run build`, and the offline `npm run check` gate all exit 0; `npm run heartbeat:smoke` passes (8-row truth table, Gate-A, SI-1 / SI-2 / SI-5, schema v1 → v2 migration, and the directory-wide static guard).
+- See the latest implementation report for exact command output and exit codes.
+
 ## Heartbeat V2 — Planning & Automation (Phase 2) — 2026-06-23
 
 Status: implemented and verified locally; tests passing (not yet committed).
