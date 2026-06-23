@@ -18,7 +18,17 @@ export function safeHeartbeatText(value: string | undefined): string | undefined
 }
 
 export function safeHeartbeatPath(path: string): string {
-  return safeHeartbeatText(path) ?? '[REDACTED:path]';
+  // A POSIX absolute path is one continuous run of `[A-Za-z0-9+/=_-]` characters (the `/`
+  // separator is part of that class), so the high-entropy heuristic in `safeHeartbeatText`
+  // treats the whole path as a secret and collapses it to a sentinel — but only on POSIX,
+  // since Windows `\` separators split the path into short segments that never trip it. Redact
+  // each separator-delimited segment independently (re-joining with the original separators) so
+  // redaction is separator-agnostic: secrets embedded in a segment are still caught, while
+  // ordinary paths survive intact on every platform.
+  return path
+    .split(/([\\/]+)/)
+    .map((segment) => (segment === '' || /^[\\/]+$/.test(segment) ? segment : safeHeartbeatText(segment) ?? '[REDACTED:path-segment]'))
+    .join('');
 }
 
 export function safeHeartbeatTaskResult(task: HeartbeatTaskResult): HeartbeatTaskResult {
