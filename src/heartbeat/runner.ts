@@ -4,14 +4,23 @@ import type { HeartbeatConfig, HeartbeatState, HeartbeatTaskConfig, HeartbeatTas
 import { HEARTBEAT_SCHEMA_VERSION } from './types.js';
 import { classifyHeartbeatTaskSafety, normalizeHeartbeatSchedule, resolveHeartbeatConfig } from './config.js';
 import type { HeartbeatExecutionFlags } from './execution_gate.js';
-import { decideHeartbeatExecution, heartbeatTaskNeeds, readHeartbeatExecutionFlags } from './execution_gate.js';
+import { readHeartbeatExecutionFlags } from './execution_gate.js';
+import type { HeartbeatApprovalGateway, HeartbeatApprovalPatch } from './executor.js';
+import { applyHeartbeatApprovalPatch, createReadOnlyApprovalGateway, evaluateHeartbeatExecution } from './executor.js';
 import { probeExecutionSandbox } from '../sandbox/probe.js';
 import { heartbeatTickJsonPath, heartbeatTickMarkdownPath } from './paths.js';
 import { renderHeartbeatMarkdown } from './reporter.js';
 import { safeHeartbeatReport } from './redaction.js';
 import { HeartbeatStore } from './store.js';
 
-export async function runHeartbeatDryRunTick(input: { config?: HeartbeatConfig; projectRoot?: string; now?: Date }): Promise<HeartbeatTickReport> {
+export async function runHeartbeatDryRunTick(input: {
+  config?: HeartbeatConfig;
+  projectRoot?: string;
+  now?: Date;
+  flags?: HeartbeatExecutionFlags;
+  sandboxAvailable?: boolean;
+  approvalGateway?: HeartbeatApprovalGateway;
+}): Promise<HeartbeatTickReport> {
   const projectRoot = input.projectRoot ?? process.cwd();
   const now = input.now ?? new Date();
   const resolved = resolveHeartbeatConfig(input.config);
@@ -22,10 +31,28 @@ export async function runHeartbeatDryRunTick(input: { config?: HeartbeatConfig; 
     const startedAt = now.toISOString();
     const tickId = `heartbeat_tick_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
     const paths = { json: heartbeatTickJsonPath(tickId, projectRoot), markdown: heartbeatTickMarkdownPath(tickId, projectRoot) };
-    const flags = readHeartbeatExecutionFlags();
-    const sandboxAvailable = probeExecutionSandbox()?.available === true;
-    const tasks = resolved.tasks.map((task) =>
-      applyExecutionGate(planHeartbeatTask(task, state, resolved.enabled, now), task, flags, sandboxAvailable),
+    // Execution seams default to OFF flags / sandbox probe / zero-I/O gateway.
+    // Tests inject these to drive the cross-tick approval lifecycle offline and
+    // deterministically (a fixed `now` plus a stubbed approval verdict).
+    const flags = input.flags ?? readHeartbeatExecutionFlags();
+    const sandboxAvailable = input.sandboxAvailable ?? (probeExecutionSandbox()?.available === true);
+    const gateway = input.approvalGateway ?? createReadOnlyApprovalGateway();
+    const evaluations = await Promise.all(
+      resolved.tasks.map((task) =>
+        evaluateHeartbeatExecution({
+          planned: planHeartbeatTask(task, state, resolved.enabled, now),
+          task,
+          taskState: state.tasks[task.id],
+          flags,
+          sandboxAvailable,
+          gateway,
+          now,
+        }),
+      ),
+    );
+    const tasks = evaluations.map((evaluation) => evaluation.result);
+    const approvalPatches = new Map<string, HeartbeatApprovalPatch>(
+      evaluations.map((evaluation) => [evaluation.result.id, evaluation.patch]),
     );
     const executed = tasks.some((task) => task.status === 'executed');
     const finishedAtMs = Date.now();
@@ -57,7 +84,7 @@ export async function runHeartbeatDryRunTick(input: { config?: HeartbeatConfig; 
     };
     const safeReport = safeHeartbeatReport(report);
     await store.writeTick(safeReport, renderHeartbeatMarkdown(safeReport), paths);
-    await store.writeState(nextState(state, report));
+    await store.writeState(nextState(state, report, approvalPatches));
     return safeReport;
   });
 }
@@ -93,39 +120,6 @@ function tickStatus(tasks: HeartbeatTaskResult[]): HeartbeatTickStatus {
   return 'dry_run_completed';
 }
 
-/**
- * Apply the ADR-002 triple-gate to a planned task. Only a 'due' task can be
- * promoted/refused; every other status (skipped/blocked/needs_user_action)
- * passes through untouched, so dangerous kinds — already non-'due' from
- * classification — can never be executed. With execution flags OFF the gate
- * returns 'dry_run' and the task stays 'due' (V2-identical).
- */
-function applyExecutionGate(
-  result: HeartbeatTaskResult,
-  task: HeartbeatTaskConfig,
-  flags: HeartbeatExecutionFlags,
-  sandboxAvailable: boolean,
-): HeartbeatTaskResult {
-  if (result.status !== 'due') return result;
-  const decision = decideHeartbeatExecution({
-    flags,
-    taskNeeds: heartbeatTaskNeeds(task.kind),
-    approval: { status: 'none' },
-    sandbox: { available: sandboxAvailable },
-    safety: { status: 'ok' },
-  });
-  switch (decision.mode) {
-    case 'execute':
-      return { ...result, status: 'executed', reason: decision.reason };
-    case 'refused':
-      return { ...result, status: 'refused', reason: decision.reason };
-    case 'needs_user_action':
-      return { ...result, status: 'needs_user_action', reason: decision.reason };
-    default:
-      return result;
-  }
-}
-
 function countTasks(tasks: HeartbeatTaskResult[]): HeartbeatTickReport['counts'] {
   return {
     total: tasks.length,
@@ -136,15 +130,16 @@ function countTasks(tasks: HeartbeatTaskResult[]): HeartbeatTickReport['counts']
   };
 }
 
-function nextState(state: HeartbeatState, report: HeartbeatTickReport): HeartbeatState {
+function nextState(state: HeartbeatState, report: HeartbeatTickReport, patches: Map<string, HeartbeatApprovalPatch>): HeartbeatState {
   const tasks = { ...state.tasks };
   for (const task of report.tasks) {
+    // V2 bookkeeping (lastDryRunAt/lastStatus) is layered first; the approval
+    // patch then applies the ADR-002 execution/approval fields on top. With
+    // execution flags OFF every patch is 'none', so the result is byte-identical
+    // to V2 (SI-1). Exec/expiry timestamps inside the patch use the injected
+    // `now`; lastDryRunAt stays report.finishedAt for V2 parity.
     const base: HeartbeatTaskState = { ...tasks[task.id], lastDryRunAt: report.finishedAt, lastStatus: task.status };
-    // lastRunAt advances ONLY on a real execution (ADR-002). Slice 1 never
-    // executes, so this branch stays inert until a real sandbox lands.
-    tasks[task.id] = task.status === 'executed'
-      ? { ...base, lastRunAt: report.finishedAt, lastExecAt: report.finishedAt, lastExecStatus: 'executed' }
-      : base;
+    tasks[task.id] = applyHeartbeatApprovalPatch(base, patches.get(task.id) ?? { kind: 'none' });
   }
   return { ...state, enabled: report.config.enabled, updatedAt: report.finishedAt, lastTickId: report.tickId, lastTickAt: report.finishedAt, tasks };
 }

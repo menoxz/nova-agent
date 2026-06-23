@@ -1,5 +1,22 @@
 # Project Status
 
+## Heartbeat V3 (Slice 2) — cross-tick approval lifecycle (OFFLINE) — 2026-06-23
+
+Status: implemented and verified locally (offline; production Gate C still `null` ⇒ fail-closed preserved; no real execution); tests passing (not yet committed).
+
+### Delivered
+
+- Added the approval lifecycle module `src/heartbeat/executor.ts`: an injectable `HeartbeatApprovalGateway` port (`resolve(approvalId) → 'pending'|'approved'|'denied'|'expired'`) with a zero-I/O production stub `createReadOnlyApprovalGateway()` that always returns `'pending'` (the session-machinery bridge is deferred to Slice 4), plus the pure cross-tick lifecycle: `mintHeartbeatApprovalId()` (synthetic `hb-appr-<uuid>`), a 24 h `isHeartbeatApprovalExpired` check, `evaluateHeartbeatExecution`, and the single state-transition writer `applyHeartbeatApprovalPatch`. Resolve precedence short-circuits: no pending id ⇒ mint (gateway not consulted); pending-but-expired ⇒ reset (gateway not consulted); otherwise resolve the persisted id.
+- Wired Gate B into the tick (`src/heartbeat/runner.ts`): replaced the Slice-1 hard-coded `approval: { status: 'none' }` with the resolved `{ status, approvalId }`, and added injectable `flags? / sandboxAvailable? / approvalGateway? / now?` seams (each defaulting to its production value). A `needs_user_action` task keeps the tick `dry_run_completed`; execution requires a subsequent externally-invoked tick (single-shot; honours `autoExecuteApprovedActions:false`).
+- Added the read-only `nova heartbeat approvals` CLI (`src/cli/index.ts` + `src/cli/help.ts`): lists each task's `pendingApprovalId` / `pendingApprovalAt` / `lastApprovalId` / `lastExecStatus` from `state.json`, never decides and never mutates state.
+- Extended `src/heartbeat/smoke.ts` with five OFFLINE scenarios on a fixed clock + tracking gateway: cross-tick approve → execute → fresh re-mint (SI-10 / SI-9), denied ⇒ blocked, 25 h expiry ⇒ needs_user_action with the gateway never consulted, master-flag-off V2 parity with a gateway injected (SI-1), and the read-only CLI leaving state byte-identical. The directory-wide static guard now sweeps 13 heartbeat modules and asserts no `.decide(` in `executor.ts` (SI-3).
+- Invariants preserved: production Gate C (`probeExecutionSandbox()`) still returns `null` ⇒ fail-closed; package version stays `0.1.0`; no new dependency; heartbeat writes stay under `.nova/heartbeat/` only; no daemon / scheduler / LLM / tool / network / real execution.
+
+### Verification run
+
+- `npm run typecheck` and the offline `npm run check` gate exit 0; `npm run heartbeat:smoke` passes (Slice 1 truth-table + migration + guard, plus the five Slice 2 approval-lifecycle scenarios), fully offline.
+- See the latest implementation report for exact command output and exit codes.
+
 ## Heartbeat V3 (Slice 1) — fail-closed triple-gate execution scaffolding — 2026-06-23
 
 Status: implemented and verified locally (offline scaffolding only; no real execution); tests passing (not yet committed).

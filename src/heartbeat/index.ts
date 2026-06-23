@@ -29,6 +29,7 @@ export * from './automation.js';
 export * from './store.js';
 export * from './runner.js';
 export * from './execution_gate.js';
+export * from './executor.js';
 export * from './reporter.js';
 export * from './redaction.js';
 
@@ -39,6 +40,7 @@ export async function handleHeartbeatCommand(args: string[]): Promise<boolean> {
   if (action === 'validate') return printHeartbeatValidate(project);
   if (action === 'status') return printHeartbeatStatus(project);
   if (action === 'tasks') return printHeartbeatTasks(project);
+  if (action === 'approvals') return printHeartbeatApprovals(project);
   if (action === 'tick') return runHeartbeatTickCli(project, rest);
   if (action === 'plan') return runHeartbeatPlanCli(project, rest);
   if (action === 'automation' && rest[0] === 'export') return runHeartbeatAutomationExportCli(project, rest.slice(1));
@@ -89,6 +91,34 @@ async function printHeartbeatTasks(project: ProjectConfigLoadResult): Promise<tr
   const state = await store.readState(heartbeat.enabled);
   const { planHeartbeatTask } = await import('./runner.js');
   console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, tasks: heartbeat.tasks.map((task) => safeHeartbeatTaskResult(planHeartbeatTask(task, state, heartbeat.enabled, new Date()))) }, null, 2));
+  return true;
+}
+
+/**
+ * `nova heartbeat approvals` — read-only view of the cross-tick approval ledger
+ * persisted under `.nova/heartbeat/state.json`. It NEVER reads `.nova/sessions/`,
+ * never decides an approval, and never writes state. Every approval id and path
+ * is redacted before printing (heartbeat ids are short enough to survive intact).
+ */
+async function printHeartbeatApprovals(project: ProjectConfigLoadResult): Promise<true> {
+  if (!project.ok) return printInvalidProject(project);
+  const heartbeat = resolveHeartbeatConfig(project.config?.heartbeat);
+  const store = new HeartbeatStore();
+  const state = await store.readState(heartbeat.enabled);
+  const names = new Map(heartbeat.tasks.map((task) => [task.id, task.name]));
+  const approvals = Object.entries(state.tasks)
+    .filter(([, task]) => task.pendingApprovalId !== undefined || task.lastApprovalId !== undefined || task.lastExecStatus !== undefined)
+    .map(([id, task]) => ({
+      taskId: safeHeartbeatText(id),
+      name: safeHeartbeatText(names.get(id)),
+      pending: task.pendingApprovalId !== undefined,
+      pendingApprovalId: safeHeartbeatText(task.pendingApprovalId),
+      pendingApprovalAt: task.pendingApprovalAt,
+      lastApprovalId: safeHeartbeatText(task.lastApprovalId),
+      lastExecStatus: task.lastExecStatus,
+      lastExecAt: task.lastExecAt,
+    }));
+  console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, statePath: safeHeartbeatPath(store.paths.state), count: approvals.length, approvals }, null, 2));
   return true;
 }
 

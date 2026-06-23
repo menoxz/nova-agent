@@ -39,14 +39,18 @@ import {
   validateTimezone,
 } from './index.js';
 import type {
+  HeartbeatApprovalGateway,
+  HeartbeatApprovalResolution,
   HeartbeatAutomationManifest,
   HeartbeatConfig,
   HeartbeatExecutionDecidedBy,
+  HeartbeatExecutionFlags,
   HeartbeatExecutionMode,
   HeartbeatPlanReport,
   HeartbeatQuietWindow,
   HeartbeatState,
   HeartbeatTaskConfig,
+  HeartbeatTaskState,
   HeartbeatTickReport,
   PlanIdInputs,
 } from './index.js';
@@ -148,6 +152,7 @@ async function main(): Promise<void> {
     const help = runNova(['heartbeat', '--help'], root);
     assert.equal(help.status, 0, 'heartbeat help exits 0');
     assert.match(help.stdout ?? '', /nova heartbeat tick --dry-run/, 'help documents tick dry-run');
+    assert.match(help.stdout ?? '', /nova heartbeat approvals/, 'help documents the read-only approvals ledger');
 
     const validate = runNova(['heartbeat', 'validate'], root);
     assert.equal(validate.status, 0, `validate exits 0: ${validate.stderr}`);
@@ -309,12 +314,17 @@ async function main(): Promise<void> {
     const guardedModules = (await readdir(heartbeatDir))
       .filter((name) => name.endsWith('.ts') && name !== 'smoke.ts')
       .sort();
-    assert.ok(guardedModules.length >= 12, `static guard sweeps the heartbeat module set (found ${guardedModules.length})`);
+    assert.ok(guardedModules.length >= 13, `static guard sweeps the heartbeat module set (found ${guardedModules.length})`);
     assert.ok(guardedModules.includes('execution_gate.ts'), 'static guard includes the new execution_gate module');
+    assert.ok(guardedModules.includes('executor.ts'), 'static guard includes the new executor module');
     for (const name of guardedModules) {
       const source = await readFile(join(heartbeatDir, name), 'utf-8');
       assert.doesNotMatch(source, forbiddenExecution, `src/heartbeat/${name} carries no spawn/timer/execute primitive`);
     }
+    // ADR-002 §D6 / SI-3 — the executor lists and reads approvals but never
+    // decides one: the gate's `.decide(` write primitive is structurally absent.
+    const executorSource = await readFile(join(heartbeatDir, 'executor.ts'), 'utf-8');
+    assert.doesNotMatch(executorSource, /\.decide\(/, 'SI-3: the heartbeat executor never decides an approval');
 
     // §2.5 / §2.6 CLI — plan is read-only + deterministic; automation export is sandboxed.
     const planRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-plan-'));
@@ -681,6 +691,182 @@ async function main(): Promise<void> {
       } finally {
         restoreEnv('NOVA_ENABLE_HEARTBEAT_EXEC', priorExec);
         await rm(gateRoot, { recursive: true, force: true });
+      }
+    }
+
+    // ADR-002 §D7 — Slice 2 cross-tick approval lifecycle, proven OFFLINE with a
+    // fixed `now` clock and a stubbed approval verdict. Inspection needs neither
+    // LLM nor write, so it is the one kind that reaches Gate B and drives the
+    // mint → resolve → execute / block / expire cycle deterministically.
+    {
+      const onFlags: HeartbeatExecutionFlags = { heartbeatExec: true, liveLlm: true, writeTools: true };
+      const execConfig: HeartbeatConfig = { enabled: true, tasks: [{ id: 'inspect-docs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } }] };
+      const taskStateOf = async (projectRoot: string): Promise<HeartbeatTaskState | undefined> => {
+        const persisted = JSON.parse(await readFile(new HeartbeatStore(projectRoot).paths.state, 'utf-8')) as HeartbeatState;
+        return persisted.tasks['inspect-docs'];
+      };
+      // A gateway that records every id it is asked to resolve and answers with a
+      // fixed verdict, so a test can assert BOTH the verdict's effect and whether
+      // the gateway was consulted at all (expiry/mint must short-circuit it).
+      const trackingGateway = (verdict: HeartbeatApprovalResolution): { gateway: HeartbeatApprovalGateway; calls: string[] } => {
+        const calls: string[] = [];
+        return { calls, gateway: { async resolve(approvalId: string): Promise<HeartbeatApprovalResolution> { calls.push(approvalId); return verdict; } } };
+      };
+
+      // SI-10 + SI-9 — a granted approval executes one tick later, then the next
+      // due tick must mint a FRESH approval (the grant is single-shot).
+      {
+        const approveRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-approve-'));
+        const { gateway, calls } = trackingGateway('approved');
+        try {
+          // T0 — first sight of a due task: no approval exists yet, so one is minted
+          // and the tick halts at needs_user_action WITHOUT consulting the gateway.
+          const t0 = await runHeartbeatDryRunTick({ projectRoot: approveRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+          assert.equal(t0.tasks[0]!.status, 'needs_user_action', 'T0 mints an approval and awaits the user');
+          assert.equal(t0.status, 'dry_run_completed', 'T0 is a dry run: a mint executes nothing');
+          assert.equal(t0.safety.autonomousActionsExecuted, false, 'T0 executes nothing');
+          assert.equal(calls.length, 0, 'minting a fresh approval never consults the gateway');
+          const s0 = await taskStateOf(approveRoot);
+          const firstId = s0!.pendingApprovalId;
+          assert.ok(firstId !== undefined && firstId.startsWith('hb-appr-'), 'T0 persists a synthetic hb-appr- approval id');
+          assert.equal(s0!.pendingApprovalAt, '2026-03-01T00:00:00.000Z', 'the pending approval is stamped with the injected clock');
+          assert.equal(s0!.lastExecStatus, 'needs_user_action', 'T0 records the awaiting-user execution status');
+          assert.equal(s0!.lastRunAt, undefined, 'T0 never marks a run');
+
+          // T1 — the gateway now grants the pending id: all gates open, the task
+          // executes, and the pending request is cleared.
+          const t1 = await runHeartbeatDryRunTick({ projectRoot: approveRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:01:00.000Z') });
+          assert.equal(t1.tasks[0]!.status, 'executed', 'T1 executes once the approval is granted');
+          assert.equal(t1.status, 'executed', 'T1 tick status is executed');
+          assert.equal(t1.dryRun, false, 'an executed tick is not a dry run');
+          assert.equal(t1.safety.autonomousActionsExecuted, true, 'T1 records an autonomous action');
+          assert.deepEqual(calls, [firstId], 'T1 resolves exactly the pending approval id, once');
+          const s1 = await taskStateOf(approveRoot);
+          assert.equal(s1!.pendingApprovalId, undefined, 'T1 clears the pending approval after granting');
+          assert.equal(s1!.lastExecStatus, 'executed', 'T1 records an executed status');
+          assert.equal(s1!.lastExecAt, '2026-03-01T00:01:00.000Z', 'lastExecAt uses the injected clock');
+          assert.equal(s1!.lastRunAt, '2026-03-01T00:01:00.000Z', 'lastRunAt uses the injected clock');
+          assert.equal(s1!.lastApprovalId, firstId, 'the granted approval id is kept for the audit trail');
+
+          // T2 — one interval later the task is due again; the prior grant is spent,
+          // so a NEW approval is minted (SI-9) without re-consulting the gateway.
+          const t2 = await runHeartbeatDryRunTick({ projectRoot: approveRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T01:02:00.000Z') });
+          assert.equal(t2.tasks[0]!.status, 'needs_user_action', 'T2 re-requests approval for the next run');
+          assert.equal(t2.safety.autonomousActionsExecuted, false, 'T2 executes nothing: the grant was single-shot');
+          assert.equal(calls.length, 1, 'a re-request mints anew and never reuses the spent grant');
+          const s2 = await taskStateOf(approveRoot);
+          assert.ok(s2!.pendingApprovalId !== undefined && s2!.pendingApprovalId !== firstId, 'T2 mints a fresh approval id, distinct from the spent one');
+          assert.equal(s2!.lastExecAt, '2026-03-01T00:01:00.000Z', 'the prior execution timestamp is preserved across the re-request');
+          assert.equal(s2!.lastRunAt, '2026-03-01T00:01:00.000Z', 'the prior run timestamp is preserved');
+          assert.equal(s2!.lastApprovalId, firstId, 'the prior granted approval id remains in the audit trail');
+          assert.equal(s2!.lastExecStatus, 'needs_user_action', 'T2 returns to awaiting-user status');
+        } finally {
+          await rm(approveRoot, { recursive: true, force: true });
+        }
+      }
+
+      // A denied approval blocks the task and discards the request (no execution).
+      {
+        const denyRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-deny-'));
+        const { gateway, calls } = trackingGateway('denied');
+        try {
+          await runHeartbeatDryRunTick({ projectRoot: denyRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+          const deniedId = (await taskStateOf(denyRoot))!.pendingApprovalId;
+          const blockedTick = await runHeartbeatDryRunTick({ projectRoot: denyRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:05:00.000Z') });
+          assert.equal(blockedTick.tasks[0]!.status, 'blocked', 'a denied approval blocks the task');
+          assert.equal(blockedTick.status, 'blocked', 'the tick status reflects the block');
+          assert.equal(blockedTick.safety.autonomousActionsExecuted, false, 'a denied task executes nothing');
+          assert.equal(blockedTick.counts.blocked, 1, 'the denied task is counted blocked');
+          assert.deepEqual(calls, [deniedId], 'the denial resolves exactly the pending id, once');
+          const denyState = await taskStateOf(denyRoot);
+          assert.equal(denyState!.pendingApprovalId, undefined, 'a denial discards the pending request');
+          assert.equal(denyState!.lastExecStatus, 'refused', 'a denial is recorded as a refused execution');
+          assert.equal(denyState!.lastApprovalId, deniedId, 'the denied id is retained for the audit trail');
+          assert.equal(denyState!.lastExecAt, undefined, 'a denied task never stamps an execution time');
+        } finally {
+          await rm(denyRoot, { recursive: true, force: true });
+        }
+      }
+
+      // A pending approval older than the 24h TTL expires — even when the gateway
+      // WOULD grant it. Expiry is decided before the gateway, which is bypassed.
+      {
+        const expireRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-expire-'));
+        const { gateway, calls } = trackingGateway('approved');
+        try {
+          await runHeartbeatDryRunTick({ projectRoot: expireRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+          const expiredTick = await runHeartbeatDryRunTick({ projectRoot: expireRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-02T01:00:00.000Z') });
+          assert.equal(expiredTick.tasks[0]!.status, 'needs_user_action', 'an expired approval returns to awaiting-user');
+          assert.equal(expiredTick.status, 'dry_run_completed', 'an expiry executes nothing');
+          assert.equal(calls.length, 0, 'expiry short-circuits BEFORE the gateway, which is never consulted');
+          const expireState = await taskStateOf(expireRoot);
+          assert.equal(expireState!.pendingApprovalId, undefined, 'an expired approval is reset');
+          assert.equal(expireState!.lastExecStatus, 'needs_user_action', 'an expiry records awaiting-user, not executed');
+          assert.equal(expireState!.lastExecAt, undefined, 'an expired task never executes');
+        } finally {
+          await rm(expireRoot, { recursive: true, force: true });
+        }
+      }
+
+      // SI-1 — with the master flag OFF the approval gateway is never consulted and
+      // the task stays 'due': byte-identical to V2 even with a gateway injected.
+      {
+        const offRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-flags-off-'));
+        const offFlags: HeartbeatExecutionFlags = { heartbeatExec: false, liveLlm: true, writeTools: true };
+        const { gateway, calls } = trackingGateway('approved');
+        try {
+          const parityTick = await runHeartbeatDryRunTick({ projectRoot: offRoot, config: execConfig, flags: offFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+          assert.equal(parityTick.tasks[0]!.status, 'due', 'flags off leaves the task due (V2 parity)');
+          assert.equal(parityTick.status, 'dry_run_completed', 'flags off completes a dry run');
+          assert.equal(parityTick.dryRun, true, 'flags off is a dry run');
+          assert.equal(parityTick.counts.due, 1, 'the inspection task is counted due');
+          assert.equal(parityTick.safety.autonomousActionsExecuted, false, 'flags off executes nothing');
+          assert.equal(calls.length, 0, 'flags off never consults the approval gateway');
+          const offState = await taskStateOf(offRoot);
+          assert.equal(offState!.pendingApprovalId, undefined, 'flags off mints no approval');
+          assert.equal(offState!.lastExecStatus, undefined, 'flags off writes no execution bookkeeping (SI-1)');
+          assert.equal(offState!.lastExecAt, undefined, 'flags off stamps no execution time');
+        } finally {
+          await rm(offRoot, { recursive: true, force: true });
+        }
+      }
+
+      // The read-only `nova heartbeat approvals` CLI surfaces the persisted ledger
+      // and NEVER writes state (byte-identical before/after) nor decides anything.
+      {
+        const cliRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-cli-'));
+        try {
+          await mkdir(join(cliRoot, '.nova'), { recursive: true });
+          await writeFile(projectConfigPath(cliRoot), JSON.stringify({
+            schemaVersion: 1,
+            heartbeat: { enabled: true, tasks: [{ id: 'inspect-docs', name: 'Inspect docs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } }] },
+          }, null, 2), 'utf-8');
+          const cliStore = new HeartbeatStore(cliRoot);
+          await cliStore.ensure();
+          const seededId = 'hb-appr-12345678-1234-4123-8123-1234567890ab';
+          const seededState: HeartbeatState = {
+            schemaVersion: HEARTBEAT_SCHEMA_VERSION,
+            heartbeatId: 'heartbeat_cli',
+            enabled: true,
+            updatedAt: '2026-03-01T00:00:00.000Z',
+            tasks: { 'inspect-docs': { lastDryRunAt: '2026-03-01T00:00:00.000Z', lastStatus: 'needs_user_action', pendingApprovalId: seededId, pendingApprovalAt: '2026-03-01T00:00:00.000Z', lastExecStatus: 'needs_user_action' } },
+          };
+          await writeFile(cliStore.paths.state, `${JSON.stringify(seededState, null, 2)}\n`, 'utf-8');
+          const before = await readFile(cliStore.paths.state, 'utf-8');
+          const result = runNova(['heartbeat', 'approvals'], cliRoot);
+          assert.equal(result.status, 0, `the approvals CLI exits 0: ${result.stderr}`);
+          const ledger = JSON.parse(result.stdout ?? '{}') as { ok: boolean; count: number; approvals: Array<{ taskId: string; name?: string; pending: boolean; pendingApprovalId?: string; lastExecStatus?: string }> };
+          assert.equal(ledger.ok, true, 'the approvals CLI reports ok');
+          assert.equal(ledger.count, 1, 'the seeded pending approval is listed');
+          assert.equal(ledger.approvals[0]!.taskId, 'inspect-docs', 'the ledger entry is the seeded task');
+          assert.equal(ledger.approvals[0]!.pending, true, 'the ledger entry is pending');
+          assert.equal(ledger.approvals[0]!.pendingApprovalId, seededId, 'the pending approval id survives redaction intact');
+          assert.equal(ledger.approvals[0]!.lastExecStatus, 'needs_user_action', 'the ledger surfaces the execution status');
+          assert.match(result.stdout ?? '', new RegExp(seededId), 'the approval id is printed verbatim (short enough to survive redaction)');
+          assert.equal(await readFile(cliStore.paths.state, 'utf-8'), before, 'the approvals CLI never mutates state.json');
+        } finally {
+          await rm(cliRoot, { recursive: true, force: true });
+        }
       }
     }
 

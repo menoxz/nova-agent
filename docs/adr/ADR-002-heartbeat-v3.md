@@ -422,3 +422,43 @@ npm run heartbeat:smoke      # extended: gate truth-table + schema v1→v2 migra
 1. With **all flags unset**, a fixed-config tick over `ok` tasks emits a report **byte-identical to V2** (`dryRun:true`, every `safety.*` flag false, status `dry_run_completed`).
 2. With `NOVA_ENABLE_HEARTBEAT_EXEC=1` (and required capability flags) but `probeExecutionSandbox()===null`, every `ok` task yields `decideHeartbeatExecution → mode='refused'`, `decidedBy='gate-c-sandbox'` (truth-table rows 5/7).
 3. The reworked static guard passes over **all** `src/heartbeat/**` (no spawn/timer/`decide`).
+
+---
+
+## 13. Slice 2 implementation addendum — approval lifecycle across ticks (2026-06-23)
+
+> **Status:** Slice 2 implemented and verified **OFFLINE**. Realizes §D7 (cross-tick handshake), Open-Q3 (24 h expiry ⇒ `needs_user_action`), and Open-Q4 (read-only `nova heartbeat approvals`). Production **Gate C stays `null` ⇒ fail-closed is preserved**: no real execution ships. No change to the §D1 truth table, the §D8 schema, or any default behaviour; package stays `0.1.0` with zero new dependencies.
+
+### 13.1 Approval gateway port (Gate B seam) — `src/heartbeat/executor.ts`
+
+An injectable port makes the resolve step offline-testable while keeping Nova out of the decision:
+
+```ts
+export type HeartbeatApprovalResolution = Exclude<HeartbeatApprovalStatus, 'none'>; // 'pending'|'approved'|'denied'|'expired'
+export interface HeartbeatApprovalGateway { resolve(approvalId: string): Promise<HeartbeatApprovalResolution>; }
+export function createReadOnlyApprovalGateway(): HeartbeatApprovalGateway; // production stub: always 'pending', zero I/O
+```
+
+The production gateway is a **read-only stub** — `resolve()` returns `'pending'` and performs no I/O, no spawn, no timer — because the session/approval-manager bridge is **deferred to Slice 4**. It therefore passes the reworked §D5 guard, which now also sweeps `executor.ts`. **Heartbeat never calls `ApprovalManager.decide`**, asserted by an explicit `assert.doesNotMatch(executorSource, /\.decide\(/)` (SI-3).
+
+### 13.2 Pure lifecycle (mint → resolve → patch)
+
+- `mintHeartbeatApprovalId()` → `hb-appr-<randomUUID()>` (synthetic; never collides with session `appr_*` ids; short enough to survive report redaction intact).
+- `HEARTBEAT_APPROVAL_TTL_MS = 24 h`; `isHeartbeatApprovalExpired(pendingAt, now)` realizes Open-Q3.
+- `evaluateHeartbeatExecution(...)` resolves the persisted `pendingApprovalId` into a Gate-B `approval.status` with a **short-circuiting precedence**, each step skipping the next:
+  1. **no `pendingApprovalId`** ⇒ `'none'` (gateway **not** consulted) ⇒ mint a fresh approval, persist `pendingApprovalId` + `pendingApprovalAt`, report `needs_user_action`.
+  2. **pending and expired** ⇒ `'expired'` (gateway **not** consulted) ⇒ reset pending, report `needs_user_action` (re-request next tick).
+  3. **otherwise** ⇒ `gateway.resolve(pendingApprovalId)` ⇒ `approved` (→ §D1 row 8 candidate `execute`, still C-gated) / `denied` (→ `blocked`, request discarded) / `pending` (→ keep awaiting).
+- `applyHeartbeatApprovalPatch(...)` is the single pure state-transition writer (kinds: `executed` / `mint` / `await` / `reset` / `blocked` / `refused` / `none`), threading the injected `now` into every timestamp and clearing/retaining `pendingApprovalId` per kind.
+
+### 13.3 Runner wiring — `src/heartbeat/runner.ts`
+
+`runHeartbeatDryRunTick` gains injectable seams `flags? / sandboxAvailable? / approvalGateway? / now?`, each defaulting to its production value (`readHeartbeatExecutionFlags()`, the `null` probe, `createReadOnlyApprovalGateway()`, real wall clock). The Slice-1 hard-coded `approval: { status: 'none' }` is replaced by the resolved `{ status, approvalId }`. A `needs_user_action` task keeps the tick at `dry_run_completed` (single-shot, no daemon); execution can only occur on a **subsequent** externally-invoked tick, honouring `autoExecuteApprovedActions:false`.
+
+### 13.4 Read-only CLI (Open-Q4)
+
+`nova heartbeat approvals` (registered in `src/cli/index.ts`, documented in `src/cli/help.ts`) lists, per task, `pendingApprovalId` / `pendingApprovalAt` / `lastApprovalId` / `lastExecStatus` from `state.json`. It **reads only** — no `decide`, no state mutation (asserted byte-identical before/after) — surfacing the ids so the operator can `decide` out-of-band.
+
+### 13.5 Offline proof (added to `src/heartbeat/smoke.ts`)
+
+Five deterministic scenarios on a fixed `now` clock with a **tracking gateway** stub (records every id it is asked to resolve): (SI-10/SI-9) approve ⇒ execute one tick later ⇒ the next due tick mints a **fresh** id (the grant is single-shot); denied ⇒ `blocked`, pending discarded; pending +25 h ⇒ `expired` ⇒ `needs_user_action` with the gateway **never consulted** (expiry short-circuits Gate B); (SI-1) master flag off ⇒ task stays `due`, gateway never consulted, no execution bookkeeping written (V2 parity even with a gateway injected); the read-only CLI lists a seeded approval and leaves `state.json` byte-identical. `npm run check` exits 0 fully offline.

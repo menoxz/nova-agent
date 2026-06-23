@@ -4,6 +4,8 @@ Heartbeat V2 étend la première tranche V1 (ticks de planification **dry-run un
 
 > **V3 (Slice 1 — échafaudage *fail-closed*, désactivé par défaut).** Une première tranche V3 ajoute uniquement l'**échafaudage** d'un portail d'exécution à triple porte (`decideHeartbeatExecution`, fonction **pure**, sans I/O ni timer) : **aucune tâche n'est exécutée**. La sonde de sandbox d'exécution (`probeExecutionSandbox()`) renvoie **toujours `null`** pour toute la durée d'ADR-002 (la vraie sandbox arrive en Slice 3). Drapeau maître `NOVA_ENABLE_HEARTBEAT_EXEC` **absent** ⇒ comportement **octet-pour-octet identique à V2** (dry-run, tâche `due`) ; drapeau **présent** et aucune sandbox ⇒ le tick **échoue en sécurité** (`refused`, rien n'est exécuté, `lastRunAt` n'avance jamais). Le schéma d'état heartbeat passe de **1 à 2** (additif, lisible en avant : un état v1 se charge avec les nouveaux champs `undefined` puis est re-tamponné `schemaVersion: 2` à la prochaine écriture). Aucun daemon, planificateur, LLM/tool, réseau ni exécution réelle n'est ajouté. Détails : [`docs/adr/ADR-002-heartbeat-v3.md`](adr/ADR-002-heartbeat-v3.md).
 
+> **V3 (Slice 2 — cycle d'approbation inter-ticks, *OFFLINE*).** La deuxième tranche V3 câble la **Porte B** (approbation) à travers des ticks *single-shot*, sans qu'aucune exécution réelle n'ait lieu : la **Porte C de production reste `null` ⇒ *fail-closed* préservé**. Quand un tick voit une tâche `ok` éligible, il **génère** une approbation synthétique (`hb-appr-<uuid>`), persiste `pendingApprovalId` / `pendingApprovalAt` et s'arrête en `needs_user_action` — **Nova n'appelle jamais `decide`** ; l'opérateur tranche hors-bande. Au **tick suivant** (invoqué de l'extérieur), l'approbation persistée est résolue : `approved` débloque la Porte B (l'exécution réelle reste néanmoins **refusée** tant que la sandbox de production est absente — Slice 3), `denied` ⇒ `blocked` (demande jetée), et une approbation plus vieille que **24 h** ⇒ `expired` ⇒ re-demande (`needs_user_action`) **sans consulter la passerelle**. Une nouvelle commande **lecture seule** `nova heartbeat approvals` liste le registre (`pendingApprovalId` / `lastApprovalId` / `lastExecStatus`) sans jamais écrire l'état ni décider. Drapeau maître absent ⇒ toujours octet-pour-octet identique à V2 (la passerelle n'est même pas consultée). Détails : [`docs/adr/ADR-002-heartbeat-v3.md`](adr/ADR-002-heartbeat-v3.md) §13.
+
 ## Garanties (V1, préservées en V2)
 
 - Désactivé par défaut (`heartbeat.enabled` absent ou `false`).
@@ -24,6 +26,7 @@ nova heartbeat status
 nova heartbeat tasks
 nova heartbeat tick --dry-run
 nova heartbeat report latest
+nova heartbeat approvals
 ```
 
 `tick --dry-run` calcule les tâches `due`, `skipped`, `blocked` et `needs_user_action`, écrit un JSON et un Markdown report-safe dans `.nova/heartbeat/ticks/`, puis met à jour `.nova/heartbeat/state.json`. Un lock minimal `.nova/heartbeat/locks/heartbeat.lock` empêche deux ticks simultanés et est supprimé en `finally`, y compris après erreur contrôlée.
