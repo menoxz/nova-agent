@@ -82,6 +82,10 @@ async function searchInFile(
   return new Promise((resolve) => {
     let lineNum = 0;
     const lines: string[] = [];
+    // Parallel to `lines`: the true 1-based file line number captured at push time.
+    // This is what lets scattered/mid-file matches report the correct line instead
+    // of arithmetic derived from the final lineNum (valid only for end-of-file blocks).
+    const lineNos: number[] = [];
     let matchedLines = 0;
     let pendingBefore = 0;
 
@@ -106,9 +110,11 @@ async function searchInFile(
       if (isMatch) {
         matchedLines++;
         lines.push(line);
+        lineNos.push(lineNum);
         pendingBefore = (after ?? 0);
       } else if (pendingBefore > 0 && before !== undefined) {
         lines.push(line);
+        lineNos.push(lineNum);
         pendingBefore--;
       }
     });
@@ -125,7 +131,9 @@ async function searchInFile(
           const actualMatch = invert ? !regex.test(lines[matchIdx]) : regex.test(lines[matchIdx]);
           // For context output, we add all lines including context
           if (matches.length < maxResults) {
-            matches.push({ file: filePath, line: lineNum - lines.length + matchIdx + 1, content: line });
+            // Emit the line number captured when this line was read — not arithmetic
+            // off the final lineNum, which was only correct for end-of-file matches.
+            matches.push({ file: filePath, line: lineNos[matchIdx], content: line });
           }
           matchIdx++;
         }
