@@ -1,4 +1,5 @@
 import type { ProviderDoctorReport, ProviderProfile, ProviderRuntimeResolution, ResolvedProviderProfile } from './types.js';
+import { protocolForProvider } from './protocol.js';
 
 export const DEFAULT_PROVIDER_PROFILE_ID = 'openrouter-deepseek-v4-flash';
 
@@ -272,12 +273,19 @@ export function resolveProviderRuntime(input: {
   const provider = fieldOverridesAllowed ? env.LLM_PROVIDER || input.project?.llm?.provider || profile.provider : profile.provider;
   const baseUrl = fieldOverridesAllowed ? env.LLM_BASE_URL || input.project?.llm?.baseUrl || profile.baseUrl : profile.baseUrl;
   const model = fieldOverridesAllowed ? env.LLM_MODEL || input.project?.llm?.model || profile.model : profile.model;
+  // Protocol MUST be derived from the *effective* provider, not inherited from the
+  // base profile via the spread below. Otherwise an override (e.g. provider=openmodel
+  // on the default openrouter profile) would advertise the base profile's stale
+  // protocol while createModel selects a different adapter. Single source of truth:
+  // protocolForProvider (src/providers/protocol.ts), shared with createModel.
+  const protocol = protocolForProvider(provider);
   const primary: ResolvedProviderProfile = {
     ...profile,
     id: knownProfile ? profileId : profile.id,
     provider,
     baseUrl,
     model,
+    protocol,
     source: knownProfile && provider === profile.provider && baseUrl === profile.baseUrl && model === profile.model ? 'builtin-profile' : 'explicit-config',
   };
 

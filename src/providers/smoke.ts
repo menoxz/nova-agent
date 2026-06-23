@@ -7,8 +7,10 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime, getProviderDirectoryEntry, listProviderDirectory, providerDirectorySummary } from './index.js';
+import { DEFAULT_PROVIDER_PROFILE_ID, getProviderProfile, providerDoctor, resolveProviderRuntime, getProviderDirectoryEntry, listProviderDirectory, providerDirectorySummary, protocolForProvider, OPENAI_COMPATIBLE_PROVIDERS } from './index.js';
 import { listProviderProfiles } from './profiles.js';
+import { createModel } from '../llm/provider.js';
+import type { ProviderProtocol } from './types.js';
 
 const repoRoot = process.cwd();
 const require = createRequire(import.meta.url);
@@ -21,6 +23,21 @@ function runNova(args: string[], env: NodeJS.ProcessEnv = {}, cwd = repoRoot): {
     env: { ...process.env, LLM_API_KEY: '', LLM_PROVIDER: '', LLM_BASE_URL: '', LLM_MODEL: '', NOVA_PROVIDER_PROFILE: '', NOVA_LLM_PROVIDER_PROFILE: '', NOVA_PROVIDER_FALLBACK: '', NOVA_LLM_FALLBACK: '', ...env },
   });
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+/**
+ * Map the adapter that `createModel` actually instantiates back to its wire
+ * protocol. This proves the ADVERTISED protocol (`providers doctor`) equals the
+ * protocol the EXECUTED adapter speaks — the exact invariant the openmodel
+ * advertised-vs-executed bug violated. Offline: no network call is made by
+ * constructing the model.
+ */
+function protocolOfCreatedAdapter(provider: string): ProviderProtocol {
+  const model = createModel({ provider, baseUrl: 'https://example.test/v1', apiKey: 'offline-smoke', model: 'smoke-model' });
+  const adapterId = (model as { provider?: string }).provider ?? '';
+  if (adapterId.startsWith('openai')) return 'openai-chat-completions';
+  if (adapterId.startsWith('anthropic')) return 'anthropic-messages';
+  throw new Error(`createModel returned an unrecognized adapter provider id: "${adapterId}"`);
 }
 
 async function main(): Promise<void> {
@@ -61,6 +78,38 @@ async function main(): Promise<void> {
   const invalidUrl = providerDoctor(resolveProviderRuntime({ env: { LLM_BASE_URL: 'https://user:password@' } }));
   assert.doesNotMatch(JSON.stringify(invalidUrl), /user:password/, 'invalid baseUrl display redacts credentials');
   assert.ok(getProviderDirectoryEntry('OpenRouter'), 'directory lookup supports exact name case-insensitively');
+
+  // ── Protocol single-source-of-truth regression ──────────────────────────────
+  // protocolForProvider (src/providers/protocol.ts) is the one mapping that both
+  // `createModel`'s adapter selection and the doctor/profile resolution derive
+  // from. These assertions fail if either side diverges.
+  assert.equal(OPENAI_COMPATIBLE_PROVIDERS.has('openmodel'), false, 'openmodel is NOT OpenAI-compatible (must route to anthropic-messages)');
+  assert.equal(protocolForProvider('openmodel'), 'anthropic-messages', 'openmodel maps to anthropic-messages');
+  assert.equal(protocolForProvider('openrouter'), 'openai-chat-completions', 'openrouter maps to openai-chat-completions');
+
+  // Catalog invariant: every built-in profile's declared protocol matches the
+  // shared mapping, so a newly added profile cannot silently advertise a wrong protocol.
+  for (const profile of profiles) {
+    assert.equal(profile.protocol, protocolForProvider(profile.provider), `built-in profile ${profile.id} declares the protocol protocolForProvider(${profile.provider}) resolves`);
+  }
+
+  // Advertised == executed: for each supported provider string the protocol
+  // protocolForProvider advertises equals the protocol the adapter createModel
+  // actually instantiates speaks.
+  for (const provider of ['openai', 'openrouter', 'deepseek', 'anthropic', 'openmodel', 'totally-unknown-provider']) {
+    assert.equal(protocolForProvider(provider), protocolOfCreatedAdapter(provider), `createModel adapter protocol matches advertised protocol for provider="${provider}"`);
+  }
+
+  // Bug #3 regression: an openmodel override on the DEFAULT openrouter profile
+  // must advertise anthropic-messages (the adapter createModel runs), NOT the base
+  // openrouter profile's stale openai-chat-completions inherited via the spread.
+  const overrideResolved = resolveProviderRuntime({ env: { LLM_PROVIDER: 'openmodel', LLM_BASE_URL: 'https://api.openmodel.ai/v1', LLM_MODEL: 'deepseek-v4-flash' } });
+  assert.equal(overrideResolved.primary.id, DEFAULT_PROVIDER_PROFILE_ID, 'override starts from the default openrouter profile');
+  assert.equal(overrideResolved.primary.provider, 'openmodel', 'override switches the effective provider to openmodel');
+  assert.equal(overrideResolved.primary.protocol, 'anthropic-messages', 'resolved protocol is recomputed from the effective provider, not the stale base profile');
+  const overrideDoctor = providerDoctor(overrideResolved, { LLM_API_KEY: '' });
+  assert.equal(overrideDoctor.primary.protocol, 'anthropic-messages', 'doctor advertises anthropic-messages for the openmodel override');
+  assert.equal(overrideDoctor.primary.protocol, protocolOfCreatedAdapter(overrideResolved.primary.provider), 'doctor advertised protocol == executed createModel adapter protocol for the openmodel override');
 
   const list = runNova(['providers', 'list']);
   assert.equal(list.status, 0, `providers list exits 0: ${list.stderr}`);

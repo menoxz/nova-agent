@@ -8,7 +8,7 @@
  */
 
 import { generateText, streamText, stepCountIs } from 'ai';
-import type { ToolSet } from 'ai';
+import type { ToolSet, LanguageModel } from 'ai';
 import chalk from 'chalk';
 import { randomUUID } from 'node:crypto';
 
@@ -57,11 +57,11 @@ export class NovaAgent {
 
   private model: ReturnType<typeof createModel>;
 
-  constructor(config: AgentConfig, tools: ToolRegistry) {
+  constructor(config: AgentConfig, tools: ToolRegistry, model?: LanguageModel) {
     this.config = config;
     this.tools = tools;
     this.memory = new ConversationMemory();
-    this.model = createModel(config.llm);
+    this.model = model ?? createModel(config.llm);
   }
 
   /**
