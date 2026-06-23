@@ -1,6 +1,9 @@
 {
-  "name": "nova-agent",
+  "name": "@lux-tech/nova-agent",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Nova Agent — An autonomous general-purpose AI agent",
   "type": "module",
   "main": "dist/index.js",

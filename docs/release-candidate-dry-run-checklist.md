@@ -99,9 +99,9 @@ Class: external/global mutation.
 Typical authorized flow:
 
 1. from the repository, run `npm link`;
-2. optionally from a temporary consumer, run `npm link nova-agent`;
+2. optionally from a temporary consumer, run `npm link @lux-tech/nova-agent`;
 3. run `nova --help` and `nova --version`;
-4. cleanup with `npm unlink` in the consumer and `npm unlink -g nova-agent` or the platform-equivalent global unlink.
+4. cleanup with `npm unlink` in the consumer and `npm unlink -g @lux-tech/nova-agent` or the platform-equivalent global unlink.
 
 Side effects: changes global npm link state and may affect shell resolution of `nova`. Cleanup commands must be recorded. Do not use `npm link` as part of the pure dry-run checklist.
 

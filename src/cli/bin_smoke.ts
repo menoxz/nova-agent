@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   assert.doesNotMatch((direct.stderr ?? '') + (direct.stdout ?? ''), /LLM_API_KEY not set/, 'direct bin help does not require LLM key');
   const directVersion = run(process.execPath, ['bin/nova.js', '--version']);
   assert.equal(directVersion.status, 0, `direct bin version exits 0: ${directVersion.stderr}`);
-  assert.equal((directVersion.stdout ?? '').trim(), `nova-agent ${packageJson.version}`, 'direct bin prints package version');
+  assert.equal((directVersion.stdout ?? '').trim(), `@lux-tech/nova-agent ${packageJson.version}`, 'direct bin prints package version');
   assert.doesNotMatch((directVersion.stderr ?? '') + (directVersion.stdout ?? ''), /LLM_API_KEY not set/, 'direct bin version does not require LLM key');
 
   const build = run('npm', ['run', 'build'], process.cwd(), process.platform === 'win32');
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   assert.match(builtGlobalHelp.stdout ?? '', /--version, -v/, 'built bin help documents version flag');
   const builtVersion = run(process.execPath, ['bin/nova.js', 'version']);
   assert.equal(builtVersion.status, 0, `built bin version exits 0: ${builtVersion.stderr}`);
-  assert.equal((builtVersion.stdout ?? '').trim(), `nova-agent ${packageJson.version}`, 'built bin prints package version');
+  assert.equal((builtVersion.stdout ?? '').trim(), `@lux-tech/nova-agent ${packageJson.version}`, 'built bin prints package version');
 
   const root = await mkdtemp(join(tmpdir(), 'nova-bin-smoke-'));
   try {
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     assert.doesNotMatch((linked.stderr ?? '') + (linked.stdout ?? ''), /LLM_API_KEY not set/, 'linked nova help does not require LLM key');
     const linkedVersion = run('nova', ['--version'], root, process.platform === 'win32');
     assert.equal(linkedVersion.status, 0, `linked nova --version exits 0: ${linkedVersion.stderr}`);
-    assert.equal((linkedVersion.stdout ?? '').trim(), `nova-agent ${packageJson.version}`, 'linked nova prints package version');
+    assert.equal((linkedVersion.stdout ?? '').trim(), `@lux-tech/nova-agent ${packageJson.version}`, 'linked nova prints package version');
     assert.doesNotMatch((linkedVersion.stderr ?? '') + (linkedVersion.stdout ?? ''), /LLM_API_KEY not set/, 'linked nova version does not require LLM key');
   } finally {
     await rm(root, { recursive: true, force: true });

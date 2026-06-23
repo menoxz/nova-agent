@@ -24,7 +24,7 @@ function assertOkHelp(args: string[], expected: string[]): void {
 function assertOkVersion(args: string[], expectedVersion: string): void {
   const result = runNova(args);
   assert.equal(result.status, 0, `${args.join(' ')} should exit 0: ${result.stderr}`);
-  assert.equal(result.stdout.trim(), `nova-agent ${expectedVersion}`, `${args.join(' ')} should print package version`);
+  assert.equal(result.stdout.trim(), `@lux-tech/nova-agent ${expectedVersion}`, `${args.join(' ')} should print package version`);
   assert.doesNotMatch(result.stderr + result.stdout, /LLM_API_KEY not set/, `${args.join(' ')} must not require LLM_API_KEY`);
 }
 
