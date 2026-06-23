@@ -1,0 +1,43 @@
+# ----------------------------------------------------------------------------
+# INERT WORKFLOW — does nothing until the repository secret `NPM_TOKEN` is set.
+#
+# This workflow only runs when a tag matching `v*` is pushed. The publish step
+# authenticates with `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`. Until that
+# repository secret is configured (Settings → Secrets and variables → Actions),
+# `npm publish` has no valid credential and the release stays inert / no-op.
+# The token is NOT stored in this file — only referenced via the secret.
+# ----------------------------------------------------------------------------
+name: Release (npm publish)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    # INERT until repo secret NPM_TOKEN is configured (see header comment above).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

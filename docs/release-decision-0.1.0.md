@@ -13,6 +13,34 @@
 
 ---
 
+## 0. Execution record — 2026-06-23 (post-gate update)
+
+> **STATUS UPDATE — the GO decision below was EXECUTED.** The metadata table above
+> and §§1–8 capture the *read-only gate state at decision time* (2026-06-22, before
+> any release action) and are retained verbatim for history. The lines stating
+> "no release action executed", "Existing git tags: none", and "no tag, publish,
+> push, or commit was performed by this gate" describe that gate — **not** the
+> current state.
+
+| Field | Value |
+|---|---|
+| Executed on | 2026-06-23 |
+| Package published | `@lux-tech/nova-agent@0.1.0` |
+| Registry | npm public registry (`https://registry.npmjs.org`) |
+| Access | public |
+| Annotated git tag | `v0.1.0` — created and pushed to origin |
+| Published commit | `6e56e0a` |
+| Repository | https://github.com/menoxz/nova-agent |
+
+The publish and tag are **live and effectively irreversible** (see §7 — `npm publish`
+cannot be undone via a same-version republish). Post-release hygiene added CI/CD
+GitHub Actions workflows: `.github/workflows/ci.yml` (typecheck + build + offline
+`check` on push to `main` and pull requests) and `.github/workflows/release.yml`
+(npm publish on `v*` tags). The release workflow stays **inert** until the repository
+secret `NPM_TOKEN` is configured.
+
+---
+
 ## 1. Summary verdict
 
 > ## ✅ RELEASE DECISION: GO

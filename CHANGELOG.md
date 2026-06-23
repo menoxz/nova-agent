@@ -4,6 +4,12 @@ All notable Nova Agent changes are documented here. Nova uses the version declar
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- CI/CD GitHub Actions pipeline added — `.github/workflows/ci.yml` (typecheck, build, and the offline smoke + mock eval `check` gate on push to `main` and on pull requests) and `.github/workflows/release.yml` (npm publish on `v*` tags, inert until the `NPM_TOKEN` repository secret is configured).
+
 ## 0.1.0 — Initial local product baseline
 
 First tagged-worthy release of Nova Agent: a local, safety-first autonomous agent baseline. All capabilities run locally with read-only-friendly defaults — no npm publish, remote push, git tag, provider switching, or background daemon is part of this release.

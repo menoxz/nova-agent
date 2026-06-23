@@ -36,8 +36,8 @@
 
 ## 🎯 Itération 4 — Prochaine
 
-- [ ] **search_web** — recherche web via API
-- [ ] **git_status / git_diff** — intégration Git
+- [x] **search_web** — recherche web via API (`src/tools/builtin/web_search.ts`)
+- [x] **git_status / git_diff** — intégration Git (`src/tools/builtin/git.ts`)
 - [x] **Context Builder V1** — composition du contexte agent avec mémoire user/org éditable, mémoire projet, capacités tools/skills/MCP, budget token et justifications (`docs/context-builder.md`, `src/context`)
 - [x] **Session + Run Manager V1 foundations** — sessions/runs persistés localement, planner minimal, budgets/coûts, approvals et rapports metadata-only (`docs/session-run-manager.md`, `src/session`)
 - [x] **Approval Manager V1 foundations** — policy ask -> approval request, approvals list/approve/deny, CLI runtime minimale sans auto-exécution risquée (`docs/approval-manager.md`, `src/approval`)
@@ -110,7 +110,7 @@
 - [ ] **Tests**
   - Tests unitaires pour chaque outil
   - Tests d'intégration pour la boucle ReAct
-  - CI/CD avec GitHub Actions
+  - [x] CI/CD avec GitHub Actions — `.github/workflows/ci.yml` + `.github/workflows/release.yml`
 
 - [x] **LSP (Language Server Protocol) V1**
   - [x] Serveur LSP stdio read-only (`src/lsp/server.ts`)

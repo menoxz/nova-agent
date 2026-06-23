@@ -1,5 +1,14 @@
 # Project Status
 
+## Release v0.1.0 Published + CI/CD — 2026-06-23
+
+Status: published and tagged.
+
+- Published `@lux-tech/nova-agent@0.1.0` to the npm public registry on 2026-06-23 (published commit `6e56e0a`).
+- Created and pushed the annotated git tag `v0.1.0`; repository: https://github.com/menoxz/nova-agent.
+- CI/CD now added: `.github/workflows/ci.yml` (CI — typecheck, build, and offline smoke + mock eval `check` on push to `main` and on pull requests) and `.github/workflows/release.yml` (npm publish on `v*` tags, inert until the `NPM_TOKEN` repository secret is configured).
+- See `docs/release-decision-0.1.0.md` §0 (Execution record) for the full publish/tag details.
+
 ## Memory/Knowledge V1 — 2026-06-21
 
 Status: implemented locally.
