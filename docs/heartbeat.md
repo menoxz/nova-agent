@@ -57,6 +57,39 @@ Types reconnus : `inspection`, `eval`, `batch-dry-run`, `maintenance`. Ils sont 
 
 Les champs `id`, `name`, `kind`, `action`, `reason` et les chemins de rapport sont redacted au moment des sorties/rapports. L'état interne peut conserver les ids validés nécessaires à la planification, mais les contenus secret-like sont rejetés dès la lecture de `.nova/config.json`.
 
+## Planning & Automation (V2)
+
+V2 ajoute deux commandes **purement consultatives**. Elles n'exécutent aucune tâche, n'appellent ni LLM ni tool, ne touchent pas au réseau et **n'installent jamais de planificateur**. Heartbeat reste désactivé par défaut.
+
+### `nova heartbeat plan`
+
+```bash
+nova heartbeat plan [--now <iso>] [--horizon <durée>] [--max <n>] [--json]
+```
+
+Projection **lecture seule** des occurrences qui *seraient* dues dans l'horizon. La commande ne modifie jamais `.nova/heartbeat/state.json` (octet-pour-octet identique avant/après).
+
+- `--now <iso>` : horloge injectée (ISO-8601). Sans valeur, l'heure courante est utilisée. Fournir `--now` rend la sortie **déterministe**.
+- `--horizon <durée>` : fenêtre de projection (`30m`, `6h`, `7d`… ; défaut `6h`).
+- `--max <n>` : plafond d'occurrences par tâche (défaut `50`).
+- `--json` : sortie JSON report-safe au lieu du résumé humain.
+
+Le `planId` est un sha256 déterministe des entrées (`now`, horizon, max, timezone, digest de config) : entrées identiques ⇒ `planId` identique et occurrences identiques. Chaque plan redacted est persisté sous `.nova/heartbeat/plans/<planId>.{json,md}`. Une tâche `interval` active produit des occurrences `projected` même quand le heartbeat est désactivé (`preview: true`).
+
+### `nova heartbeat automation export`
+
+```bash
+nova heartbeat automation export --target <windows-task|systemd|cron> [--every <durée> | --at <HH:MM>] [--stdout] [--out <relpath>] [--json]
+```
+
+Génère un **manifeste opérateur inerte** (`installed: false`) que vous pouvez relire puis installer **à la main** si vous le décidez. Le manifeste n'invoque qu'une seule commande lecture seule : `nova heartbeat tick --dry-run`. Il utilise les placeholders `<PROJECT_DIR>` / `<NOVA_BIN>` ; aucun chemin absolu ni secret n'est écrit, et chaque manifeste porte la bannière « Nova does not schedule itself ».
+
+- `--at <HH:MM>` (quotidien) a priorité sur `--every <durée>` (intervalle) ; sans cadence, une valeur par défaut sûre est dérivée de la config.
+- `--stdout` imprime le manifeste **sans écrire de fichier**.
+- `--out <relpath>` doit rester **sous `.nova/heartbeat/`**. Un chemin qui s'en échappe ⇒ sortie 1, **aucun fichier écrit**, et le message d'erreur ne divulgue aucun chemin absolu.
+
+Sans `--stdout` ni `--out`, le manifeste est écrit sous `.nova/heartbeat/automation/<target>.txt`.
+
 ## Validation
 
 ```bash

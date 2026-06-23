@@ -1,4 +1,5 @@
-import type { HeartbeatConfig, HeartbeatTaskConfig, HeartbeatTaskAction, HeartbeatTaskKind, HeartbeatScheduleConfig } from './types.js';
+import type { HeartbeatConfig, HeartbeatTaskConfig, HeartbeatTaskAction, HeartbeatTaskKind, HeartbeatScheduleConfig, HeartbeatQuietWindow } from './types.js';
+import { parseClockHHMM, validateTimezone } from './schedule.js';
 
 const SAFE_KINDS = new Set(['inspection', 'eval', 'batch-dry-run', 'maintenance']);
 const SAFE_ACTIONS = new Set(['inspect', 'eval', 'batch-dry-run', 'maintain']);
@@ -7,6 +8,8 @@ const DANGEROUS = new Set(['shell', 'write', 'git', 'network', 'memory-write', '
 export interface ResolvedHeartbeatConfig {
   enabled: boolean;
   tasks: HeartbeatTaskConfig[];
+  timezone: string;
+  quietHours: HeartbeatQuietWindow[];
 }
 
 export interface HeartbeatSafetyDecision {
@@ -15,10 +18,24 @@ export interface HeartbeatSafetyDecision {
 }
 
 export function resolveHeartbeatConfig(config?: HeartbeatConfig): ResolvedHeartbeatConfig {
+  const timezone = config?.timezone && validateTimezone(config.timezone) ? config.timezone : 'UTC';
+  const quietHours = (config?.quietHours ?? []).filter(isValidQuietWindow);
   return {
     enabled: config?.enabled === true,
     tasks: config?.tasks ?? [],
+    timezone,
+    quietHours,
   };
+}
+
+function isValidQuietWindow(window: HeartbeatQuietWindow): boolean {
+  try {
+    parseClockHHMM(window.start);
+    parseClockHHMM(window.end);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeHeartbeatSchedule(schedule?: HeartbeatScheduleConfig): HeartbeatScheduleConfig {

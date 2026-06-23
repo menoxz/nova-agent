@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { AgentConfig } from '../types.js';
 import { containsSecretLike } from '../memory/redaction.js';
 import { assertPathUnderDir, projectNovaDir } from '../utils/safe_io.js';
+import { validateTimezone } from '../heartbeat/schedule.js';
 
 export const PROJECT_CONFIG_SCHEMA_VERSION = 1 as const;
 export const PROJECT_CONFIG_FILENAME = 'config.json';
@@ -27,6 +28,7 @@ const heartbeatTaskSchema = z.object({
   schedule: z.object({
     type: z.enum(['manual', 'interval']),
     everyMinutes: z.number().int().positive().max(525_600).optional(),
+    anchor: z.string().datetime().optional(),
   }).strict().optional(),
 }).strict().superRefine((task, ctx) => {
   if (task.schedule?.type === 'interval' && task.schedule.everyMinutes === undefined) {
@@ -34,6 +36,9 @@ const heartbeatTaskSchema = z.object({
   }
   if (task.schedule?.type === 'manual' && task.schedule.everyMinutes !== undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['schedule', 'everyMinutes'], message: 'manual schedule must not set everyMinutes' });
+  }
+  if (task.schedule?.type === 'manual' && task.schedule.anchor !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['schedule', 'anchor'], message: 'manual schedule must not set anchor' });
   }
 });
 
@@ -137,6 +142,11 @@ export const projectConfigSchema = z.object({
   heartbeat: z.object({
     enabled: z.boolean().optional(),
     tasks: z.array(heartbeatTaskSchema).max(100).optional(),
+    timezone: z.string().min(1).refine(validateTimezone, 'invalid IANA timezone').optional(),
+    quietHours: z.array(z.object({
+      start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM 24-hour format.'),
+      end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM 24-hour format.'),
+    }).strict()).max(24).optional(),
   }).strict().optional().superRefine((heartbeat, ctx) => {
     const seen = new Set<string>();
     for (const [index, task] of (heartbeat?.tasks ?? []).entries()) {

@@ -2,8 +2,15 @@ import { mkdir, open, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import { HEARTBEAT_SCHEMA_VERSION, type HeartbeatState, type HeartbeatTickReport } from './types.js';
-import { heartbeatPaths } from './paths.js';
+import {
+  HEARTBEAT_SCHEMA_VERSION,
+  type HeartbeatAutomationManifest,
+  type HeartbeatPlanReport,
+  type HeartbeatState,
+  type HeartbeatTickReport,
+} from './types.js';
+import { heartbeatAutomationPath, heartbeatPaths, heartbeatPlanPaths } from './paths.js';
+import { renderHeartbeatPlanMarkdown } from './reporter.js';
 
 export class HeartbeatStore {
   readonly paths;
@@ -15,6 +22,8 @@ export class HeartbeatStore {
   async ensure(): Promise<void> {
     await mkdir(this.paths.ticks, { recursive: true });
     await mkdir(this.paths.locks, { recursive: true });
+    await mkdir(this.paths.plansDir, { recursive: true });
+    await mkdir(this.paths.automationDir, { recursive: true });
   }
 
   async readState(enabled = false): Promise<HeartbeatState> {
@@ -77,6 +86,46 @@ export class HeartbeatStore {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Persist a (already-redacted) plan report as `plans/<planId>.{json,md}`.
+   * Read-only with respect to `state.json` — planning never mutates state.
+   */
+  async writePlanReport(report: HeartbeatPlanReport): Promise<{ json: string; markdown: string }> {
+    const markdown = renderHeartbeatPlanMarkdown(report);
+    const planPaths = heartbeatPlanPaths(this.paths.root, report.planId);
+    await this.withLock(async () => {
+      await writeFileAtomic(planPaths.json, `${JSON.stringify(report, null, 2)}\n`);
+      await writeFileAtomic(planPaths.markdown, markdown);
+    });
+    return planPaths;
+  }
+
+  async latestPlanReport(): Promise<HeartbeatPlanReport | undefined> {
+    await this.ensure();
+    const files = (await readdir(this.paths.plansDir).catch(() => [])).filter((name) => name.endsWith('.json')).sort().reverse();
+    for (const file of files) {
+      try {
+        return JSON.parse(await readFile(join(this.paths.plansDir, file), 'utf-8')) as HeartbeatPlanReport;
+      } catch {
+        continue;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Write an inert automation manifest body. Defaults to `automation/<target>.txt`;
+   * `outPath` (already validated to stay under the heartbeat root) overrides it.
+   */
+  async writeAutomationManifest(manifest: HeartbeatAutomationManifest, outPath?: string): Promise<string> {
+    const file = outPath ?? heartbeatAutomationPath(this.paths.root, manifest.target);
+    const body = manifest.body.endsWith('\n') ? manifest.body : `${manifest.body}\n`;
+    await this.withLock(async () => {
+      await writeFileAtomic(file, body);
+    });
+    return file;
   }
 }
 

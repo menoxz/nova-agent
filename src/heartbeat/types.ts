@@ -6,6 +6,7 @@ export type HeartbeatTaskAction = 'inspect' | 'eval' | 'batch-dry-run' | 'mainta
 export interface HeartbeatScheduleConfig {
   type: 'manual' | 'interval';
   everyMinutes?: number;
+  anchor?: string;
 }
 
 export interface HeartbeatTaskConfig {
@@ -20,6 +21,8 @@ export interface HeartbeatTaskConfig {
 export interface HeartbeatConfig {
   enabled?: boolean;
   tasks?: HeartbeatTaskConfig[];
+  timezone?: string;
+  quietHours?: HeartbeatQuietWindow[];
 }
 
 export interface HeartbeatTaskState {
@@ -87,4 +90,84 @@ export interface HeartbeatTickReport {
     json: string;
     markdown: string;
   };
+}
+
+export interface HeartbeatQuietWindow {
+  start: string;
+  end: string;
+}
+
+export type HeartbeatPlanTaskStatus =
+  | 'projected'
+  | 'manual'
+  | 'skipped'
+  | 'blocked'
+  | 'needs_user_action';
+
+export interface HeartbeatPlanOccurrence {
+  at: string;
+  classification: 'would_run' | 'quiet_hours';
+  note?: string;
+}
+
+export interface HeartbeatPlanTask {
+  id: string;
+  name?: string;
+  kind: string;
+  action?: string;
+  enabled: boolean;
+  schedule: HeartbeatScheduleConfig;
+  status: HeartbeatPlanTaskStatus;
+  reason: string;
+  firstDueAt?: string;
+  occurrences: HeartbeatPlanOccurrence[];
+}
+
+export interface HeartbeatPlanReport {
+  schemaVersion: typeof HEARTBEAT_SCHEMA_VERSION;
+  heartbeatId: string;
+  planId: string;
+  generatedForNow: string;
+  horizonMinutes: number;
+  maxPerTask: number;
+  timezone: string;
+  heartbeatEnabled: boolean;
+  preview: boolean;
+  counts: {
+    tasks: number;
+    projected: number;
+    quietHours: number;
+    manual: number;
+    skipped: number;
+    blocked: number;
+    needsUserAction: number;
+    occurrences: number;
+  };
+  tasks: HeartbeatPlanTask[];
+  safety: {
+    llmInvoked: false;
+    toolsInvoked: false;
+    autonomousActionsExecuted: false;
+    schedulerInstalled: false;
+    secretsIncluded: false;
+    contentPolicy: 'metadata-only-redacted';
+    notes: string[];
+  };
+  paths: {
+    json: string;
+    markdown: string;
+  };
+}
+
+export type HeartbeatAutomationTarget = 'windows-task' | 'systemd' | 'cron';
+
+export interface HeartbeatAutomationManifest {
+  target: HeartbeatAutomationTarget;
+  tickEveryMinutes?: number;
+  tickAt?: string;
+  timezone: string;
+  invokes: 'nova heartbeat tick --dry-run';
+  installed: false;
+  body: string;
+  paths: { file?: string };
 }

@@ -4,12 +4,12 @@ export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers
 
 export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose', 'json', 'markdown',
+  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose', 'json', 'markdown', 'stdout',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -308,10 +308,29 @@ function heartbeatHelp(): string {
       ['nova heartbeat status', 'Show local heartbeat state and report paths.'],
       ['nova heartbeat tasks', 'Classify configured tasks as due/skipped/blocked/needs_user_action.'],
       ['nova heartbeat tick --dry-run', 'Run one planning-only tick and write JSON + Markdown reports under .nova/heartbeat.'],
+      ['nova heartbeat plan', 'Project upcoming dry-run occurrences read-only and write a redacted plan under .nova/heartbeat/plans.'],
+      ['nova heartbeat automation export', 'Write an inert (installed=false) operator manifest that only runs nova heartbeat tick --dry-run.'],
       ['nova heartbeat report latest', 'Print the latest heartbeat tick report, or exit 1 with guidance if none exists.'],
     ]),
     '',
-    'Heartbeat V1 is disabled by default and never starts a daemon, scheduler, LLM call, tool call, or autonomous write/shell/git/network/memory action.',
+    section('plan options', [
+      ['--now <iso>', 'Project from a fixed ISO instant for deterministic output (default: current time).'],
+      ['--horizon <dur>', 'Projection window, e.g. 90m, 6h, 7d (default: 6h).'],
+      ['--max <n>', 'Cap occurrences projected per task (default: 50).'],
+      ['--json', 'Print the full redacted plan report as JSON.'],
+    ]),
+    '',
+    section('automation export options', [
+      ['--target <kind>', 'windows-task | systemd | cron (required).'],
+      ['--every <dur>', 'Run cadence, e.g. 15m, 1h (mutually exclusive with --at).'],
+      ['--at <HH:MM>', 'Daily run time in 24-hour clock (mutually exclusive with --every).'],
+      ['--stdout', 'Print the manifest to stdout instead of writing a file.'],
+      ['--out <relpath>', 'Write under .nova/heartbeat/automation/<relpath>; paths escaping the sandbox are rejected.'],
+      ['--json', 'Print the manifest metadata as JSON.'],
+    ]),
+    '',
+    'Heartbeat is disabled by default and never starts a daemon, scheduler, LLM call, tool call, or autonomous write/shell/git/network/memory action.',
+    'plan is a read-only projection over local state; automation export writes inert manifests only under .nova/heartbeat/automation. Nova does not schedule itself.',
   ].join('\n');
 }
 
