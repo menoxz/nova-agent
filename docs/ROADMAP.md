@@ -121,7 +121,8 @@
   - [x] V1.1: setup clients/policy metadata read-only (`nova.lsp.showSetupGuide`) avec smoke/eval renforcés
   - [x] V1.1: smoke helpers policy/metadata (`npm run lsp:policy-smoke`) sans capacités mutatives
   - [x] V1.1: résumé télémétrie sanitizé metadata-only (`nova.lsp.showTelemetrySummary`)
-  - [ ] V1.1 future: extraction metadata plus riche
+  - [x] V1.1: extraction metadata plus riche depuis les registrations MCP source
+  - [ ] V1.1 future: diagnostics de range/code lenses read-only plus précis
 
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel

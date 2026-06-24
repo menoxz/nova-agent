@@ -1,5 +1,22 @@
 # Project Status
 
+## LSP V1.1 source-derived metadata extraction — 2026-06-24
+
+Status: implemented locally (read-only source parsing only; no MCP execution; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added source-derived MCP tool/resource/prompt metadata extraction from `src/mcp/server.ts` in the LSP metadata index.
+- Source-derived entries are tagged `source-derived` and keep their source path as `src/mcp/server.ts`.
+- Disabled/mutating MCP entries such as `nova_write_file` remain metadata-only and are marked non-read-only.
+- Reinforced `lsp:policy-smoke` and `eval:lsp` coverage for source-derived MCP tool/resource/prompt metadata.
+- Updated LSP README, capabilities, smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 sanitized telemetry summary — 2026-06-24
 
 Status: implemented locally (aggregate metadata only; no document content, raw diagnostics, URIs, root paths, or secrets; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.

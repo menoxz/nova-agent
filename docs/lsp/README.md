@@ -40,6 +40,12 @@ The read-only command `nova.lsp.showTelemetrySummary` returns aggregate metadata
 
 It explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`. It does not expose document text, raw diagnostics, opened document URIs, configured root paths, or secret-like content.
 
+## Source-derived metadata
+
+V1.1 derives additional MCP tool/resource/prompt metadata from `src/mcp/server.ts` registrations. These entries are tagged `source-derived` and supplement the curated baseline constants, reducing drift between the LSP metadata index and the MCP server surface.
+
+The extraction is read-only and metadata-only: it reads the checked-in source file through the LSP policy path, does not execute MCP registration code, and does not add `WorkspaceEdit`, write, shell, or code-action capabilities. Disabled entries such as `nova_write_file` remain metadata only and are still marked non-read-only.
+
 ## Main files
 
 - `src/lsp/server.ts` — stdio LSP entrypoint.

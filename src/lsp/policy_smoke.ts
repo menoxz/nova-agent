@@ -20,6 +20,11 @@ async function main(): Promise<void> {
   assert(metadata.byId.has('command:nova.lsp.showTelemetrySummary'), 'telemetry command metadata missing');
   assert(metadata.byId.has('policy:lsp-v1-1-client-setup'), 'client setup policy metadata missing');
   assert(metadata.byId.has('policy:lsp-v1-1-telemetry-summary'), 'telemetry summary policy metadata missing');
+  assert(metadata.byId.has('mcp-tool:nova_mcp_capabilities'), 'source-derived MCP tool metadata missing');
+  assert(metadata.byId.has('mcp-resource:nova://mcp/transport-readiness'), 'source-derived MCP resource metadata missing');
+  assert(metadata.byId.has('mcp-prompt:nova_mcp_client_setup'), 'source-derived MCP prompt metadata missing');
+  assert.equal(metadata.byId.get('mcp-tool:nova_write_file')?.readOnly, false, 'source-derived nova_write_file should remain non-read-only metadata');
+  assert(metadata.byId.get('mcp-tool:nova_mcp_capabilities')?.tags?.includes('source-derived'), 'source-derived MCP tool should be tagged');
   for (const command of LSP_COMMANDS) {
     assert(metadata.byId.has(`command:${command}`), `command metadata missing for ${command}`);
   }
@@ -97,6 +102,8 @@ async function main(): Promise<void> {
   const item = findMetadataAtText('nova.lsp.showSetupGuide', metadata);
   assert.equal(item?.id, 'command:nova.lsp.showSetupGuide', 'metadata lookup should find setup command');
   assert(formatMetadataItem(item).includes('Read-only: yes'), 'formatted metadata should include read-only marker');
+  const sourceItem = findMetadataAtText('nova://mcp/transport-readiness', metadata);
+  assert.equal(sourceItem?.id, 'mcp-resource:nova://mcp/transport-readiness', 'metadata lookup should prefer source-derived MCP resource');
 
   console.log(JSON.stringify({ ok: true, commands: commands.length, metadataItems: metadata.items.length, diagnostics: diagnostics.length }, null, 2));
 }

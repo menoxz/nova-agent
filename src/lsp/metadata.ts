@@ -1,9 +1,9 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
 import { defaultScenarios } from '../eval/scenarios.js';
 import { listSuites } from '../eval/suites.js';
-import { PROJECT_ROOT, deniedReason, readSafeTextFile, safeRelative } from './policy.js';
+import { capText, containsPrivateKeyMaterial, PROJECT_ROOT, deniedReason, readSafeTextFile, redactText, resolvePolicyPath, safeRelative } from './policy.js';
 
 export type MetadataKind = 'script' | 'tool' | 'resource' | 'prompt' | 'doc' | 'eval' | 'policy' | 'command';
 
@@ -65,6 +65,73 @@ const PROMPT_ITEMS: NovaMetadataItem[] = [
   { id: 'prompt:nova_tool_safety_review', label: 'nova_tool_safety_review', kind: 'prompt', detail: 'Review tool safety posture.', readOnly: true },
   { id: 'prompt:nova_eval_scenario_design', label: 'nova_eval_scenario_design', kind: 'prompt', detail: 'Design deterministic read-only eval scenarios.', readOnly: true },
 ];
+
+function quotedLiteral(value: string): string {
+  return value.replace(/\\`/g, '`').replace(/\\'/g, "'");
+}
+
+async function readSafeSourceMetadata(path: string): Promise<string | undefined> {
+  const check = resolvePolicyPath(path, 'source metadata path');
+  if (!check.ok) return undefined;
+  const raw = await readFile(check.path).catch(() => undefined);
+  if (!raw || raw.includes(0)) return undefined;
+  const text = raw.toString('utf-8');
+  if (containsPrivateKeyMaterial(text)) return undefined;
+  return capText(redactText(text), 80_000).text;
+}
+
+async function loadMcpSourceMetadata(): Promise<NovaMetadataItem[]> {
+  const text = await readSafeSourceMetadata('src/mcp/server.ts');
+  if (!text) return [];
+  const items: NovaMetadataItem[] = [];
+
+  const toolPattern = /\{\s*name:\s*'([^']+)'\s*,\s*title:\s*'([^']+)'\s*,\s*defaultEnabled:\s*(true|false)\s*,\s*readOnly:\s*(true|false)\s*,\s*category:\s*'([^']+)'\s*,\s*description:\s*'([^']*)'\s*\}/g;
+  for (const match of text.matchAll(toolPattern)) {
+    const [, name, title, defaultEnabled, readOnly, category, description] = match;
+    items.push({
+      id: `mcp-tool:${name}`,
+      label: name,
+      kind: 'tool',
+      detail: `MCP source registration: ${quotedLiteral(title)} (${category}, ${defaultEnabled === 'true' ? 'enabled' : 'disabled/absent'} by default).`,
+      documentation: quotedLiteral(description),
+      path: 'src/mcp/server.ts',
+      tags: ['mcp', 'source-derived', category],
+      readOnly: readOnly === 'true',
+    });
+  }
+
+  const resourcePattern = /\{\s*name:\s*'([^']+)'\s*,\s*uri:\s*'([^']+)'\s*,\s*title:\s*'([^']+)'\s*,\s*description:\s*'([^']*)'\s*,\s*contentKind:\s*'([^']+)'\s*\}/g;
+  for (const match of text.matchAll(resourcePattern)) {
+    const [, name, uri, title, description, contentKind] = match;
+    items.push({
+      id: `mcp-resource:${uri}`,
+      label: uri,
+      kind: 'resource',
+      detail: `MCP source resource: ${quotedLiteral(title)} (${contentKind}).`,
+      documentation: quotedLiteral(description),
+      path: 'src/mcp/server.ts',
+      tags: ['mcp', 'source-derived', contentKind, name],
+      readOnly: true,
+    });
+  }
+
+  const promptPattern = /server\.registerPrompt\('([^']+)'\s*,\s*\{\s*title:\s*'([^']+)'\s*,\s*description:\s*'([^']+)'/g;
+  for (const match of text.matchAll(promptPattern)) {
+    const [, name, title, description] = match;
+    items.push({
+      id: `mcp-prompt:${name}`,
+      label: name,
+      kind: 'prompt',
+      detail: `MCP source prompt: ${quotedLiteral(title)}.`,
+      documentation: quotedLiteral(description),
+      path: 'src/mcp/server.ts',
+      tags: ['mcp', 'source-derived'],
+      readOnly: true,
+    });
+  }
+
+  return items;
+}
 
 const POLICY_ITEMS: NovaMetadataItem[] = [
   { id: 'policy:lsp-readonly', label: 'Nova LSP V1 read-only policy', kind: 'policy', detail: 'LSP V1 exposes hover/completion/symbol metadata and read-only commands only.', documentation: 'No WorkspaceEdit, no shell execution, no file writes, and no autonomous self-rewrite.', readOnly: true },
@@ -138,8 +205,9 @@ function evalItems(): NovaMetadataItem[] {
 export async function buildMetadataIndex(): Promise<NovaMetadataIndex> {
   const scripts = await loadPackageScripts();
   const docs = await loadDocs();
+  const sourceDerivedMcp = await loadMcpSourceMetadata();
   const commands = LSP_COMMANDS.map((command) => ({ id: `command:${command}`, label: command, kind: 'command' as const, detail: 'LSP V1 read-only executeCommand provider command.', readOnly: true }));
-  const items = [...scripts, ...BUILTIN_TOOLS, ...RESOURCE_ITEMS, ...PROMPT_ITEMS, ...docs, ...evalItems(), ...POLICY_ITEMS, ...commands];
+  const items = [...scripts, ...BUILTIN_TOOLS, ...RESOURCE_ITEMS, ...PROMPT_ITEMS, ...sourceDerivedMcp, ...docs, ...evalItems(), ...POLICY_ITEMS, ...commands];
   const byId = new Map(items.map((item) => [item.id, item]));
   return { items, byId, generatedAt: new Date().toISOString(), packageScripts: scripts.map((script) => script.id.slice('script:'.length)), evalSuites: listSuites().map((suite) => suite.name) };
 }

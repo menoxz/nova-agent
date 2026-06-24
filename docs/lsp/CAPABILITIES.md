@@ -19,6 +19,8 @@ Implemented capabilities:
 
 V1.1 validation adds `npm run lsp:policy-smoke`, which asserts the capability allowlist and confirms no mutating LSP capability is advertised.
 
+V1.1 metadata indexing derives additional MCP tool/resource/prompt entries from `src/mcp/server.ts` registrations. These entries are metadata only, tagged `source-derived`, and do not change the LSP capability set.
+
 Explicitly not implemented in V1:
 
 - `WorkspaceEdit`.

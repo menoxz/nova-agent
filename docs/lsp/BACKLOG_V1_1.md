@@ -16,6 +16,8 @@ Status: unit/helper validation slice implemented by `npm run lsp:policy-smoke`. 
 
 Status: optional sanitized telemetry summary implemented by the read-only `nova.lsp.showTelemetrySummary` command. It exposes aggregate metadata counts and policy booleans only, explicitly omitting document content, raw diagnostics, opened document URIs, configured root paths, and secrets.
 
+Status: richer metadata extraction implemented for MCP source registrations. The LSP metadata index now derives MCP tool/resource/prompt entries from `src/mcp/server.ts`, tags them as `source-derived`, preserves disabled/non-read-only metadata for mutating entries such as `nova_write_file`, and adds smoke/eval coverage without changing LSP capabilities.
+
 Still out of scope:
 
 - Write commands.

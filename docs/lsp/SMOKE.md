@@ -18,6 +18,7 @@ Verified checks:
 Additional `lsp:policy-smoke` checks:
 
 - Metadata index contains all read-only LSP command entries and client setup policy metadata.
+- Metadata index includes source-derived MCP tool/resource/prompt entries from `src/mcp/server.ts` while preserving disabled/non-read-only flags for mutating entries.
 - Capabilities remain allowlisted and do not advertise `WorkspaceEdit`, code actions, write commands, or shell commands.
 - Denylist helpers refuse `.env`, `node_modules`, raw `.nova/traces|evals|reports`, private-key extensions, traversal, and NUL-byte paths.
 - Redaction, output caps, safe error formatting, diagnostics, and setup-guide metadata stay deterministic and content-safe.
