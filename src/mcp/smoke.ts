@@ -27,6 +27,11 @@ function structuredFrom(result: Awaited<ReturnType<Client['callTool']>>): Record
   return (typeof result.structuredContent === 'object' && result.structuredContent !== null) ? result.structuredContent as Record<string, unknown> : {};
 }
 
+async function readResourceText(client: Client, uri: string): Promise<string> {
+  const result = await client.readResource({ uri });
+  return result.contents.map((item) => 'text' in item ? item.text : '').join('\n');
+}
+
 async function main(): Promise<void> {
   const fixtureRoot = await mkdtemp(join(tmpdir(), 'nova-mcp-smoke-'));
   await writeFile(join(fixtureRoot, 'literal.txt'), 'nova.*agent\nnovaXagent\n', 'utf-8');
@@ -44,7 +49,7 @@ async function main(): Promise<void> {
     await client.connect(transport);
     const tools = await client.listTools();
     const names = tools.tools.map((tool) => tool.name);
-    for (const required of ['nova_tool_catalog', 'nova_read_file', 'nova_list_directory', 'nova_search_files', 'nova_search_text', 'nova_git_status', 'nova_git_diff', 'nova_git_log', 'nova_doc_read', 'nova_eval_list_scenarios', 'nova_eval_schema_info', 'nova_trace_summarize']) {
+    for (const required of ['nova_tool_catalog', 'nova_mcp_capabilities', 'nova_read_file', 'nova_list_directory', 'nova_search_files', 'nova_search_text', 'nova_git_status', 'nova_git_diff', 'nova_git_log', 'nova_doc_read', 'nova_eval_list_scenarios', 'nova_eval_schema_info', 'nova_trace_summarize']) {
       assert(names.includes(required), `missing tool ${required}`);
     }
     assert(!names.includes('nova_bash'), 'nova_bash must not be registered by default');
@@ -52,11 +57,34 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index']) {
+      assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
+    }
     const prompts = await client.listPrompts();
     assert(prompts.prompts.some((prompt) => prompt.name === 'nova_repository_orientation'), 'missing repository orientation prompt');
 
     const catalog = await client.callTool({ name: 'nova_tool_catalog', arguments: {} });
     assert(textFrom(catalog).includes('nova_read_file'), 'tool catalog did not mention nova_read_file');
+    assert(textFrom(catalog).includes('nova_mcp_capabilities'), 'tool catalog did not mention nova_mcp_capabilities');
+
+    const capabilities = await client.callTool({ name: 'nova_mcp_capabilities', arguments: {} });
+    assert(capabilities.isError !== true, 'capabilities tool should succeed');
+    assert(textFrom(capabilities).includes('stdio'), 'capabilities should document stdio default');
+    assert(textFrom(capabilities).includes('nova_bash'), 'capabilities should list disabled nova_bash');
+    assert(!textFrom(capabilities).includes(projectRoot), 'capabilities must not disclose project root');
+    assert(!textFrom(capabilities).includes(fixtureRoot), 'capabilities must not disclose fixture root');
+
+    const capabilitiesResource = await readResourceText(client, 'nova://mcp/capabilities');
+    assert(capabilitiesResource.includes('hardOutputMaxChars'), 'capabilities resource should expose output caps metadata');
+    assert(capabilitiesResource.includes('nova://tools/schemas'), 'capabilities resource should list V1.1 resources');
+    const policyResource = await readResourceText(client, 'nova://mcp/policy');
+    assert(policyResource.includes('raw .nova/traces'), 'policy resource should document raw trace denial');
+    assert(policyResource.includes('literal'), 'policy resource should document literal search default');
+    const schemasResource = await readResourceText(client, 'nova://tools/schemas');
+    assert(schemasResource.includes('nova_read_file'), 'schemas resource should include read_file');
+    assert(schemasResource.includes('registered'), 'schemas resource should include registration metadata');
+    const docsIndex = await readResourceText(client, 'nova://docs/index');
+    assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index should include MCP backlog');
 
     const deniedEnv = await client.callTool({ name: 'nova_read_file', arguments: { path: '.env' } });
     assert(deniedEnv.isError === true, '.env read should be denied with isError');

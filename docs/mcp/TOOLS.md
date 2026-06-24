@@ -5,6 +5,7 @@ All registered tools use the `nova_*` namespace.
 ## Enabled by default
 
 - `nova_tool_catalog` — list MCP tools and safety posture.
+- `nova_mcp_capabilities` — list read-only capabilities, limits, resources, prompts, and disabled mutating tool families.
 - `nova_read_file` — read approved UTF-8 text files with caps/redaction.
 - `nova_list_directory` — list approved directories while skipping denied children.
 - `nova_search_files` — glob-like file search under approved roots.
@@ -24,3 +25,7 @@ All registered tools use the `nova_*` namespace.
 - `nova_write_file`
 
 State tools (`nova_todo_*`, `nova_goal_*`, `nova_skill_*`) are not registered in V1.
+
+## V1.1 metadata
+
+`nova_mcp_capabilities` and `nova://tools/schemas` expose curated tool metadata and input summaries only. They do not expose allowed-root path lists, raw `.nova` artifacts, or hidden write/shell tools.

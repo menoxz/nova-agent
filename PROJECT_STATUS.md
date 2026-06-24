@@ -1,5 +1,21 @@
 # Project Status
 
+## MCP V1.1 curated metadata/resources slice — 2026-06-24
+
+Status: implemented locally (stdio remains the only/default transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added the read-only `nova_mcp_capabilities` tool. It summarizes MCP version, stdio transport posture, output/file/search caps, resource/prompts inventory, and disabled tool families without disclosing configured allowed-root paths.
+- Added curated generated resources: `nova://mcp/capabilities`, `nova://mcp/policy`, `nova://tools/schemas`, and `nova://docs/index`. These expose safe metadata only: limits, denylist/redaction policy, tool registration/input summaries, and high-value docs pointers.
+- Reinforced MCP verification: `mcp:smoke` now asserts the V1.1 tool/resource surface, reads the generated resources, checks disabled `nova_bash`/`nova_write_file`, and keeps root paths undisclosed. `eval:mcp` now covers both the original read-only denylist scenario and a new V1.1 curated metadata/resources scenario.
+- Updated MCP docs (`README`, `TOOLS`, `RESOURCES`, `BACKLOG_V1_1`) to record the implemented V1.1 slice and explicitly keep HTTP/streamable transport and mutating/state tools out of scope/defaults.
+- Invariants preserved: package `0.1.0`; zero new dependencies; no network transport enabled; no `nova_bash`, `nova_write_file`, or state tools registered by default; raw `.nova` artifacts remain denied.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, and `npm run eval:mcp` exit 0; full build/check verification recorded in the implementation run.
+
 ## Sandboxed BashTool V1 — opt-in ExecutionSandbox routing — 2026-06-24
 
 Status: implemented locally (legacy behaviour preserved by default; sandboxed path opt-in via `NOVA_ENABLE_EXEC_SANDBOX=1|true`); tests passing locally (not yet committed).

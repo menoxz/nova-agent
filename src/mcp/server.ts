@@ -47,25 +47,27 @@ type ReadableTool = {
   title: string;
   defaultEnabled: boolean;
   readOnly: boolean;
+  category: 'catalog' | 'filesystem' | 'search' | 'git' | 'docs' | 'web' | 'eval' | 'trace' | 'disabled';
   description: string;
 };
 
 const toolCatalog: ReadableTool[] = [
-  { name: 'nova_tool_catalog', title: 'Nova Tool Catalog', defaultEnabled: true, readOnly: true, description: 'List MCP tools and their safety posture.' },
-  { name: 'nova_read_file', title: 'Read File', defaultEnabled: true, readOnly: true, description: 'Read a policy-approved text file under allowed roots with output caps and redaction.' },
-  { name: 'nova_list_directory', title: 'List Directory', defaultEnabled: true, readOnly: true, description: 'List policy-approved directory entries without exposing denied paths.' },
-  { name: 'nova_search_files', title: 'Search Files', defaultEnabled: true, readOnly: true, description: 'Find policy-approved files by glob-like pattern under allowed roots.' },
-  { name: 'nova_search_text', title: 'Search Text', defaultEnabled: true, readOnly: true, description: 'Search text in policy-approved files with line caps and redaction.' },
-  { name: 'nova_git_status', title: 'Git Status', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git status.' },
-  { name: 'nova_git_diff', title: 'Git Diff', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git diff with redaction and output caps.' },
-  { name: 'nova_git_log', title: 'Git Log', defaultEnabled: true, readOnly: true, description: 'Run bounded read-only git log.' },
-  { name: 'nova_doc_read', title: 'Document Read', defaultEnabled: true, readOnly: true, description: 'Read approved PDF/DOCX/XLSX or text documentation files through existing readers where safe.' },
-  { name: 'nova_web_search', title: 'Web Search', defaultEnabled: true, readOnly: true, description: 'Bounded DuckDuckGo-backed search using Nova web_search.' },
-  { name: 'nova_eval_list_scenarios', title: 'Eval Scenarios', defaultEnabled: true, readOnly: true, description: 'List eval scenario metadata without exposing eval reports.' },
-  { name: 'nova_eval_schema_info', title: 'Eval Schema Info', defaultEnabled: true, readOnly: true, description: 'Describe trace/eval schema versions and report locations at a high level.' },
-  { name: 'nova_trace_summarize', title: 'Trace Summary', defaultEnabled: true, readOnly: true, description: 'Return sanitized aggregate trace summaries only; no raw trace contents.' },
-  { name: 'nova_write_file', title: 'Write File', defaultEnabled: false, readOnly: false, description: 'Not registered by default; write scope is intentionally unavailable in V1.' },
-  { name: 'nova_bash', title: 'Bash', defaultEnabled: false, readOnly: false, description: 'Not registered by default; shell execution is intentionally unavailable in V1.' },
+  { name: 'nova_tool_catalog', title: 'Nova Tool Catalog', defaultEnabled: true, readOnly: true, category: 'catalog', description: 'List MCP tools and their safety posture.' },
+  { name: 'nova_mcp_capabilities', title: 'MCP Capabilities', defaultEnabled: true, readOnly: true, category: 'catalog', description: 'Summarize server capabilities, limits, resources, prompts, and disabled mutating tools.' },
+  { name: 'nova_read_file', title: 'Read File', defaultEnabled: true, readOnly: true, category: 'filesystem', description: 'Read a policy-approved text file under allowed roots with output caps and redaction.' },
+  { name: 'nova_list_directory', title: 'List Directory', defaultEnabled: true, readOnly: true, category: 'filesystem', description: 'List policy-approved directory entries without exposing denied paths.' },
+  { name: 'nova_search_files', title: 'Search Files', defaultEnabled: true, readOnly: true, category: 'search', description: 'Find policy-approved files by glob-like pattern under allowed roots.' },
+  { name: 'nova_search_text', title: 'Search Text', defaultEnabled: true, readOnly: true, category: 'search', description: 'Search text in policy-approved files with line caps and redaction.' },
+  { name: 'nova_git_status', title: 'Git Status', defaultEnabled: true, readOnly: true, category: 'git', description: 'Run bounded read-only git status.' },
+  { name: 'nova_git_diff', title: 'Git Diff', defaultEnabled: true, readOnly: true, category: 'git', description: 'Run bounded read-only git diff with redaction and output caps.' },
+  { name: 'nova_git_log', title: 'Git Log', defaultEnabled: true, readOnly: true, category: 'git', description: 'Run bounded read-only git log.' },
+  { name: 'nova_doc_read', title: 'Document Read', defaultEnabled: true, readOnly: true, category: 'docs', description: 'Read approved PDF/DOCX/XLSX or text documentation files through existing readers where safe.' },
+  { name: 'nova_web_search', title: 'Web Search', defaultEnabled: true, readOnly: true, category: 'web', description: 'Bounded DuckDuckGo-backed search using Nova web_search.' },
+  { name: 'nova_eval_list_scenarios', title: 'Eval Scenarios', defaultEnabled: true, readOnly: true, category: 'eval', description: 'List eval scenario metadata without exposing eval reports.' },
+  { name: 'nova_eval_schema_info', title: 'Eval Schema Info', defaultEnabled: true, readOnly: true, category: 'eval', description: 'Describe trace/eval schema versions and report locations at a high level.' },
+  { name: 'nova_trace_summarize', title: 'Trace Summary', defaultEnabled: true, readOnly: true, category: 'trace', description: 'Return sanitized aggregate trace summaries only; no raw trace contents.' },
+  { name: 'nova_write_file', title: 'Write File', defaultEnabled: false, readOnly: false, category: 'disabled', description: 'Not registered by default; write scope is intentionally unavailable in V1.1.' },
+  { name: 'nova_bash', title: 'Bash', defaultEnabled: false, readOnly: false, category: 'disabled', description: 'Not registered by default; shell execution is intentionally unavailable in V1.1.' },
 ];
 
 const RESOURCE_DEFS = [
@@ -76,6 +78,10 @@ const RESOURCE_DEFS = [
   { name: 'nova_mcp_resources', uri: 'nova://docs/mcp/resources', title: 'MCP Resources', description: 'Curated nova:// resources.' },
   { name: 'nova_mcp_prompts', uri: 'nova://docs/mcp/prompts', title: 'MCP Prompts', description: 'Prompt catalog.' },
   { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.' },
+  { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.' },
+  { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.' },
+  { name: 'nova_mcp_tool_schemas_resource', uri: 'nova://tools/schemas', title: 'Tool Schemas', description: 'Generated tool metadata and input schema summary.' },
+  { name: 'nova_mcp_docs_index_resource', uri: 'nova://docs/index', title: 'Docs Index', description: 'Curated high-value docs index for MCP clients.' },
   { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.' },
   { name: 'nova_eval_scenarios_resource', uri: 'nova://eval/scenarios', title: 'Eval Scenarios', description: 'Default eval scenario IDs and tags only.' },
   { name: 'nova_eval_schema_resource', uri: 'nova://eval/schema', title: 'Eval Schema Info', description: 'Eval and trace schema metadata only.' },
@@ -209,6 +215,75 @@ function formatJsonMarkdown(value: unknown): string {
   return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
 }
 
+function generatedCapabilities() {
+  return {
+    version: VERSION,
+    transport: { default: 'stdio', http: 'not implemented/enabled in this V1.1 slice', networkExposure: 'none by default' },
+    posture: { defaultReadOnly: true, startupCreatesFiles: false, mutatingToolsRegisteredByDefault: false },
+    limits: {
+      hardOutputMaxChars: HARD_OUTPUT_MAX_CHARS,
+      maxFileBytes: MAX_FILE_BYTES,
+      maxDirectoryEntries: MAX_DIR_ENTRIES,
+      maxSearchFiles: MAX_SEARCH_FILES,
+      maxTextMatches: MAX_TEXT_MATCHES,
+      maxSearchPatternChars: MAX_SEARCH_PATTERN_CHARS,
+    },
+    toolCounts: {
+      enabled: toolCatalog.filter((tool) => tool.defaultEnabled).length,
+      disabled: toolCatalog.filter((tool) => !tool.defaultEnabled).length,
+      totalCatalogEntries: toolCatalog.length,
+    },
+    resources: RESOURCE_DEFS.map(({ uri, title, description }) => ({ uri, title, description })),
+    prompts: ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_eval_scenario_design', 'nova_trace_summary_diagnosis', 'nova_mcp_client_setup'],
+    disabledToolFamilies: ['nova_bash', 'nova_write_file', 'nova_todo_*', 'nova_goal_*', 'nova_skill_*'],
+  };
+}
+
+function generatedPolicyMetadata() {
+  return {
+    allowedRoots: 'configured locally; enforced but not disclosed by MCP tools/resources',
+    deniedSurfaces: ['.env', '.env.*', '.git', 'node_modules', 'raw .nova/traces', 'raw .nova/evals', 'raw .nova/reports', 'private key extensions', 'secret-like filenames'],
+    contentProtections: ['private key content refusal', 'secret-like string redaction', 'output caps and truncation metadata', 'safe errors without allowed-root disclosure'],
+    searchPolicy: { default: 'literal', regexOptIn: true, maxPatternChars: MAX_SEARCH_PATTERN_CHARS, redosGuard: true },
+    mutatingTools: { nova_bash: 'absent by default', nova_write_file: 'absent by default', stateTools: 'absent by default' },
+    transportPolicy: { stdio: 'default', http: 'not enabled in this slice', publicBind: 'non-goal' },
+  };
+}
+
+function generatedToolSchemas() {
+  const inputSummaries: Record<string, Record<string, string>> = {
+    nova_tool_catalog: {},
+    nova_mcp_capabilities: {},
+    nova_read_file: { path: 'string required', offset: 'int>=0 optional', limit: '1..2000 optional', maxChars: `1000..${HARD_OUTPUT_MAX_CHARS} optional` },
+    nova_list_directory: { path: 'string optional', recursive: 'boolean optional', maxEntries: `1..${MAX_DIR_ENTRIES} optional` },
+    nova_search_files: { pattern: 'glob-like string default **/*', root: 'string optional', maxResults: `1..${MAX_SEARCH_FILES} optional` },
+    nova_search_text: { pattern: 'string required', regex: 'boolean optional default false', root: 'string optional', include: 'glob optional', ignoreCase: 'boolean optional', maxResults: `1..${MAX_TEXT_MATCHES} optional` },
+    nova_git_status: { cwd: 'string optional', maxChars: `1000..${HARD_OUTPUT_MAX_CHARS} optional` },
+    nova_git_diff: { cwd: 'string optional', staged: 'boolean optional', statOnly: 'boolean optional', maxChars: `1000..${HARD_OUTPUT_MAX_CHARS} optional` },
+    nova_git_log: { cwd: 'string optional', maxCount: '1..50 optional', maxChars: `1000..${HARD_OUTPUT_MAX_CHARS} optional` },
+    nova_doc_read: { path: 'string required', mode: 'string optional', query: 'string optional', maxChars: `1000..${HARD_OUTPUT_MAX_CHARS} optional` },
+    nova_web_search: { query: 'string required', maxResults: '1..10 optional', timeout: '1000..15000 optional' },
+    nova_eval_list_scenarios: { suite: 'string optional' },
+    nova_eval_schema_info: {},
+    nova_trace_summarize: { limit: '1..100 optional' },
+  };
+  return toolCatalog.map((tool) => ({ ...tool, input: inputSummaries[tool.name] ?? {}, registered: tool.defaultEnabled }));
+}
+
+function generatedDocsIndex() {
+  return [
+    { path: 'docs/mcp/README.md', topic: 'MCP overview and safe defaults' },
+    { path: 'docs/mcp/TOOLS.md', topic: 'Tool catalog and disabled mutating tools' },
+    { path: 'docs/mcp/SECURITY.md', topic: 'Read-only policy and denied surfaces' },
+    { path: 'docs/mcp/RESOURCES.md', topic: 'Curated nova:// resources' },
+    { path: 'docs/mcp/PROMPTS.md', topic: 'Prompt catalog' },
+    { path: 'docs/mcp/CLIENT_SETUP.md', topic: 'Client and Inspector setup' },
+    { path: 'docs/mcp/BACKLOG_V1_1.md', topic: 'V1.1 backlog and acceptance criteria' },
+    { path: 'PROJECT_STATUS.md', topic: 'Project status summaries' },
+    { path: 'CHANGELOG.md', topic: 'Released and unreleased changes' },
+  ];
+}
+
 async function runGit(args: string[], cwd: string, maxChars: number): Promise<{ output: string; exitCode: number | null; timedOut: boolean; truncated: boolean }> {
   const safeCwd = resolvePolicyPath(cwd, 'git cwd');
   const timeoutMs = 15_000;
@@ -271,6 +346,16 @@ function registerTools(server: McpServer): void {
     inputSchema: z.object({}),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, async () => textResult(formatJsonMarkdown({ tools: toolCatalog, allowedRootPolicy: 'configured roots are enforced but not disclosed by this tool', defaults: { readOnly: true, bash: 'absent', write_file: 'absent' } }), { tools: toolCatalog }));
+
+  server.registerTool('nova_mcp_capabilities', {
+    title: 'Nova MCP Capabilities',
+    description: 'Return a curated read-only summary of MCP capabilities, limits, resources, prompts, and disabled mutating tool families.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async () => {
+    const capabilities = generatedCapabilities();
+    return textResult(formatJsonMarkdown(capabilities), { ok: true, capabilities });
+  });
 
   server.registerTool('nova_read_file', {
     title: 'Read File',
@@ -460,11 +545,16 @@ async function readDocResource(path: string, fallback: string): Promise<string> 
 }
 
 function generatedStatus(): string {
-  return `# Nova MCP Status\n\n- MCP server V1: implemented at \`src/mcp/server.ts\`\n- Transport: stdio via official \`@modelcontextprotocol/sdk\`\n- Default scope: read-only\n- Disabled by default: \`nova_bash\`, \`nova_write_file\` are not registered\n- Allowed roots: configured locally and enforced without disclosure in tool errors\n`;
+  return `# Nova MCP Status\n\n- MCP server V1.1: implemented at \`src/mcp/server.ts\`\n- Transport: stdio via official \`@modelcontextprotocol/sdk\`\n- Default scope: read-only\n- Disabled by default: \`nova_bash\`, \`nova_write_file\`, and state tools are not registered\n- Allowed roots: configured locally and enforced without disclosure in tool errors\n- V1.1 metadata resources: \`nova://mcp/capabilities\`, \`nova://mcp/policy\`, \`nova://tools/schemas\`, \`nova://docs/index\`\n`;
 }
 
 function generatedToolCatalog(): string {
   return `# Nova MCP Tool Catalog\n\n${toolCatalog.map((tool) => `- **${tool.name}** — ${tool.defaultEnabled ? 'enabled' : 'disabled/absent'} — ${tool.readOnly ? 'read-only' : 'write/exec'} — ${tool.description}`).join('\n')}\n`;
+}
+
+function resourceMimeType(uri: string): 'application/json' | 'text/markdown' {
+  if (uri.includes('eval') || uri.includes('schema') || uri.includes('capabilities') || uri.includes('policy') || uri.includes('docs/index')) return 'application/json';
+  return 'text/markdown';
 }
 
 function registerResources(server: McpServer): void {
@@ -476,14 +566,19 @@ function registerResources(server: McpServer): void {
     'nova://docs/mcp/resources': () => readDocResource('docs/mcp/RESOURCES.md', '# Nova MCP Resources\n'),
     'nova://docs/mcp/prompts': () => readDocResource('docs/mcp/PROMPTS.md', '# Nova MCP Prompts\n'),
     'nova://docs/mcp/client-setup': () => readDocResource('docs/mcp/CLIENT_SETUP.md', '# Nova MCP Client Setup\n'),
+    'nova://mcp/capabilities': () => JSON.stringify(generatedCapabilities(), null, 2),
+    'nova://mcp/policy': () => JSON.stringify(generatedPolicyMetadata(), null, 2),
+    'nova://tools/schemas': () => JSON.stringify(generatedToolSchemas(), null, 2),
+    'nova://docs/index': () => JSON.stringify(generatedDocsIndex(), null, 2),
     'nova://tools/catalog': generatedToolCatalog,
     'nova://eval/scenarios': () => JSON.stringify(defaultScenarios.map(({ id, name, tags, description }) => ({ id, name, tags, description })), null, 2),
     'nova://eval/schema': () => JSON.stringify({ evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, rawArtifacts: 'Denied by filesystem tools; use summaries only.' }, null, 2),
   };
   for (const def of RESOURCE_DEFS) {
-    server.registerResource(def.name, def.uri, { title: def.title, description: def.description, mimeType: def.uri.includes('eval') ? 'application/json' : 'text/markdown' }, async (uri) => {
+    const mimeType = resourceMimeType(def.uri);
+    server.registerResource(def.name, def.uri, { title: def.title, description: def.description, mimeType }, async (uri) => {
       const text = await readers[def.uri]();
-      return { contents: [{ uri: uri.href, mimeType: def.uri.includes('eval') ? 'application/json' : 'text/markdown', text }] };
+      return { contents: [{ uri: uri.href, mimeType, text }] };
     });
   }
 }
@@ -508,7 +603,7 @@ export function createNovaMcpServer(): McpServer {
       resources: { listChanged: false },
       prompts: { listChanged: false },
     },
-    instructions: 'Nova Agent MCP Server V1 exposes curated read-only tools/resources/prompts. Raw .env, .git internals, node_modules, private keys, and raw .nova trace/eval artifacts are denied.',
+    instructions: 'Nova Agent MCP Server V1.1 exposes curated read-only tools/resources/prompts over stdio by default. Raw .env, .git internals, node_modules, private keys, and raw .nova trace/eval artifacts are denied; nova_bash, nova_write_file, and state tools remain absent by default.',
   });
   registerTools(server);
   registerResources(server);

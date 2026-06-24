@@ -2,6 +2,8 @@
 
 Nova MCP V1 is complete as a local, read-only stdio server. V1.1 keeps that posture as the safe default while preparing optional transports, stronger automated validation, richer curated resources, and explicitly gated mutating capabilities.
 
+> Implementation note (2026-06-24): the first V1.1 implementation slice delivers reinforced curated metadata/resources and eval/smoke coverage while intentionally leaving HTTP/streamable transport and mutating/state tools unimplemented by default.
+
 ## Goals
 
 - Keep the default MCP server local, stdio-based, read-only, and safe for repository orientation.
