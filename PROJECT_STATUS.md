@@ -1,5 +1,23 @@
 # Project Status
 
+## LSP V1.1 sanitized telemetry summary — 2026-06-24
+
+Status: implemented locally (aggregate metadata only; no document content, raw diagnostics, URIs, root paths, or secrets; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added `src/lsp/telemetry.ts` with `buildLspTelemetrySummary()`.
+- Added read-only command `nova.lsp.showTelemetrySummary`.
+- Summary reports metadata counts, diagnostics policy booleans, stdio/no-mutating-capability posture, and validation commands.
+- Summary explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`.
+- Reinforced `lsp:smoke`, `lsp:policy-smoke`, and `eval:lsp` coverage.
+- Updated LSP README, capabilities, smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:smoke`, `npm run lsp:policy-smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 policy/metadata helper smoke — 2026-06-24
 
 Status: implemented locally (helper-level validation only; stdio/read-only posture preserved; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.

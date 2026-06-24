@@ -6,6 +6,7 @@ import { buildMetadataIndex, findMetadataAtText, formatMetadataItem, LSP_COMMAND
 import { capText, containsPrivateKeyMaterial, deniedReason, readSafeTextFile, redactText, resolvePolicyPath, safeError } from './policy.js';
 import { createCapabilities } from './capabilities.js';
 import { runReadOnlyCommand } from './commands.js';
+import { buildLspTelemetrySummary } from './telemetry.js';
 
 type MinimalDocument = {
   uri: string;
@@ -16,7 +17,9 @@ async function main(): Promise<void> {
   const metadata = await buildMetadataIndex();
   assert(metadata.items.length > 0, 'metadata index should not be empty');
   assert(metadata.byId.has('command:nova.lsp.showSetupGuide'), 'setup command metadata missing');
+  assert(metadata.byId.has('command:nova.lsp.showTelemetrySummary'), 'telemetry command metadata missing');
   assert(metadata.byId.has('policy:lsp-v1-1-client-setup'), 'client setup policy metadata missing');
+  assert(metadata.byId.has('policy:lsp-v1-1-telemetry-summary'), 'telemetry summary policy metadata missing');
   for (const command of LSP_COMMANDS) {
     assert(metadata.byId.has(`command:${command}`), `command metadata missing for ${command}`);
   }
@@ -38,6 +41,22 @@ async function main(): Promise<void> {
   assert.equal(setup.shellCommands, false, 'setup command must keep shell commands disabled');
   assert(setup.validation?.includes('npm run lsp:smoke'), 'setup command missing lsp smoke validation');
   assert(setup.validation?.includes('npm run eval:lsp'), 'setup command missing lsp eval validation');
+
+  const telemetryDirect = buildLspTelemetrySummary(metadata, '2026-01-01T00:00:00.000Z');
+  assert.equal(telemetryDirect.contentPolicy.documentContentIncluded, false, 'telemetry must omit document content');
+  assert.equal(telemetryDirect.contentPolicy.rawDiagnosticsIncluded, false, 'telemetry must omit raw diagnostics');
+  assert.equal(telemetryDirect.contentPolicy.uriIncluded, false, 'telemetry must omit URIs');
+  assert.equal(telemetryDirect.contentPolicy.rootPathsIncluded, false, 'telemetry must omit root paths');
+  assert.equal(telemetryDirect.contentPolicy.secretsIncluded, false, 'telemetry must omit secrets');
+  assert.equal(telemetryDirect.server.transport, 'stdio', 'telemetry should preserve stdio posture');
+  assert.equal(telemetryDirect.server.workspaceEdit, false, 'telemetry should preserve no WorkspaceEdit posture');
+  assert.equal(telemetryDirect.metadata.commandCount, LSP_COMMANDS.length, 'telemetry command count mismatch');
+  assert(telemetryDirect.validation.includes('npm run lsp:policy-smoke'), 'telemetry missing policy smoke validation');
+
+  const telemetryCommand = runReadOnlyCommand({ command: 'nova.lsp.showTelemetrySummary', arguments: [] }, metadata) as { ok?: boolean; readOnly?: boolean; summary?: typeof telemetryDirect };
+  assert.equal(telemetryCommand.ok, true, 'telemetry command should succeed');
+  assert.equal(telemetryCommand.readOnly, true, 'telemetry command should be read-only');
+  assert.equal(telemetryCommand.summary?.contentPolicy.documentContentIncluded, false, 'telemetry command must omit document content');
 
   const unknown = runReadOnlyCommand({ command: 'nova.lsp.writeFile', arguments: ['unsafe'] }, metadata) as { ok?: boolean; error?: string };
   assert.equal(unknown.ok, false, 'write-like commands should be denied');

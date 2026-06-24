@@ -12,6 +12,7 @@ Verified checks:
 - Opened document receives diagnostics for `.env` and raw `.nova/evals` mentions.
 - Hover, completion, document symbols, workspace symbols, and read-only policy command return Nova metadata.
 - `nova.lsp.showSetupGuide` returns stdio-only VS Code/Neovim setup guidance and validation commands.
+- `nova.lsp.showTelemetrySummary` returns aggregate metadata only and omits document content, raw diagnostics, URIs, root paths, and secrets.
 - `shutdown` and `exit` complete cleanly.
 
 Additional `lsp:policy-smoke` checks:
@@ -20,3 +21,4 @@ Additional `lsp:policy-smoke` checks:
 - Capabilities remain allowlisted and do not advertise `WorkspaceEdit`, code actions, write commands, or shell commands.
 - Denylist helpers refuse `.env`, `node_modules`, raw `.nova/traces|evals|reports`, private-key extensions, traversal, and NUL-byte paths.
 - Redaction, output caps, safe error formatting, diagnostics, and setup-guide metadata stay deterministic and content-safe.
+- Telemetry summary policy stays deterministic and metadata-only.

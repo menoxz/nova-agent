@@ -29,10 +29,22 @@ The read-only command `nova.lsp.showSetupGuide` returns safe setup metadata for 
 
 The setup guide explicitly reports `workspaceEdit: false`, `writeCommands: false`, and `shellCommands: false` so client wiring does not accidentally grant mutating capability.
 
+## Sanitized telemetry summary
+
+The read-only command `nova.lsp.showTelemetrySummary` returns aggregate metadata only:
+
+- metadata item counts by kind;
+- package script, eval suite, and command counts;
+- diagnostics policy booleans;
+- validation commands for `lsp:smoke`, `lsp:policy-smoke`, and `eval:lsp`.
+
+It explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`. It does not expose document text, raw diagnostics, opened document URIs, configured root paths, or secret-like content.
+
 ## Main files
 
 - `src/lsp/server.ts` — stdio LSP entrypoint.
 - `src/lsp/metadata.ts` — safe metadata index.
 - `src/lsp/policy.ts` — allowlist, denylist, redaction, output caps.
+- `src/lsp/telemetry.ts` — sanitized aggregate telemetry summary builder.
 - `src/lsp/diagnostics.ts` — diagnostics for missing scripts and sensitive artifact mentions.
 - `src/lsp/smoke.ts` — protocol smoke test.

@@ -14,6 +14,8 @@ Status: first safe V1.1 slice implemented for metadata-only client setup and pol
 
 Status: unit/helper validation slice implemented by `npm run lsp:policy-smoke`. It covers metadata indexing, command allowlists, no `WorkspaceEdit`/code-action/write/shell advertisement, denied write-like commands, denylist helpers, traversal/NUL refusal, redaction, output caps, safe errors, diagnostics, and setup-guide policy metadata.
 
+Status: optional sanitized telemetry summary implemented by the read-only `nova.lsp.showTelemetrySummary` command. It exposes aggregate metadata counts and policy booleans only, explicitly omitting document content, raw diagnostics, opened document URIs, configured root paths, and secrets.
+
 Still out of scope:
 
 - Write commands.
