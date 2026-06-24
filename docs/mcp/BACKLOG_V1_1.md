@@ -64,6 +64,8 @@ Potential V1.1+ mutating/state tools remain disabled unless every gate below is 
 - `nova_write_file` must define allowed extensions/roots, backup/atomic-write behavior, diff preview, and refusal for denied paths.
 - State tools must define storage location, schema, export/redaction behavior, and cleanup policy.
 
+Status: metadata/roadmap implemented by `nova://mcp/gated-tools-policy`. The resource documents candidate families, per-family environment gates, dry-run/approval/audit requirements, and non-goals while confirming `nova_bash`, `nova_write_file`, and state tools remain absent and no mutating/state action is implemented.
+
 ### 5. Richer curated resources
 
 Add more `nova://` resources without exposing a raw filesystem mirror:

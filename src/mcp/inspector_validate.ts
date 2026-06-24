@@ -29,7 +29,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const FORBIDDEN_TOOLS = ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'] as const;
-const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
+const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
 const REQUIRED_PROMPTS = ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_mcp_client_setup'] as const;
 
 function assert(condition: unknown, message: string): void {
@@ -125,6 +125,7 @@ async function main(): Promise<void> {
     checks.push(await runCheck('curated-resource-reads', fixtureRoot, async () => {
       const capabilities = await readResourceText(client, 'nova://mcp/capabilities');
       const policy = await readResourceText(client, 'nova://mcp/policy');
+      const gatedToolsPolicy = await readResourceText(client, 'nova://mcp/gated-tools-policy');
       const schemaPolicy = await readResourceText(client, 'nova://resources/schema-policy');
       const releaseChecklist = await readResourceText(client, 'nova://mcp/release-checklist');
       const compatibility = await readResourceText(client, 'nova://mcp/compatibility');
@@ -132,6 +133,9 @@ async function main(): Promise<void> {
       const docsIndex = await readResourceText(client, 'nova://docs/index');
       assert(capabilities.includes('hardOutputMaxChars'), 'capabilities resource missing limits');
       assert(policy.includes('raw .nova/traces') && policy.includes('literal'), 'policy resource missing deny/search metadata');
+      assert(gatedToolsPolicy.includes('"mutatingToolsRegisteredByDefault": false'), 'gated tools policy missing disabled mutating invariant');
+      assert(gatedToolsPolicy.includes('NOVA_MCP_ENABLE_BASH=1') && gatedToolsPolicy.includes('NOVA_MCP_ENABLE_WRITE_FILE=1') && gatedToolsPolicy.includes('NOVA_MCP_ENABLE_STATE_TOOLS=1'), 'gated tools policy missing env gates');
+      assert(gatedToolsPolicy.includes('"actionsImplementedInThisSlice": false'), 'gated tools policy must not implement actions');
       assert(schemaPolicy.includes('"resourceSchemaVersion": 1'), 'resource schema policy missing schema version');
       assert(schemaPolicy.includes('"resourcePolicyVersion": 1'), 'resource schema policy missing policy version');
       assert(schemaPolicy.includes('"uriStability"'), 'resource schema policy missing URI stability guidance');
@@ -143,8 +147,33 @@ async function main(): Promise<void> {
       assert(compatibility.includes('stdio only by default'), 'compatibility resource missing stdio default');
       assert(schemas.includes('nova_read_file') && schemas.includes('registered'), 'schemas resource missing tool metadata');
       assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index missing MCP backlog');
-      assert(noRootLeak(`${capabilities}\n${policy}\n${schemaPolicy}\n${releaseChecklist}\n${compatibility}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
-      return { resourcesRead: 7, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+      assert(noRootLeak(`${capabilities}\n${policy}\n${gatedToolsPolicy}\n${schemaPolicy}\n${releaseChecklist}\n${compatibility}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
+      return { resourcesRead: 8, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+    }));
+
+    checks.push(await runCheck('gated-tools-policy-resource', fixtureRoot, async () => {
+      const text = await readResourceText(client, 'nova://mcp/gated-tools-policy');
+      const policy = JSON.parse(text) as { currentDefault?: { readOnly?: boolean; stdioOnly?: boolean; mutatingToolsRegisteredByDefault?: boolean; novaBashRegistered?: boolean; novaWriteFileRegistered?: boolean; stateToolsRegistered?: boolean; actionsImplementedInThisSlice?: boolean }; candidateFamilies?: Array<{ family?: string; status?: string; futureRegistrationGate?: string }>; universalGates?: string[]; nonGoalsForThisSlice?: string[]; validation?: { requiredAbsentTools?: string[] } };
+      assert(policy.currentDefault?.readOnly === true, 'gated tools policy must preserve read-only default');
+      assert(policy.currentDefault?.stdioOnly === true, 'gated tools policy must preserve stdio-only default');
+      assert(policy.currentDefault?.mutatingToolsRegisteredByDefault === false, 'mutating tools must be absent by default');
+      assert(policy.currentDefault?.novaBashRegistered === false, 'nova_bash must remain absent');
+      assert(policy.currentDefault?.novaWriteFileRegistered === false, 'nova_write_file must remain absent');
+      assert(policy.currentDefault?.stateToolsRegistered === false, 'state tools must remain absent');
+      assert(policy.currentDefault?.actionsImplementedInThisSlice === false, 'metadata-only slice must not implement actions');
+      for (const family of ['nova_bash', 'nova_write_file', 'nova_todo_* / nova_goal_* / nova_skill_*']) {
+        assert(policy.candidateFamilies?.some((entry) => entry.family === family && entry.status === 'absent_by_default'), `missing gated family ${family}`);
+      }
+      for (const envGate of ['NOVA_MCP_ENABLE_BASH=1', 'NOVA_MCP_ENABLE_WRITE_FILE=1', 'NOVA_MCP_ENABLE_STATE_TOOLS=1']) {
+        assert(policy.candidateFamilies?.some((entry) => entry.futureRegistrationGate?.includes(envGate)), `missing env gate ${envGate}`);
+      }
+      for (const forbidden of FORBIDDEN_TOOLS) {
+        assert(policy.validation?.requiredAbsentTools?.includes(forbidden), `gated policy missing absent validation for ${forbidden}`);
+        assert(!toolNames.includes(forbidden), `forbidden tool registered despite gated policy: ${forbidden}`);
+      }
+      assert(policy.nonGoalsForThisSlice?.includes('No write/shell/state action implementation'), 'gated policy must be roadmap only');
+      assert(noRootLeak(text, fixtureRoot), 'gated tools policy leaked configured root path');
+      return { candidateFamilyCount: policy.candidateFamilies?.length ?? 0, forbiddenToolsAbsent: true, metadataOnly: true };
     }));
 
     checks.push(await runCheck('release-readiness-compatibility-resources', fixtureRoot, async () => {

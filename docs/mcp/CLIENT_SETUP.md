@@ -102,7 +102,7 @@ The smoke check starts the server through stdio, lists tools/resources/prompts, 
 npm run mcp:inspect
 ```
 
-This CI-friendly validation starts the local stdio server with a synthetic temporary allowed root and exercises the same MCP surfaces an operator would inspect manually: tool/resource/prompt listing, `nova_mcp_capabilities`, curated V1.1 resources, resource schema/version policy, release readiness and compatibility metadata, prompt retrieval, safe reads, representative denied reads, redaction, literal search defaults, regex opt-in, and regex guardrails.
+This CI-friendly validation starts the local stdio server with a synthetic temporary allowed root and exercises the same MCP surfaces an operator would inspect manually: tool/resource/prompt listing, `nova_mcp_capabilities`, curated V1.1 resources, gated tools policy, resource schema/version policy, release readiness and compatibility metadata, prompt retrieval, safe reads, representative denied reads, redaction, literal search defaults, regex opt-in, and regex guardrails.
 
 The command prints pass/fail metadata only. It does not write reports, expose raw `.nova` artifacts, print configured root paths, or enable HTTP/network transport.
 

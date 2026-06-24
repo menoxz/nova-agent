@@ -26,6 +26,8 @@ All registered tools use the `nova_*` namespace.
 
 State tools (`nova_todo_*`, `nova_goal_*`, `nova_skill_*`) are not registered in V1.
 
+V1.1 exposes only roadmap metadata for these families through `nova://mcp/gated-tools-policy`. The resource documents future gates (`NOVA_MCP_ENABLE_BASH=1`, `NOVA_MCP_ENABLE_WRITE_FILE=1`, `NOVA_MCP_ENABLE_STATE_TOOLS=1`), dry-run/approval/audit requirements, and safety invariants; it does not register or implement mutating/state actions.
+
 ## V1.1 metadata
 
 `nova_mcp_capabilities` and `nova://tools/schemas` expose curated tool metadata and input summaries only. They do not expose allowed-root path lists, raw `.nova` artifacts, or hidden write/shell tools.

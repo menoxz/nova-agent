@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
-    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
       assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
     }
     const prompts = await client.listPrompts();
@@ -80,6 +80,16 @@ async function main(): Promise<void> {
     const policyResource = await readResourceText(client, 'nova://mcp/policy');
     assert(policyResource.includes('raw .nova/traces'), 'policy resource should document raw trace denial');
     assert(policyResource.includes('literal'), 'policy resource should document literal search default');
+    const gatedToolsPolicy = await readResourceText(client, 'nova://mcp/gated-tools-policy');
+    assert(gatedToolsPolicy.includes('"mutatingToolsRegisteredByDefault": false'), 'gated tools policy should keep mutating tools disabled');
+    assert(gatedToolsPolicy.includes('"novaBashRegistered": false'), 'gated tools policy should keep nova_bash absent');
+    assert(gatedToolsPolicy.includes('"novaWriteFileRegistered": false'), 'gated tools policy should keep nova_write_file absent');
+    assert(gatedToolsPolicy.includes('NOVA_MCP_ENABLE_BASH=1'), 'gated tools policy should document bash env gate');
+    assert(gatedToolsPolicy.includes('NOVA_MCP_ENABLE_WRITE_FILE=1'), 'gated tools policy should document write env gate');
+    assert(gatedToolsPolicy.includes('NOVA_MCP_ENABLE_STATE_TOOLS=1'), 'gated tools policy should document state env gate');
+    assert(gatedToolsPolicy.includes('"actionsImplementedInThisSlice": false'), 'gated tools policy should not implement actions');
+    assert(!gatedToolsPolicy.includes(projectRoot), 'gated tools policy must not disclose project root');
+    assert(!gatedToolsPolicy.includes(fixtureRoot), 'gated tools policy must not disclose fixture root');
     const schemaPolicyResource = await readResourceText(client, 'nova://resources/schema-policy');
     assert(schemaPolicyResource.includes('"resourceSchemaVersion": 1'), 'schema policy should expose resource schema version');
     assert(schemaPolicyResource.includes('"resourcePolicyVersion": 1'), 'schema policy should expose resource policy version');

@@ -87,6 +87,7 @@ const RESOURCE_DEFS = [
   { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.', contentKind: 'markdown' },
   { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.', contentKind: 'json' },
   { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.', contentKind: 'json' },
+  { name: 'nova_mcp_gated_tools_policy', uri: 'nova://mcp/gated-tools-policy', title: 'Gated Tools Policy', description: 'Metadata-only roadmap and activation gates for future mutating/state tools; no actions enabled.', contentKind: 'json' },
   { name: 'nova_mcp_resource_schema_policy', uri: 'nova://resources/schema-policy', title: 'Resource Schema Policy', description: 'Stable MCP resource schema/versioning policy and resource inventory.', contentKind: 'json' },
   { name: 'nova_mcp_release_checklist', uri: 'nova://mcp/release-checklist', title: 'MCP Release Checklist', description: 'Generated MCP packaging/release readiness checklist and validation commands.', contentKind: 'json' },
   { name: 'nova_mcp_compatibility', uri: 'nova://mcp/compatibility', title: 'MCP Compatibility', description: 'Generated MCP Node/SDK/client compatibility expectations.', contentKind: 'json' },
@@ -256,6 +257,7 @@ function generatedCapabilities() {
     resources: RESOURCE_DEFS.map(resourceSummary),
     prompts: ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_eval_scenario_design', 'nova_trace_summary_diagnosis', 'nova_mcp_client_setup'],
     disabledToolFamilies: ['nova_bash', 'nova_write_file', 'nova_todo_*', 'nova_goal_*', 'nova_skill_*'],
+    gatedToolsPolicyResource: 'nova://mcp/gated-tools-policy',
     compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
   };
 }
@@ -272,6 +274,79 @@ function generatedPolicyMetadata() {
     mutatingTools: { nova_bash: 'absent by default', nova_write_file: 'absent by default', stateTools: 'absent by default' },
     transportPolicy: { stdio: 'default', http: 'not enabled in this slice', publicBind: 'non-goal' },
     compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
+  };
+}
+
+function generatedGatedToolsPolicy() {
+  return {
+    kind: 'mcp_gated_tools_policy',
+    packageVersion: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    policyVersion: MCP_RESOURCE_POLICY_VERSION,
+    currentDefault: {
+      readOnly: true,
+      stdioOnly: true,
+      mutatingToolsRegisteredByDefault: false,
+      novaBashRegistered: false,
+      novaWriteFileRegistered: false,
+      stateToolsRegistered: false,
+      actionsImplementedInThisSlice: false,
+    },
+    candidateFamilies: [
+      {
+        family: 'nova_bash',
+        status: 'absent_by_default',
+        futureRegistrationGate: 'NOVA_MCP_ENABLE_BASH=1 plus explicit operator approval and documented command policy',
+        requiredBeforeRegistration: [
+          'dry-run preview for command intent and working directory',
+          'command allow/deny policy including destructive-command refusal',
+          'cwd constrained to allowed roots without root disclosure',
+          'timeout, output caps, env allow-list, and process cleanup',
+          'human approval semantics and denial handling',
+          'audit log with redacted command/target/result summaries only',
+        ],
+      },
+      {
+        family: 'nova_write_file',
+        status: 'absent_by_default',
+        futureRegistrationGate: 'NOVA_MCP_ENABLE_WRITE_FILE=1 plus explicit operator approval and documented write policy',
+        requiredBeforeRegistration: [
+          'dry-run diff preview before writes',
+          'allowed extensions and allowed-root constraints',
+          'atomic write and backup/rollback policy',
+          'refusal for denied paths, secret-like filenames, and private-key material',
+          'human approval semantics and denial handling',
+          'audit log with redacted target/diff/result summaries only',
+        ],
+      },
+      {
+        family: 'nova_todo_* / nova_goal_* / nova_skill_*',
+        status: 'absent_by_default',
+        futureRegistrationGate: 'NOVA_MCP_ENABLE_STATE_TOOLS=1 plus documented local storage and cleanup policy',
+        requiredBeforeRegistration: [
+          'state storage location and schema documented',
+          'export/redaction behavior documented',
+          'cleanup/retention policy documented',
+          'no raw secret or raw .nova artifact persistence',
+          'idempotent operations and conflict behavior documented',
+          'audit log with redacted intent/result summaries only',
+        ],
+      },
+    ],
+    universalGates: [
+      'explicit environment flag per family before registration',
+      'disabled by default in package and source checkout',
+      'documented dry-run mode before execution/mutation',
+      'human approval requirement for write/shell side effects',
+      'redacted audit logging without secrets, raw file contents, raw .nova artifacts, or configured root disclosure',
+      'targeted smoke, Inspector, and eval coverage before activation',
+      'no weakening of allowed-root, denylist, redaction, output-cap, or transport policies',
+    ],
+    nonGoalsForThisSlice: ['No nova_bash registration', 'No nova_write_file registration', 'No state tool registration', 'No write/shell/state action implementation', 'No HTTP/streamable transport'],
+    validation: {
+      requiredAbsentTools: ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'],
+      expectedChecks: ['mcp:smoke', 'mcp:inspect', 'eval:mcp'],
+    },
   };
 }
 
@@ -816,6 +891,7 @@ function registerResources(server: McpServer): void {
     'nova://docs/mcp/client-setup': () => readDocResource('docs/mcp/CLIENT_SETUP.md', '# Nova MCP Client Setup\n'),
     'nova://mcp/capabilities': () => JSON.stringify(generatedCapabilities(), null, 2),
     'nova://mcp/policy': () => JSON.stringify(generatedPolicyMetadata(), null, 2),
+    'nova://mcp/gated-tools-policy': () => JSON.stringify(generatedGatedToolsPolicy(), null, 2),
     'nova://resources/schema-policy': () => JSON.stringify(generatedResourceSchemaPolicy(), null, 2),
     'nova://mcp/release-checklist': () => JSON.stringify(generatedMcpReleaseChecklist(), null, 2),
     'nova://mcp/compatibility': () => JSON.stringify(generatedMcpCompatibility(), null, 2),

@@ -1,5 +1,20 @@
 # Project Status
 
+## MCP V1.1 gated mutating/state tools policy — 2026-06-24
+
+Status: implemented locally (metadata-only roadmap; no mutating/state tool registration; no HTTP transport; read-only stdio posture preserved); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added generated resource `nova://mcp/gated-tools-policy` documenting candidate future tool families: `nova_bash`, `nova_write_file`, and state tools (`nova_todo_*`, `nova_goal_*`, `nova_skill_*`).
+- Documented explicit future activation gates (`NOVA_MCP_ENABLE_BASH=1`, `NOVA_MCP_ENABLE_WRITE_FILE=1`, `NOVA_MCP_ENABLE_STATE_TOOLS=1`) plus required dry-run previews, approval semantics, redacted audit logging, denylist/allowed-root enforcement, output caps, and validation coverage.
+- Confirmed in metadata that mutating/state tools remain absent by default and no write/shell/state action is implemented in this slice.
+- Reinforced `mcp:smoke`, `mcp:inspect`, and `eval:mcp` coverage for the policy resource and forbidden-tool absence.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 release readiness and compatibility resources — 2026-06-24
 
 Status: implemented locally (metadata-only MCP resources plus package-manifest readiness checks; no publish/tag/release; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).

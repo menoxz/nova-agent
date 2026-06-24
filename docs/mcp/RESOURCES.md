@@ -13,6 +13,7 @@ Nova MCP exposes curated resources only. It does not expose a raw filesystem mir
 - `nova://docs/mcp/client-setup`
 - `nova://mcp/capabilities`
 - `nova://mcp/policy`
+- `nova://mcp/gated-tools-policy`
 - `nova://resources/schema-policy`
 - `nova://mcp/release-checklist`
 - `nova://mcp/compatibility`
@@ -47,5 +48,11 @@ Additive JSON fields keep `resourceSchemaVersion: 1`. Incompatible payload shape
 `nova://mcp/release-checklist` exposes a metadata-only checklist for MCP stdio packaging readiness. It includes the required validation commands (`typecheck`, MCP smoke/Inspector/bin smoke, `eval:mcp`, build/check, and `release:readiness`), package manifest expectations, and explicit non-goals: no npm publish, no git tag, and no GitHub release as part of this slice.
 
 `nova://mcp/compatibility` exposes Node/MCP SDK/client expectations for MCP consumers: Node.js 22.x as the CI/runtime baseline, `@modelcontextprotocol/sdk ^1.29.0`, and `nova-mcp` stdio entrypoints. HTTP/streamable transport, remote bind, mutating tools, and state tools remain unsupported by default.
+
+## Gated mutating/state tools policy
+
+`nova://mcp/gated-tools-policy` is a metadata-only roadmap for possible future `nova_bash`, `nova_write_file`, and state tool families (`nova_todo_*`, `nova_goal_*`, `nova_skill_*`). It does not register or implement those tools.
+
+The policy records that all mutating/state tools remain absent by default, read-only stdio remains the default posture, and future registration would require explicit per-family environment gates, dry-run previews, human approval semantics, redacted audit logs, denylist/allowed-root enforcement, output caps, and targeted smoke/Inspector/eval coverage before activation.
 
 Observability resources expose counters, statuses, run IDs, timestamps, gates, failure names/checks, and aggregate metrics. They intentionally omit raw `.nova` eval/trace/report contents, raw trace events, report file paths, configured root paths, and secret-like strings.

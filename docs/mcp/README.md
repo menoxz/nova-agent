@@ -29,6 +29,7 @@ Transport is stdio via `@modelcontextprotocol/sdk`. HTTP is not implemented/enab
 - Raw `.env`, `.git`, `node_modules`, private keys, and raw `.nova/traces`, `.nova/evals`, `.nova/reports` artifacts are denied.
 - `nova_search_text` is literal by default; `regex: true` opts into guarded regex mode with length/ReDoS safeguards.
 - V1.1 adds curated metadata only: `nova_mcp_capabilities`, `nova://mcp/capabilities`, `nova://mcp/policy`, `nova://resources/schema-policy`, `nova://tools/schemas`, and `nova://docs/index`.
+- `nova://mcp/gated-tools-policy` documents the metadata-only roadmap and activation gates for future mutating/state tools while keeping them absent.
 - `nova://resources/schema-policy` documents resource schema/version policy, URI stability, and resource inventory metadata for consumers.
 - `nova://mcp/release-checklist` and `nova://mcp/compatibility` document MCP stdio packaging readiness, validation commands, Node.js 22 / MCP SDK expectations, and no-publish/no-HTTP safety invariants.
 - V1.1 observability resources (`nova://eval/recent-summary`, `nova://eval/latest-summary`, `nova://reports/latest-summary`, `nova://trace/summary`, `nova://observability/summary`) expose sanitized summaries only.
