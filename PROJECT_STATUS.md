@@ -2,7 +2,7 @@
 
 ## MCP V1.1 curated metadata/resources slice — 2026-06-24
 
-Status: implemented locally (stdio remains the only/default transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+Status: implemented, committed, and pushed to `main` (stdio remains the only/default transport; read-only posture preserved; mutating/state tools remain absent by default); local tests and CI passing.
 
 ### Delivered
 
@@ -14,7 +14,7 @@ Status: implemented locally (stdio remains the only/default transport; read-only
 
 ### Verification run
 
-- `npm run typecheck`, `npm run mcp:smoke`, and `npm run eval:mcp` exit 0; full build/check verification recorded in the implementation run.
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0; CI run `28111974020` passes on pushed commit `116b900`.
 
 ## Sandboxed BashTool V1 — opt-in ExecutionSandbox routing — 2026-06-24
 
