@@ -49,6 +49,8 @@ Expand MCP eval coverage beyond the V1 smoke/eval baseline:
 - Tool absence checks for disabled mutating tools.
 - Resources/prompts checks to ensure only curated, safe entries are exposed.
 
+Status: implemented by the `eval:mcp` mock suite. Coverage now includes the baseline read-only denylist, V1.1 curated metadata/resources, path denial matrix (`.env.*`, `.git`, `node_modules`, raw `.nova/*`, traversal, NUL, outside-root, private keys), redaction/output caps, disabled mutating/state tools, and curated resources/prompts.
+
 ### 4. Gated tools roadmap
 
 Potential V1.1+ mutating/state tools remain disabled unless every gate below is satisfied:

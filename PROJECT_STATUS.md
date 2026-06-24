@@ -1,5 +1,20 @@
 # Project Status
 
+## MCP V1.1 reinforced evals slice — 2026-06-24
+
+Status: implemented locally (mock eval coverage only; no HTTP transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Expanded `eval:mcp` from 2 to 5 mock scenarios: baseline read-only denylist, V1.1 curated metadata/resources, path denial matrix, redaction/output caps, and disabled-tools/curated-surface checks.
+- Added explicit eval coverage expectations for `.env`, `.env.*`, `.git`, `node_modules`, raw `.nova/traces`, `.nova/evals`, `.nova/reports`, traversal, NUL-byte paths, outside-root denial without root disclosure, private-key extension/content refusal, synthetic secret redaction, output caps/truncation metadata, absent mutating/state tools, curated resources/prompts, stdio default, and HTTP transport remaining off.
+- Kept the slice eval-only: no server transport change, no mutating/state tool registration, no package version bump, and no new dependencies.
+- Documented the reinforced eval coverage in the MCP backlog/status/changelog.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run mcp:bin-smoke`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 packaging/client setup slice — 2026-06-24
 
 Status: implemented locally (dedicated packaged stdio entrypoint; no HTTP transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).
