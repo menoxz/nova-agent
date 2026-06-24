@@ -1,5 +1,20 @@
 # Project Status
 
+## MCP V1.1 sanitized observability resources — 2026-06-24
+
+Status: implemented locally (read-only generated MCP resources; no raw `.nova` content; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added generated resources `nova://eval/recent-summary`, `nova://eval/latest-summary`, `nova://reports/latest-summary`, `nova://trace/summary`, and `nova://observability/summary`.
+- Each resource declares a sanitization policy and exposes summary metadata only: counters, statuses, run IDs, timestamps, gates, failed scenario names/check names, and aggregate trace/eval metrics.
+- Sanitization omits raw report paths, configured root paths, raw `.nova` eval/trace/report contents, raw trace events/content, and secret-like strings. Missing observability artifacts return safe unavailable summaries rather than raw errors.
+- Reinforced `mcp:smoke`, `mcp:inspect`, and `eval:mcp` coverage for the new observability resources.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run mcp:bin-smoke`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 reinforced evals slice — 2026-06-24
 
 Status: implemented locally (mock eval coverage only; no HTTP transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).

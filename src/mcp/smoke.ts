@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
-    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index']) {
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
       assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
     }
     const prompts = await client.listPrompts();
@@ -85,6 +85,17 @@ async function main(): Promise<void> {
     assert(schemasResource.includes('registered'), 'schemas resource should include registration metadata');
     const docsIndex = await readResourceText(client, 'nova://docs/index');
     assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index should include MCP backlog');
+
+    for (const uri of ['nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
+      const observability = await readResourceText(client, uri);
+      assert(observability.includes('"sanitized": true'), `${uri} should declare sanitized policy`);
+      assert(observability.includes('"rawArtifactsExposed": false'), `${uri} should refuse raw artifacts`);
+      assert(!observability.includes(projectRoot), `${uri} must not disclose project root`);
+      assert(!observability.includes(fixtureRoot), `${uri} must not disclose fixture root`);
+      assert(!observability.includes('report.json'), `${uri} must not expose raw report file paths`);
+      assert(!observability.includes('.nova\\') && !observability.includes('.nova/'), `${uri} must not expose raw .nova paths`);
+      assert(!observability.includes('synthetic_token_value_12345'), `${uri} must not expose synthetic secrets`);
+    }
 
     const deniedEnv = await client.callTool({ name: 'nova_read_file', arguments: { path: '.env' } });
     assert(deniedEnv.isError === true, '.env read should be denied with isError');

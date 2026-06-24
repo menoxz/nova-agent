@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { defaultScenarios } from '../eval/scenarios.js';
+import { latestEvalReport, listEvalReports, summarizeEvalReport } from '../eval/reporting.js';
 import { EVAL_SCHEMA_VERSION } from '../eval/schema.js';
+import { buildEvalSloDashboard } from '../eval/slo.js';
 import { evalSuites, listSuites } from '../eval/suites.js';
 import {
   PROJECT_ROOT,
@@ -85,6 +87,11 @@ const RESOURCE_DEFS = [
   { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.' },
   { name: 'nova_eval_scenarios_resource', uri: 'nova://eval/scenarios', title: 'Eval Scenarios', description: 'Default eval scenario IDs and tags only.' },
   { name: 'nova_eval_schema_resource', uri: 'nova://eval/schema', title: 'Eval Schema Info', description: 'Eval and trace schema metadata only.' },
+  { name: 'nova_eval_recent_summary_resource', uri: 'nova://eval/recent-summary', title: 'Recent Eval Summary', description: 'Sanitized recent eval run summaries; no raw reports.' },
+  { name: 'nova_eval_latest_summary_resource', uri: 'nova://eval/latest-summary', title: 'Latest Eval Summary', description: 'Sanitized latest eval report summary; no raw report content.' },
+  { name: 'nova_reports_latest_summary_resource', uri: 'nova://reports/latest-summary', title: 'Latest Report Summary', description: 'Sanitized latest report/SLO summary; no raw report artifacts.' },
+  { name: 'nova_trace_summary_resource', uri: 'nova://trace/summary', title: 'Trace Summary', description: 'Sanitized aggregate trace summary; no raw trace events.' },
+  { name: 'nova_observability_summary_resource', uri: 'nova://observability/summary', title: 'Observability Summary', description: 'Sanitized eval/report/trace observability rollup.' },
 ] as const;
 
 function allowedRoots(): string[] {
@@ -282,6 +289,113 @@ function generatedDocsIndex() {
     { path: 'PROJECT_STATUS.md', topic: 'Project status summaries' },
     { path: 'CHANGELOG.md', topic: 'Released and unreleased changes' },
   ];
+}
+
+type JsonSafe = null | boolean | number | string | JsonSafe[] | { [key: string]: JsonSafe };
+
+function sanitizeObservabilityString(value: string): string {
+  return redactText(value)
+    .replaceAll(PROJECT_ROOT, '<project-root>')
+    .replace(/[A-Za-z]:\\[^\s"',}]+/g, '<path>')
+    .replace(/\/[A-Za-z0-9._/-]*\.nova\/[A-Za-z0-9._/-]*/g, '<path>');
+}
+
+function sanitizeObservabilityValue(value: unknown, depth = 0): JsonSafe {
+  if (depth > 6) return '[max-depth]';
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') return sanitizeObservabilityString(value);
+  if (Array.isArray(value)) return value.slice(0, 25).map((item) => sanitizeObservabilityValue(item, depth + 1));
+  if (typeof value === 'object') {
+    const out: { [key: string]: JsonSafe } = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      const lower = key.toLowerCase();
+      if ((lower.includes('path') && lower !== 'pathdisclosure') || lower === 'directory' || lower === 'events' || lower === 'content' || lower === 'raw') {
+        out[key] = '<omitted>';
+      } else {
+        out[key] = sanitizeObservabilityValue(nested, depth + 1);
+      }
+    }
+    return out;
+  }
+  return String(value);
+}
+
+function observabilityPolicy() {
+  return {
+    sanitized: true,
+    rawArtifactsExposed: false,
+    pathDisclosure: false,
+    contentIncluded: false,
+    notes: 'Only counters, statuses, run identifiers, timestamps, gates, failures, and aggregate metrics are exposed.',
+  };
+}
+
+async function generatedEvalRecentSummary() {
+  const runs = await listEvalReports({ limit: 10 }).catch(() => []);
+  return sanitizeObservabilityValue({
+    kind: 'eval_recent_summary',
+    policy: observabilityPolicy(),
+    runCount: runs.length,
+    runs: runs.map(({ reportPath: _reportPath, ...run }) => run),
+  });
+}
+
+async function generatedEvalLatestSummary() {
+  try {
+    const { report, path } = await latestEvalReport();
+    const summary = summarizeEvalReport(report, path);
+    return sanitizeObservabilityValue({
+      kind: 'eval_latest_summary',
+      policy: observabilityPolicy(),
+      summary,
+    });
+  } catch (err) {
+    return sanitizeObservabilityValue({ kind: 'eval_latest_summary', policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function generatedReportLatestSummary() {
+  try {
+    const { report, path } = await latestEvalReport();
+    const summary = summarizeEvalReport(report, path);
+    const slo = buildEvalSloDashboard(summary);
+    return sanitizeObservabilityValue({
+      kind: 'report_latest_summary',
+      policy: observabilityPolicy(),
+      report: summary,
+      slo,
+    });
+  } catch (err) {
+    return sanitizeObservabilityValue({ kind: 'report_latest_summary', policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function generatedTraceSummary() {
+  const summary = await summarizeTraces({ limit: 25 }).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
+  return sanitizeObservabilityValue({
+    kind: 'trace_summary',
+    policy: observabilityPolicy(),
+    summary,
+  });
+}
+
+async function generatedObservabilitySummary() {
+  const [evalRecent, evalLatest, reportsLatest, traceSummary] = await Promise.all([
+    generatedEvalRecentSummary(),
+    generatedEvalLatestSummary(),
+    generatedReportLatestSummary(),
+    generatedTraceSummary(),
+  ]);
+  return sanitizeObservabilityValue({
+    kind: 'observability_summary',
+    policy: observabilityPolicy(),
+    evalRecent,
+    evalLatest,
+    reportsLatest,
+    traceSummary,
+  });
 }
 
 async function runGit(args: string[], cwd: string, maxChars: number): Promise<{ output: string; exitCode: number | null; timedOut: boolean; truncated: boolean }> {
@@ -553,7 +667,7 @@ function generatedToolCatalog(): string {
 }
 
 function resourceMimeType(uri: string): 'application/json' | 'text/markdown' {
-  if (uri.includes('eval') || uri.includes('schema') || uri.includes('capabilities') || uri.includes('policy') || uri.includes('docs/index')) return 'application/json';
+  if (uri.includes('eval') || uri.includes('schema') || uri.includes('capabilities') || uri.includes('policy') || uri.includes('docs/index') || uri.includes('report') || uri.includes('trace') || uri.includes('observability')) return 'application/json';
   return 'text/markdown';
 }
 
@@ -573,6 +687,11 @@ function registerResources(server: McpServer): void {
     'nova://tools/catalog': generatedToolCatalog,
     'nova://eval/scenarios': () => JSON.stringify(defaultScenarios.map(({ id, name, tags, description }) => ({ id, name, tags, description })), null, 2),
     'nova://eval/schema': () => JSON.stringify({ evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, rawArtifacts: 'Denied by filesystem tools; use summaries only.' }, null, 2),
+    'nova://eval/recent-summary': async () => JSON.stringify(await generatedEvalRecentSummary(), null, 2),
+    'nova://eval/latest-summary': async () => JSON.stringify(await generatedEvalLatestSummary(), null, 2),
+    'nova://reports/latest-summary': async () => JSON.stringify(await generatedReportLatestSummary(), null, 2),
+    'nova://trace/summary': async () => JSON.stringify(await generatedTraceSummary(), null, 2),
+    'nova://observability/summary': async () => JSON.stringify(await generatedObservabilitySummary(), null, 2),
   };
   for (const def of RESOURCE_DEFS) {
     const mimeType = resourceMimeType(def.uri);

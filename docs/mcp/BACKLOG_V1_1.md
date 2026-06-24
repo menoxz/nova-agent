@@ -75,6 +75,8 @@ Add more `nova://` resources without exposing a raw filesystem mirror:
 - Resource schema/policy metadata for consumers.
 - Explicitly no raw `.nova` artifacts, raw traces, raw eval reports, `.env`, private keys, or generated sensitive artifacts.
 
+Status: sanitized observability resources implemented for eval recent/latest summaries, reports latest summary, trace summary, and combined observability summary. They expose summary metadata only and omit raw `.nova` contents, raw events, report paths, configured roots, and secrets.
+
 ### 6. Packaging and distribution
 
 Prepare MCP usage outside a checked-out dev shell:

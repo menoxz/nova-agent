@@ -29,7 +29,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const FORBIDDEN_TOOLS = ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'] as const;
-const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index'] as const;
+const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
 const REQUIRED_PROMPTS = ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_mcp_client_setup'] as const;
 
 function assert(condition: unknown, message: string): void {
@@ -133,6 +133,20 @@ async function main(): Promise<void> {
       assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index missing MCP backlog');
       assert(noRootLeak(`${capabilities}\n${policy}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
       return { resourcesRead: 4, rootPathsDisclosed: false };
+    }));
+
+    checks.push(await runCheck('sanitized-observability-resources', fixtureRoot, async () => {
+      const uris = ['nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'];
+      for (const uri of uris) {
+        const text = await readResourceText(client, uri);
+        assert(text.includes('"sanitized": true'), `${uri} missing sanitized policy`);
+        assert(text.includes('"rawArtifactsExposed": false'), `${uri} missing raw artifact refusal`);
+        assert(noRootLeak(text, fixtureRoot), `${uri} leaked configured root path`);
+        assert(!text.includes('report.json'), `${uri} exposed raw report path`);
+        assert(!text.includes('.nova\\') && !text.includes('.nova/'), `${uri} exposed raw .nova path`);
+        assert(!text.includes('synthetic_token_value_12345'), `${uri} exposed synthetic secret`);
+      }
+      return { resourcesRead: uris.length, rootPathsDisclosed: false, rawArtifactsExposed: false };
     }));
 
     checks.push(await runCheck('prompt-read', fixtureRoot, async () => {
