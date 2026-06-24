@@ -43,6 +43,8 @@ import { ToolRegistry } from '../tools/registry.js';
 import type { NovaTool } from '../types.js';
 import type {
   HeartbeatApprovalGateway,
+  HeartbeatApprovalRequest,
+  HeartbeatApprovalRequester,
   HeartbeatApprovalResolution,
   HeartbeatAutomationManifest,
   HeartbeatConfig,
@@ -52,6 +54,7 @@ import type {
   HeartbeatExecutionMode,
   HeartbeatPlanReport,
   HeartbeatQuietWindow,
+  HeartbeatSessionApprovalLink,
   HeartbeatState,
   HeartbeatTaskConfig,
   HeartbeatTaskState,
@@ -884,6 +887,126 @@ async function main(): Promise<void> {
         }
       }
 
+      // ADR-002 §SEC Slice 4b — the session-namespace approval bridge. At mint
+      // time a wired requester creates a real session approval and hands back a
+      // (approvalId, runId, sessionId) locator; a later tick passes that locator
+      // to the gateway so an operator's verdict can drive Gate B. These tests
+      // prove OFFLINE that the locator is captured and persisted (OQ2), that the
+      // bridge fails closed when either port throws (§SEC-B1), and that the
+      // session linkage NEVER leaks into the redacted tick report (§SEC-C5).
+      {
+        // Records the exact request it is handed and returns a fixed link, so a
+        // test can assert BOTH the secret-free request shape and the persisted
+        // locator from a single mint.
+        const capturingRequester = (link: HeartbeatSessionApprovalLink): { requester: HeartbeatApprovalRequester; requests: HeartbeatApprovalRequest[] } => {
+          const requests: HeartbeatApprovalRequest[] = [];
+          return { requests, requester: { async request(req: HeartbeatApprovalRequest): Promise<HeartbeatSessionApprovalLink> { requests.push(req); return link; } } };
+        };
+        // Returns a fixed link without recording — for the leak and throw probes.
+        const linkOf = (link: HeartbeatSessionApprovalLink): HeartbeatApprovalRequester => ({ async request(): Promise<HeartbeatSessionApprovalLink> { return link; } });
+        // A benign always-'pending' gateway, so a mint can be staged without granting.
+        const pendingGateway: HeartbeatApprovalGateway = { async resolve(): Promise<HeartbeatApprovalResolution> { return 'pending'; } };
+
+        // OQ2 — a wired requester's locator is captured and persisted beside the
+        // synthetic id, and the request carries only identity, kind, and 'shell'.
+        {
+          const linkRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-link-'));
+          const { requester, requests } = capturingRequester({ sessionApprovalId: 'approval_1', sessionRunId: 'run_link', sessionId: 'ses_link' });
+          try {
+            await runHeartbeatDryRunTick({ projectRoot: linkRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: pendingGateway, approvalRequester: requester, now: new Date('2026-03-01T00:00:00.000Z') });
+            assert.equal(requests.length, 1, 'a mint with a wired requester asks it exactly once');
+            assert.deepEqual(requests[0], { taskId: 'inspect-docs', kind: 'inspection', capability: 'shell' }, 'the request carries only task identity, kind, and the fixed shell capability');
+            const linked = await taskStateOf(linkRoot);
+            assert.equal(linked!.pendingSessionApprovalId, 'approval_1', 'the session approval id is persisted as the locator');
+            assert.equal(linked!.pendingSessionRunId, 'run_link', 'the session run id is persisted as the locator');
+            assert.equal(linked!.pendingSessionId, 'ses_link', 'the session id is persisted as the locator');
+            assert.ok(linked!.pendingApprovalId !== undefined && linked!.pendingApprovalId.startsWith('hb-appr-'), 'the synthetic hb-appr- id is persisted alongside the session locator');
+          } finally {
+            await rm(linkRoot, { recursive: true, force: true });
+          }
+        }
+
+        // OQ2 / SI-1 — with NO requester the mint is synthetic-only: the hb-appr-
+        // id persists but no session locator is written (Slice-2 parity).
+        {
+          const soloRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-solo-'));
+          try {
+            await runHeartbeatDryRunTick({ projectRoot: soloRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: pendingGateway, now: new Date('2026-03-01T00:00:00.000Z') });
+            const solo = await taskStateOf(soloRoot);
+            assert.ok(solo!.pendingApprovalId !== undefined && solo!.pendingApprovalId.startsWith('hb-appr-'), 'a requester-less mint still persists a synthetic hb-appr- id');
+            assert.equal(solo!.pendingSessionApprovalId, undefined, 'no requester means no persisted session approval id');
+            assert.equal(solo!.pendingSessionRunId, undefined, 'no requester means no persisted session run id');
+            assert.equal(solo!.pendingSessionId, undefined, 'no requester means no persisted session id');
+          } finally {
+            await rm(soloRoot, { recursive: true, force: true });
+          }
+        }
+
+        // §SEC-B1 — a requester that THROWS at mint fails closed: the mint falls
+        // back to synthetic-only (no locator) and the thrown secret never persists.
+        {
+          const reqThrowRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-req-throw-'));
+          const throwingRequester: HeartbeatApprovalRequester = { async request(): Promise<HeartbeatSessionApprovalLink> { throw new Error(`requester boom ${SYNTHETIC_SECRET}`); } };
+          try {
+            const tick = await runHeartbeatDryRunTick({ projectRoot: reqThrowRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: pendingGateway, approvalRequester: throwingRequester, now: new Date('2026-03-01T00:00:00.000Z') });
+            assert.equal(tick.tasks[0]!.status, 'needs_user_action', 'B1: a throwing requester still mints and awaits the user');
+            assert.equal(tick.safety.autonomousActionsExecuted, false, 'B1: a throwing requester executes nothing');
+            const thrown = await taskStateOf(reqThrowRoot);
+            assert.ok(thrown!.pendingApprovalId !== undefined && thrown!.pendingApprovalId.startsWith('hb-appr-'), 'B1: a throwing requester falls back to a synthetic-only mint');
+            assert.equal(thrown!.pendingSessionApprovalId, undefined, 'B1: a throwing requester writes no session locator');
+            const rawReqThrow = await readFile(new HeartbeatStore(reqThrowRoot).paths.state, 'utf-8');
+            assert.ok(!rawReqThrow.includes(SYNTHETIC_SECRET), 'B1: a requester error never leaks its message into state');
+          } finally {
+            await rm(reqThrowRoot, { recursive: true, force: true });
+          }
+        }
+
+        // §SEC-B1 — a gateway that THROWS while resolving a LINKED approval fails
+        // closed to 'pending': the task keeps awaiting, executes nothing even with
+        // a capability available, and RETAINS both the pending id and its locator.
+        {
+          const gwThrowRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-gw-throw-'));
+          const benignLink: HeartbeatSessionApprovalLink = { sessionApprovalId: 'approval_1', sessionRunId: 'run_gw', sessionId: 'ses_gw' };
+          const throwingGateway: HeartbeatApprovalGateway = { async resolve(): Promise<HeartbeatApprovalResolution> { throw new Error('gateway boom'); } };
+          try {
+            await runHeartbeatDryRunTick({ projectRoot: gwThrowRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: pendingGateway, approvalRequester: linkOf(benignLink), now: new Date('2026-03-01T00:00:00.000Z') });
+            const minted = await taskStateOf(gwThrowRoot);
+            assert.equal(minted!.pendingSessionApprovalId, 'approval_1', 'T0 persists the session locator to resolve later');
+            const tick = await runHeartbeatDryRunTick({ projectRoot: gwThrowRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: throwingGateway, capability: okCapability, now: new Date('2026-03-01T00:01:00.000Z') });
+            assert.equal(tick.tasks[0]!.status, 'needs_user_action', 'B1: a throwing gateway keeps the task awaiting the user');
+            assert.equal(tick.status, 'dry_run_completed', 'B1: a throwing gateway executes nothing');
+            assert.equal(tick.safety.autonomousActionsExecuted, false, 'B1: a throwing gateway never auto-grants, even with a capability present');
+            const held = await taskStateOf(gwThrowRoot);
+            assert.equal(held!.pendingApprovalId, minted!.pendingApprovalId, 'B1: the pending approval id is retained across a gateway error');
+            assert.equal(held!.pendingSessionApprovalId, 'approval_1', 'B1: the session approval locator is retained for a later resolve');
+            assert.equal(held!.pendingSessionRunId, 'run_gw', 'B1: the run locator is retained');
+            assert.equal(held!.pendingSessionId, 'ses_gw', 'B1: the session id locator is retained');
+            assert.equal(held!.lastExecStatus, 'needs_user_action', 'B1: the await status is recorded');
+            assert.equal(held!.lastExecAt, undefined, 'B1: a fail-closed tick never stamps an execution time');
+          } finally {
+            await rm(gwThrowRoot, { recursive: true, force: true });
+          }
+        }
+
+        // §SEC-C5 — the locator is bridge-only state: even sentinel-loud session
+        // ids land in state.json yet NEVER appear in the redacted tick report.
+        {
+          const leakRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-link-leak-'));
+          const sentinels: HeartbeatSessionApprovalLink = { sessionApprovalId: 'approval_LEAK5b', sessionRunId: 'run_LEAK5b', sessionId: 'ses_LEAK5b' };
+          try {
+            const tick = await runHeartbeatDryRunTick({ projectRoot: leakRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: pendingGateway, approvalRequester: linkOf(sentinels), now: new Date('2026-03-01T00:00:00.000Z') });
+            const reportText = JSON.stringify(tick);
+            assert.ok(!reportText.includes('approval_LEAK5b'), 'C5: the session approval id never reaches the tick report');
+            assert.ok(!reportText.includes('run_LEAK5b'), 'C5: the session run id never reaches the tick report');
+            assert.ok(!reportText.includes('ses_LEAK5b'), 'C5: the session id never reaches the tick report');
+            const rawLeak = await readFile(new HeartbeatStore(leakRoot).paths.state, 'utf-8');
+            assert.ok(rawLeak.includes('approval_LEAK5b') && rawLeak.includes('run_LEAK5b') && rawLeak.includes('ses_LEAK5b'), 'C5: the locator IS persisted to state.json, proving the report omission is real redaction');
+          } finally {
+            await rm(leakRoot, { recursive: true, force: true });
+          }
+        }
+      }
+
       // The read-only `nova heartbeat approvals` CLI surfaces the persisted ledger
       // and NEVER writes state (byte-identical before/after) nor decides anything.
       {
@@ -1041,7 +1164,7 @@ async function main(): Promise<void> {
     }
 
     // ADR-002 §D5 — a V1 state file (schemaVersion 1, no execution fields) is
-    // read forward: the store re-stamps schemaVersion 2, preserves lastRunAt and
+    // read forward: the store re-stamps schemaVersion 3, preserves lastRunAt and
     // task history, and leaves the new execution fields undefined.
     {
       const migrateRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-migrate-'));
@@ -1058,7 +1181,7 @@ async function main(): Promise<void> {
         await writeFile(store.paths.state, `${JSON.stringify(v1State, null, 2)}\n`, 'utf-8');
         const migrated = await store.readState(true);
         assert.equal(migrated.schemaVersion, HEARTBEAT_SCHEMA_VERSION, 'readState re-stamps the schema version');
-        assert.equal(migrated.schemaVersion, 2, 'the re-stamped schema version is 2');
+        assert.equal(migrated.schemaVersion, 3, 'the re-stamped schema version is 3');
         assert.equal(migrated.heartbeatId, 'heartbeat_legacy', 'the legacy heartbeat id is preserved');
         assert.equal(migrated.tasks['inspect-docs']!.lastStatus, 'due', 'task history is preserved across migration');
         assert.equal(migrated.tasks['inspect-docs']!.lastRunAt, '2026-01-01T00:00:00.000Z', 'lastRunAt is preserved across migration');

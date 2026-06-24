@@ -1,21 +1,26 @@
 /**
- * Heartbeat V3 Slice 2 — cross-tick approval lifecycle (ADR-002 §D7).
+ * Heartbeat V3 Slice 4b — cross-tick approval lifecycle + session-bridge ports
+ * (ADR-002 §D7, §SEC).
  *
  * This module is PURE with respect to scheduling and process control: it starts
  * no timer, opens no process, runs no shell, and performs NO session-store I/O.
- * It threads an injected `now` clock and an injectable approval-gateway *port*
- * so the runner can resolve a pending approval, mint a fresh approval id, honour
- * a 24h expiry, and persist the resulting decision under .nova/heartbeat/ ONLY.
+ * It threads an injected `now` clock and two injectable *ports* — a read-only
+ * approval gateway and an approval requester — so the runner can request a fresh
+ * approval, resolve a pending one, honour a 24h expiry, and persist the decision
+ * under .nova/heartbeat/ ONLY. Both ports are plain-data seams whose session-
+ * machinery implementations live in src/autoexec/** and are injected by the CLI,
+ * so src/heartbeat/** never imports ../session/ or ../tools/ (not even types).
  *
- * The production gateway is a zero-I/O stub that always reports 'pending':
- * heartbeat-minted approval ids live in a synthetic `hb-appr-*` namespace that
- * never collides with a real session approval id, so reading the session store
- * would always yield 'pending' anyway — and the session-machinery bridge is
- * deliberately deferred to Slice 4 (the gateway is the seam where it will land).
+ * With NO requester wired (the default) an approval is minted purely in the
+ * synthetic `hb-appr-*` namespace and no session approval is created, so the
+ * gateway always reads 'pending' (Slice-2 behaviour, byte-identical). With the
+ * requester wired the mint ALSO creates a real session approval and persists the
+ * (approvalId, runId, sessionId) locator beside the hb-appr id; the gateway then
+ * resolves that locator to the operator's verdict.
  *
- * It LISTS/READS approvals through the port and NEVER resolves them to a verdict
- * itself: the gate's own write primitive is forbidden here by the §D6 static
- * guard, so the heartbeat can never grant or deny its own approvals.
+ * It LISTS/READS approvals through the gateway and NEVER resolves them to a
+ * verdict itself: the gate's own write primitive is forbidden here by the §D6
+ * static guard, so the heartbeat can never grant or deny its own approvals.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -37,12 +42,26 @@ const HEARTBEAT_APPROVAL_ID_PREFIX = 'hb-appr-';
 export type HeartbeatApprovalResolution = Exclude<HeartbeatApprovalStatus, 'none'>;
 
 /**
+ * Locator tying a heartbeat-minted `hb-appr-*` id to a real approval in the
+ * session namespace (ADR-002 Slice 4b §SEC-B2). All three fields are required to
+ * address a single approval; a partial locator is treated as "no link" and
+ * resolves 'pending' (fail-closed). This is plain data — no session type ever
+ * crosses into src/heartbeat/**.
+ */
+export interface HeartbeatSessionApprovalLink {
+  sessionApprovalId: string;
+  sessionRunId: string;
+  sessionId: string;
+}
+
+/**
  * Injectable read-only approval port. Heartbeat may LIST/READ an approval by id
- * but NEVER write a verdict for it. `resolve` maps a pending approval id to its
- * current lifecycle status.
+ * (optionally narrowed by a {@link HeartbeatSessionApprovalLink}) but NEVER
+ * writes a verdict for it. `resolve` maps a pending approval to its current
+ * lifecycle status.
  */
 export interface HeartbeatApprovalGateway {
-  resolve(approvalId: string): Promise<HeartbeatApprovalResolution>;
+  resolve(approvalId: string, locator?: HeartbeatSessionApprovalLink): Promise<HeartbeatApprovalResolution>;
 }
 
 /**
@@ -62,6 +81,28 @@ export function createReadOnlyApprovalGateway(): HeartbeatApprovalGateway {
 /** Mint a fresh heartbeat approval id in the synthetic `hb-appr-*` namespace. */
 export function mintHeartbeatApprovalId(): string {
   return `${HEARTBEAT_APPROVAL_ID_PREFIX}${randomUUID()}`;
+}
+
+/**
+ * Secret-free approval request handed to the {@link HeartbeatApprovalRequester}.
+ * Carries only the task identity, kind, and the fixed capability category a
+ * heartbeat execution would need — never prompts, env, or secrets.
+ */
+export interface HeartbeatApprovalRequest {
+  taskId: string;
+  kind: HeartbeatTaskKind;
+  capability: 'shell';
+}
+
+/**
+ * Injectable approval *requester* port (ADR-002 Slice 4b §SEC). When wired, the
+ * heartbeat asks it to create a real session approval at mint time and hands back
+ * the {@link HeartbeatSessionApprovalLink} to persist. It NEVER decides an
+ * approval. A rejected/throwing request yields `undefined`, so the mint falls
+ * back to a synthetic-only `hb-appr-*` id (fail-closed; no session linkage).
+ */
+export interface HeartbeatApprovalRequester {
+  request(req: HeartbeatApprovalRequest): Promise<HeartbeatSessionApprovalLink | undefined>;
 }
 
 /**
@@ -85,7 +126,7 @@ export function isHeartbeatApprovalExpired(requestedAt: string | undefined, now:
 export type HeartbeatApprovalPatch =
   | { kind: 'none' }
   | { kind: 'refused' }
-  | { kind: 'mint'; approvalId: string; at: string }
+  | { kind: 'mint'; approvalId: string; at: string; link?: HeartbeatSessionApprovalLink }
   | { kind: 'await' }
   | { kind: 'blocked'; approvalId: string }
   | { kind: 'reset' }
@@ -135,6 +176,11 @@ export interface HeartbeatEvaluationInput {
   now: Date;
   /** Injected delegated-execution port (S4). Absent at row 8 ⇒ fail-closed refuse. */
   capability?: HeartbeatExecutionCapability;
+  /**
+   * Injected approval requester (S4b). Absent ⇒ the mint stays synthetic-only and
+   * no session approval is created (Slice-2 byte-identical behaviour).
+   */
+  requester?: HeartbeatApprovalRequester;
 }
 
 export interface HeartbeatEvaluation {
@@ -152,11 +198,12 @@ export interface HeartbeatEvaluation {
  * exactly as planned (byte-identical to V2, SI-1).
  */
 export async function evaluateHeartbeatExecution(input: HeartbeatEvaluationInput): Promise<HeartbeatEvaluation> {
-  const { planned, task, taskState, flags, sandboxAvailable, gateway, now, capability } = input;
+  const { planned, task, taskState, flags, sandboxAvailable, gateway, now, capability, requester } = input;
   if (planned.status !== 'due') return { result: planned, patch: { kind: 'none' } };
 
   const pendingId = taskState?.pendingApprovalId;
-  const approvalStatus = await resolveApprovalStatus(pendingId, taskState?.pendingApprovalAt, gateway, now);
+  const locator = sessionApprovalLocator(taskState);
+  const approvalStatus = await resolveApprovalStatus(pendingId, taskState?.pendingApprovalAt, locator, gateway, now);
 
   const decision = decideHeartbeatExecution({
     flags,
@@ -179,7 +226,7 @@ export async function evaluateHeartbeatExecution(input: HeartbeatEvaluationInput
         patch: { kind: 'refused' },
       };
     case 'needs_user_action':
-      return resolveNeedsUserAction(planned, decision.reason, pendingId, approvalStatus, now);
+      return resolveNeedsUserAction(planned, decision.reason, pendingId, approvalStatus, now, task, requester);
     case 'dry_run':
     default:
       // Flags off (V2 parity) or any unmodelled mode: leave the task as planned.
@@ -242,12 +289,33 @@ async function resolveDelegatedExecution(
 async function resolveApprovalStatus(
   pendingId: string | undefined,
   pendingAt: string | undefined,
+  locator: HeartbeatSessionApprovalLink | undefined,
   gateway: HeartbeatApprovalGateway,
   now: Date,
 ): Promise<HeartbeatApprovalStatus> {
   if (pendingId === undefined) return 'none';
   if (isHeartbeatApprovalExpired(pendingAt, now)) return 'expired';
-  return gateway.resolve(pendingId);
+  try {
+    // §SEC-B1 fail-closed: any error reading the approval port keeps the task
+    // pending (it never auto-grants). The gateway performs the session-store read.
+    return await gateway.resolve(pendingId, locator);
+  } catch {
+    return 'pending';
+  }
+}
+
+/**
+ * Build the session locator from a task's persisted bridge fields. Returns
+ * undefined unless all three components are present, so a partial or legacy
+ * state (e.g. a Slice-2 synthetic-only mint) resolves with no session linkage.
+ */
+function sessionApprovalLocator(taskState: HeartbeatTaskState | undefined): HeartbeatSessionApprovalLink | undefined {
+  if (taskState === undefined) return undefined;
+  const { pendingSessionApprovalId, pendingSessionRunId, pendingSessionId } = taskState;
+  if (pendingSessionApprovalId === undefined || pendingSessionRunId === undefined || pendingSessionId === undefined) {
+    return undefined;
+  }
+  return { sessionApprovalId: pendingSessionApprovalId, sessionRunId: pendingSessionRunId, sessionId: pendingSessionId };
 }
 
 /**
@@ -256,19 +324,26 @@ async function resolveApprovalStatus(
  *  - pending 'denied'   ⇒ block the task and discard the request
  *  - pending 'expired'  ⇒ reset so the next tick mints anew
  *  - still pending      ⇒ keep waiting on the same approval id
+ *
+ * At mint time, when a requester is wired (S4b), a real session approval is also
+ * created and its locator persisted beside the synthetic id; otherwise the mint
+ * stays synthetic-only (no session linkage). Requesting NEVER decides.
  */
-function resolveNeedsUserAction(
+async function resolveNeedsUserAction(
   planned: HeartbeatTaskResult,
   gateReason: string,
   pendingId: string | undefined,
   approvalStatus: HeartbeatApprovalStatus,
   now: Date,
-): HeartbeatEvaluation {
+  task: HeartbeatTaskConfig,
+  requester: HeartbeatApprovalRequester | undefined,
+): Promise<HeartbeatEvaluation> {
   if (pendingId === undefined) {
     const approvalId = mintHeartbeatApprovalId();
+    const link = await requestSessionApprovalLink(requester, task);
     return {
       result: { ...planned, status: 'needs_user_action', reason: `Execution requires approval ${approvalId}; awaiting user decision.` },
-      patch: { kind: 'mint', approvalId, at: now.toISOString() },
+      patch: link === undefined ? { kind: 'mint', approvalId, at: now.toISOString() } : { kind: 'mint', approvalId, at: now.toISOString(), link },
     };
   }
   if (approvalStatus === 'denied') {
@@ -290,6 +365,24 @@ function resolveNeedsUserAction(
 }
 
 /**
+ * Ask the injected requester to create a real session approval for this task and
+ * return its locator. §SEC-B1 fail-closed: a missing requester or any
+ * rejection/throw yields undefined, so the mint stays synthetic-only. The
+ * request carries only the task identity/kind and the fixed 'shell' capability.
+ */
+async function requestSessionApprovalLink(
+  requester: HeartbeatApprovalRequester | undefined,
+  task: HeartbeatTaskConfig,
+): Promise<HeartbeatSessionApprovalLink | undefined> {
+  if (requester === undefined) return undefined;
+  try {
+    return await requester.request({ taskId: task.id, kind: task.kind, capability: 'shell' });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Apply an approval patch to the base task state produced by the tick. `base`
  * already carries the V2 `lastDryRunAt` / `lastStatus` bookkeeping; this only
  * layers the ADR-002 execution/approval fields on top. Pure: no clock, no I/O.
@@ -302,8 +395,15 @@ export function applyHeartbeatApprovalPatch(base: HeartbeatTaskState, patch: Hea
       return { ...base, lastExecStatus: 'refused' };
     case 'await':
       return { ...base, lastExecStatus: 'needs_user_action' };
-    case 'mint':
-      return { ...base, pendingApprovalId: patch.approvalId, pendingApprovalAt: patch.at, lastExecStatus: 'needs_user_action' };
+    case 'mint': {
+      const minted: HeartbeatTaskState = { ...base, pendingApprovalId: patch.approvalId, pendingApprovalAt: patch.at, lastExecStatus: 'needs_user_action' };
+      if (patch.link !== undefined) {
+        minted.pendingSessionApprovalId = patch.link.sessionApprovalId;
+        minted.pendingSessionRunId = patch.link.sessionRunId;
+        minted.pendingSessionId = patch.link.sessionId;
+      }
+      return minted;
+    }
     case 'reset':
       return { ...withoutPending(base), lastExecStatus: 'needs_user_action' };
     case 'blocked':
@@ -327,5 +427,8 @@ function withoutPending(state: HeartbeatTaskState): HeartbeatTaskState {
   const next = { ...state };
   delete next.pendingApprovalId;
   delete next.pendingApprovalAt;
+  delete next.pendingSessionApprovalId;
+  delete next.pendingSessionRunId;
+  delete next.pendingSessionId;
   return next;
 }

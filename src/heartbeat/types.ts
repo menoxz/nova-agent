@@ -1,4 +1,4 @@
-export const HEARTBEAT_SCHEMA_VERSION = 2 as const;
+export const HEARTBEAT_SCHEMA_VERSION = 3 as const;
 
 export type HeartbeatTaskKind = 'inspection' | 'eval' | 'batch-dry-run' | 'maintenance' | string;
 export type HeartbeatTaskAction = 'inspect' | 'eval' | 'batch-dry-run' | 'maintain' | string;
@@ -37,6 +37,15 @@ export interface HeartbeatTaskState {
   pendingApprovalId?: string;
   pendingApprovalAt?: string;
   lastApprovalId?: string;
+  /**
+   * Session-namespace bridge (ADR-002 Slice 4b §SEC). When a heartbeat mint also
+   * creates a real session approval, the (approvalId, runId, sessionId) locator is
+   * persisted here so a later tick can resolve the operator's verdict. These live
+   * ONLY in state.json and never reach the tick report/result.
+   */
+  pendingSessionApprovalId?: string;
+  pendingSessionRunId?: string;
+  pendingSessionId?: string;
 }
 
 export interface HeartbeatState {

@@ -1,7 +1,7 @@
 /**
  * Smoke suite for the delegated execution seam (ADR-002 Heartbeat V3, Slice 4).
  *
- * Two layers, gated so the default `check` pipeline never spawns a real process:
+ * Three layers, gated so the default `check` pipeline never spawns a real process:
  *
  *  1. OFFLINE producer unit — ALWAYS runs. It drives
  *     {@link createDelegatedExecutionCapability} with FAKE {@link ExecutionSandbox}
@@ -11,7 +11,16 @@
  *     mapping is `exitCode === 0 && !timedOut && !truncated`, and a sandbox throw
  *     is caught at the seam and reported as a metadata-only `{ ok: false }`.
  *
- *  2. LIVE end-to-end — OPT-IN via `--live` or `NOVA_HEARTBEAT_EXEC_LIVE_SMOKE`
+ *  2. OFFLINE bridge unit — ALWAYS runs. It drives the REAL heartbeat↔session
+ *     bridge {@link createHeartbeatApprovalBridge} over throwaway project roots
+ *     (no subprocess: the bridge's capability seam is never invoked). It proves
+ *     §SEC-C3 (the bridge LISTS/reads approvals but never decides one), the
+ *     mint → pending → operator-verdict → resolve round-trip over a shared store,
+ *     §SEC-B2 (the synthetic `approval_1` id resolves only under its FULL
+ *     (sessionId, runId, approvalId) composite, never cross-run), and §SEC-C5
+ *     (the locator is ids-only and a decision reason never crosses back).
+ *
+ *  3. LIVE end-to-end — OPT-IN via `--live` or `NOVA_HEARTBEAT_EXEC_LIVE_SMOKE`
  *     in {1,true}. It wires the REAL hardened {@link createExecutionSandbox} into
  *     the heartbeat and runs a granted `inspection` task (mint → resolve →
  *     execute), spawning `node --version` once. It asserts the tick executes and
@@ -24,9 +33,11 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { createDelegatedExecutionCapability } from './capability.js';
+import { createHeartbeatApprovalBridge, type HeartbeatApprovalBridge } from './approval_gateway.js';
+import { ApprovalManager } from '../approval/manager.js';
 import { createExecutionSandbox } from '../sandbox/sandbox.js';
 import type { ExecutionSandbox, SandboxExecResult } from '../sandbox/types.js';
 import { runHeartbeatDryRunTick } from '../heartbeat/runner.js';
@@ -104,6 +115,90 @@ async function runOfflineProducerUnit(): Promise<void> {
   console.log('autoexec:smoke offline unit passed');
 }
 
+/** Run `fn` against a fresh bridge over an isolated, throwaway project root. */
+async function withBridge(
+  fn: (ctx: { bridge: HeartbeatApprovalBridge; operator: ApprovalManager }) => Promise<void>,
+): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), 'nova-autoexec-bridge-'));
+  try {
+    await fn({
+      bridge: createHeartbeatApprovalBridge({ projectRoot: root }),
+      operator: new ApprovalManager({ projectRoot: root }),
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+/**
+ * OFFLINE: prove the REAL heartbeat↔session bridge ({@link createHeartbeatApprovalBridge})
+ * resolves an operator's verdict fail-closed, with no spawn. The bridge's capability owns
+ * the only subprocess seam and is never invoked here; the requester and gateway perform
+ * pure .nova/sessions/ I/O against an isolated throwaway store per sub-case.
+ */
+async function runOfflineBridgeUnit(): Promise<void> {
+  // §SEC-C3 source guard — the bridge is read-only on the verdict axis: it LISTS
+  // and reads approvals but NEVER decides one (neither ApprovalManager.decide nor
+  // SessionRunManager.decideApproval), so the heartbeat can never grant itself.
+  // Mirrors the executor's SI-3 guard, extended to the session bridge that lives
+  // outside src/heartbeat/** and is therefore not swept by the heartbeat guard.
+  const bridgeSource = await readFile(resolve(process.cwd(), 'src/autoexec/approval_gateway.ts'), 'utf-8');
+  assert.doesNotMatch(bridgeSource, /\.decide(?:Approval)?\(/, 'C3: the session bridge never decides an approval');
+
+  // Happy path — a freshly minted approval is pending until an operator decides it;
+  // the gateway then reads the verdict back over the shared store. The minted locator
+  // carries ONLY the three session ids (C5: no objective/reason/prompt body).
+  await withBridge(async ({ bridge, operator }) => {
+    const link = await bridge.requester.request({ taskId: 'inspect-docs', kind: 'inspection', capability: 'shell' });
+    assert.ok(link, 'the requester mints a session approval locator');
+    assert.deepEqual(Object.keys(link).sort(), ['sessionApprovalId', 'sessionId', 'sessionRunId'], 'C5: the locator is ids-only');
+    assert.equal(await bridge.gateway.resolve(link.sessionApprovalId, link), 'pending', 'an undecided approval resolves pending (fail-closed)');
+    await operator.decide({ approvalId: link.sessionApprovalId, decision: 'approved' });
+    assert.equal(await bridge.gateway.resolve(link.sessionApprovalId, link), 'approved', 'the operator verdict reads back as approved');
+  });
+
+  // §SEC-B2 cross-run isolation — two independent requests both mint the synthetic
+  // id `approval_1`; only the FULL (sessionId, runId, approvalId) composite tells
+  // them apart. The operator decides the bare id (hitting one run, read from the
+  // return value); the SAME `approval_1` on the OTHER run must stay pending, proving
+  // a bare id can never grant across runs.
+  await withBridge(async ({ bridge, operator }) => {
+    const linkA = await bridge.requester.request({ taskId: 'task-a', kind: 'inspection', capability: 'shell' });
+    const linkB = await bridge.requester.request({ taskId: 'task-b', kind: 'eval', capability: 'shell' });
+    assert.ok(linkA, 'the first request mints a locator');
+    assert.ok(linkB, 'the second request mints a locator');
+    assert.equal(linkA.sessionApprovalId, 'approval_1', 'the first run mints approval_1');
+    assert.equal(linkB.sessionApprovalId, 'approval_1', 'the second run independently also mints approval_1');
+    assert.notEqual(linkA.sessionRunId, linkB.sessionRunId, 'the two runs are distinct');
+    const decided = await operator.decide({ approvalId: 'approval_1', decision: 'approved' });
+    const approved = decided.runId === linkA.sessionRunId ? linkA : linkB;
+    const other = decided.runId === linkA.sessionRunId ? linkB : linkA;
+    assert.equal(await bridge.gateway.resolve('approval_1', approved), 'approved', 'the composite matching the decided run resolves approved');
+    assert.equal(await bridge.gateway.resolve('approval_1', other), 'pending', 'B2: the same approval_1 on the OTHER run never grants');
+  });
+
+  // Denied verdicts map through, and the decision reason — which may carry sensitive
+  // text — never crosses back: the gateway returns ONLY the resolution token (C5).
+  // An absent locator and a mismatched (wrong-run) locator both stay pending.
+  await withBridge(async ({ bridge, operator }) => {
+    const REASON_SECRET = 'sk-bridgeReason-7c1f2e';
+    const link = await bridge.requester.request({ taskId: 'task-deny', kind: 'inspection', capability: 'shell' });
+    assert.ok(link, 'the requester mints a locator to deny');
+    await operator.decide({ approvalId: link.sessionApprovalId, decision: 'denied', reason: `operator denied ${REASON_SECRET}` });
+    const verdict = await bridge.gateway.resolve(link.sessionApprovalId, link);
+    assert.equal(verdict, 'denied', 'a denied approval resolves denied');
+    assert.doesNotMatch(String(verdict), new RegExp(REASON_SECRET), 'C5: the decision reason never crosses the resolution boundary');
+    assert.equal(await bridge.gateway.resolve(link.sessionApprovalId), 'pending', 'an absent locator resolves pending');
+    assert.equal(
+      await bridge.gateway.resolve(link.sessionApprovalId, { sessionApprovalId: link.sessionApprovalId, sessionRunId: 'run_does_not_exist', sessionId: link.sessionId }),
+      'pending',
+      'a mismatched (wrong-run) locator resolves pending',
+    );
+  });
+
+  console.log('autoexec:smoke offline bridge unit passed');
+}
+
 /** Read the persisted heartbeat task state for a project root (raw, no normalize). */
 async function persistedTaskState(projectRoot: string, taskId: string): Promise<HeartbeatTaskState | undefined> {
   const state = JSON.parse(await readFile(new HeartbeatStore(projectRoot).paths.state, 'utf-8')) as HeartbeatState;
@@ -158,6 +253,7 @@ function liveOptIn(): boolean {
 
 async function main(): Promise<void> {
   await runOfflineProducerUnit();
+  await runOfflineBridgeUnit();
   if (!liveOptIn()) {
     console.log('autoexec:live-smoke skipped (opt-in)');
     return;

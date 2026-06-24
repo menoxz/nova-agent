@@ -6,6 +6,8 @@ import { resolveHeartbeatConfig } from './config.js';
 import { classifyHeartbeatTaskSafety, normalizeHeartbeatSchedule } from './config.js';
 import { HeartbeatStore } from './store.js';
 import { runHeartbeatDryRunTick } from './runner.js';
+import { readHeartbeatExecutionFlags } from './execution_gate.js';
+import { createHeartbeatApprovalBridge } from '../autoexec/approval_gateway.js';
 import { projectHeartbeatPlan } from './planner.js';
 import { buildAutomationManifest, defaultTickEveryMinutes } from './automation.js';
 import { HeartbeatScheduleError, parseDurationMinutes } from './schedule.js';
@@ -18,7 +20,7 @@ import {
   safeHeartbeatTaskResult,
   safeHeartbeatText,
 } from './redaction.js';
-import type { HeartbeatAutomationManifest, HeartbeatAutomationTarget, HeartbeatConfig, HeartbeatPlanReport } from './types.js';
+import type { HeartbeatAutomationManifest, HeartbeatAutomationTarget, HeartbeatConfig, HeartbeatPlanReport, HeartbeatTickReport } from './types.js';
 
 export * from './types.js';
 export * from './config.js';
@@ -126,7 +128,7 @@ async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: strin
   if (!project.ok) return printInvalidProject(project);
   if (!rest.includes('--dry-run')) return heartbeatUsageError('Heartbeat V2 supports only explicit dry-run ticks. Usage: nova heartbeat tick --dry-run');
   try {
-    const report = await runHeartbeatDryRunTick({ config: project.config?.heartbeat });
+    const report = await runHeartbeatTickReport(project.config?.heartbeat);
     console.log(JSON.stringify(report, null, 2));
     process.exitCode = 0;
   } catch (err) {
@@ -134,6 +136,29 @@ async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: strin
     process.exitCode = 1;
   }
   return true;
+}
+
+/**
+ * Resolve a heartbeat tick report for the CLI. With execution disarmed (master
+ * flag NOVA_ENABLE_HEARTBEAT_EXEC off — the default) this is a pure dry-run tick:
+ * no session bridge is constructed and no .nova/sessions/ I/O happens, so the
+ * report is byte-identical to V2 (parity SI-1). With execution armed the CLI
+ * builds the session approval bridge for this project and injects its
+ * gateway/requester/capability ports, so a real session approval can drive Gate B
+ * across ticks. The bridge (src/autoexec/**) is the ONLY place .nova/sessions/ is
+ * touched; the heartbeat core never imports session machinery.
+ */
+async function runHeartbeatTickReport(config: HeartbeatConfig | undefined): Promise<HeartbeatTickReport> {
+  const flags = readHeartbeatExecutionFlags();
+  if (!flags.heartbeatExec) return runHeartbeatDryRunTick({ config });
+  const bridge = createHeartbeatApprovalBridge({ projectRoot: process.cwd() });
+  return runHeartbeatDryRunTick({
+    config,
+    flags,
+    approvalGateway: bridge.gateway,
+    approvalRequester: bridge.requester,
+    capability: bridge.capability,
+  });
 }
 
 async function printLatestHeartbeatReport(): Promise<true> {

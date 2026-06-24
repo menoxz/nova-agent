@@ -560,3 +560,43 @@ To keep the heartbeat static guard pristine, the real capability lives in a **ne
 ### 15.6 Deferred to Slice 4b
 
 The `hb-appr-<uuid>` (heartbeat ledger) ↔ `approval_<N>` (session manager) **namespace bridge** is **not** built in Slice 4. Production Gate B therefore stays `'pending'` and row 8 remains unreachable in production; lighting it up - plus the security re-audit of the bridged path (CAVEAT-6) - is Slice 4b.
+
+## 16. Slice 4b implementation addendum - the session-namespace approval bridge (CAVEAT-6 re-audited) (2026-06-24)
+
+> **Status:** Slice 4b implemented and verified **OFFLINE**. Builds the `hb-appr-<uuid>` ↔ `approval_<N>` bridge deferred by §15.6 so a **real** operator decision in the session namespace drives heartbeat Gate B. Row 8 (`execute`) is now reachable in production **only** under A∧B∧C **with a real approval**; off by default the tick stays byte-identical to V2 (double fail-closed preserved). Security re-audited read-only **before** implementation: verdict **BLOCKERS-FIRST** (4 blockers + 9 caveats), all bound into the design before build.
+
+### 16.1 The namespace mismatch (why a bridge is needed)
+
+The heartbeat ledger mints **synthetic** `hb-appr-<uuid>` ids that no session machinery knows about; the session approval store mints `approval_<N>` ids that are **per-run, not globally unique** (`session/manager.ts:87`: `approval_${approvals.length + 1}`). The production gateway stub (`createReadOnlyApprovalGateway`, `executor.ts`) hard-returns `'pending'`, so before S4b no real verdict could ever open Gate B. S4b binds the two namespaces without ever importing session code into the swept heartbeat tree.
+
+### 16.2 Two injected ports, one out-of-tree adapter (B3)
+
+`src/heartbeat/**` gains **type-level** ports only:
+
+- `HeartbeatApprovalRequester.request(req) → { sessionId, runId, approvalId } | undefined` - mints a session approval and returns its **composite locator**;
+- the existing `HeartbeatApprovalGateway.resolve` is **widened** (back-compatible) to `resolve(approvalId, locator?)` (OQ1; the stub ignores the 2nd arg ⇒ parity).
+
+All session I/O lives in a new module **outside** the swept tree, `src/autoexec/approval_gateway.ts` (`createHeartbeatApprovalBridge({ projectRoot })`), the **only** heartbeat-facing code that touches `.nova/sessions/`. The CLI composition root (`src/heartbeat/index.ts`) imports **only** this plain-data factory (deps = `{ projectRoot }` + the S3 capability); it adds no `../session/` or `../tools/` import, so the static guard import-denylist (`smoke.ts:330`) stays green.
+
+### 16.3 The four security blockers, bound
+
+| # | Blocker | Binding |
+| --- | --- | --- |
+| **B1** | An unwrapped throw in `gateway.resolve`/`requester.request` would unwind `runner.ts` `Promise.all` ⇒ `writeState` skipped ⇒ state loss (SI-9) | try/catch at the heartbeat trust boundary: `resolve` throw ⇒ `'pending'`; `request` throw/`undefined` ⇒ synthetic-only mint (no link fields). Proven by the throwing-fake smokes (gateway **and** requester), which assert the tick still completes, executes nothing, and **retains** the locator. |
+| **B2** | `approval_<N>` is per-run non-unique ⇒ a *different* run's `approval_1` could open Gate B (cross-run grant) | Persist a **composite unique locator** (`pendingSessionId` + `pendingSessionRunId` + `pendingSessionApprovalId`) in `.nova/heartbeat/state.json`; the gateway matches the **full** `(sessionId, runId, approvalId)` tuple - a partial/wrong-run/absent match ⇒ `'pending'`. Proven by the two-run smoke: deciding one run's `approval_1` leaves the other run's `approval_1` `'pending'`. |
+| **B3** | The real prod wiring is `src/heartbeat/index.ts` (inside the swept tree); any `../session/` import (even `import type`) trips the guard | The in-tree caller imports a plain-data factory **only** from `../autoexec/approval_gateway.js`; the adapter constructs `SessionRunManager`/`ApprovalManager` internally. |
+| **B4** | `'heartbeat-exec'` ∉ `CapabilityCategory` (`policy/types.ts:13`), unpersistable on `ApprovalRequestRecord.capability` | The session approval is recorded `capability:'shell'`; `'heartbeat-exec'` stays an internal label. Pinned by a smoke asserting the request carries `{ taskId, kind, capability:'shell' }`. |
+
+### 16.4 Caveats bound (selected)
+
+`requester` **never** decides (C3 - source-guarded in both the bridge unit and the executor `.decide(` sweep); the async `request()` runs in `evaluateHeartbeatExecution`, keeping `resolveNeedsUserAction` pure (C4); all link fields are cleared on consume/reset (C1); the session ids/`reason` never reach the redacted report (C5/C8 - proven by a sentinel smoke that asserts the ids are **absent from the report yet present in `state.json`**, i.e. real redaction not mere absence); a dedicated heartbeat-owned session+run isolates the approval (C6); a session approval outliving the 24 h heartbeat TTL ⇒ `'expired'`, never `'approved'` (C7); the live end-to-end run stays **out of `check`** (C9). The schema bumps `2 → 3` (additive; the parity claim is scoped to the report/tick, exempting the integer `version` - C2).
+
+### 16.5 Reachability and precedence (unchanged)
+
+Off by default the bridge is **not constructed** and no `.nova/sessions/` I/O happens ⇒ the tick is byte-identical to V2. Row 8 opens **only** when the master switch is on, the sandbox is opted in (`NOVA_ENABLE_EXEC_SANDBOX`), and a real operator approval matches the persisted composite locator. Gate precedence (safety → A → C → B) and the single-use grant are unchanged from §15.
+
+### 16.6 Offline proof
+
+- **In `check` (offline):** `heartbeat:smoke` gains the locator-persistence mint, the B1 throwing-requester and throwing-gateway fail-closed cases, the B2 wrong-run disambiguation, the C5 anti-leak sentinel (absent-from-report/present-in-state), the B4 `capability:'shell'` pin, the TTL-skew expiry, and the master-off parity case. `autoexec:smoke` gains the bridge round-trip (mint ⇒ pending ⇒ operator verdict ⇒ resolve), the B2 two-run case, the C5 reason-redaction case, and a `.decide(`-absent source guard on `approval_gateway.ts`.
+- **Out of `check` (opt-in):** an offline real-sandbox bridge run drives a real `node --version` through the full gated path end to end.
+- `npm run check` exits 0 fully offline; write-confinement holds (heartbeat writes only `.nova/heartbeat/`; every `.nova/sessions/` access goes through the session API in `src/autoexec/**`). Package stays `0.1.0`, zero new dependencies, no daemon/timers, `src/sandbox/**` untouched, static guard green.
