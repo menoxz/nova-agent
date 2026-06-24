@@ -46,5 +46,31 @@ export function runReadOnlyCommand(params: ExecuteCommandParams, metadata: NovaM
     return { ok: true, readOnly: true, scenarios: scenarios.map(({ id, name, description, tags, expectedTools, expectedAnyTools, forbiddenTools }) => ({ id, name, description, tags, expectedTools, expectedAnyTools, forbiddenTools })).slice(0, 50) };
   }
 
+  if (params.command === 'nova.lsp.showSetupGuide') {
+    return {
+      ok: true,
+      readOnly: true,
+      transport: 'stdio',
+      workspaceEdit: false,
+      writeCommands: false,
+      shellCommands: false,
+      clients: [
+        {
+          name: 'VS Code',
+          command: 'npm',
+          args: ['run', 'lsp:stdio'],
+          notes: ['Use stdio transport.', 'Do not configure code actions that apply WorkspaceEdit.', 'Use diagnostics/hover/completion/symbols only.'],
+        },
+        {
+          name: 'Neovim',
+          command: 'npm',
+          args: ['run', 'lsp:stdio'],
+          notes: ['Configure as a stdio language server.', 'Set root_dir to the Nova checkout.', 'Do not add shell/write wrapper commands.'],
+        },
+      ],
+      validation: ['npm run lsp:smoke', 'npm run eval:lsp'],
+    };
+  }
+
   return { ok: false, error: 'Unsupported Nova LSP command.' };
 }

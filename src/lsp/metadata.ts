@@ -31,6 +31,7 @@ export const LSP_COMMANDS = [
   'nova.lsp.showRelatedDocs',
   'nova.lsp.explainPolicy',
   'nova.lsp.showEvalScenario',
+  'nova.lsp.showSetupGuide',
 ] as const;
 
 export const EXPECTED_SCRIPTS = ['lsp:stdio', 'lsp:smoke', 'eval:lsp', 'mcp:stdio', 'mcp:smoke', 'eval:mcp', 'eval:smoke', 'eval:core', 'typecheck'] as const;
@@ -67,6 +68,7 @@ const PROMPT_ITEMS: NovaMetadataItem[] = [
 const POLICY_ITEMS: NovaMetadataItem[] = [
   { id: 'policy:lsp-readonly', label: 'Nova LSP V1 read-only policy', kind: 'policy', detail: 'LSP V1 exposes hover/completion/symbol metadata and read-only commands only.', documentation: 'No WorkspaceEdit, no shell execution, no file writes, and no autonomous self-rewrite.', readOnly: true },
   { id: 'policy:denylist', label: 'Nova LSP denylist', kind: 'policy', detail: 'Denies .env, .git, node_modules, raw .nova traces/evals/reports, private keys, and secret-like paths/content.', readOnly: true },
+  { id: 'policy:lsp-v1-1-client-setup', label: 'Nova LSP V1.1 client setup policy', kind: 'policy', detail: 'Client setup guidance is metadata-only and keeps stdio, read-only commands, and no WorkspaceEdit as defaults.', documentation: 'VS Code and Neovim examples must start npm run lsp:stdio or node dist/lsp/server.js over stdio only; they must not grant shell/write commands.', readOnly: true },
 ];
 
 async function loadPackageScripts(): Promise<NovaMetadataItem[]> {

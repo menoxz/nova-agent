@@ -10,6 +10,8 @@ Potential V1.1 work:
 - Optional sanitized LSP telemetry summaries without document content.
 - Unit tests around metadata and policy helpers.
 
+Status: first safe V1.1 slice implemented for metadata-only client setup and policy guidance. The read-only `nova.lsp.showSetupGuide` command documents VS Code and Neovim stdio setup examples, `lsp:smoke` / `eval:lsp` validation commands, and explicit no-`WorkspaceEdit`, no-write, no-shell defaults. Smoke and eval coverage are reinforced without adding mutating capabilities.
+
 Still out of scope:
 
 - Write commands.

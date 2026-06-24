@@ -1,5 +1,23 @@
 # Project Status
 
+## LSP V1.1 client setup policy metadata — 2026-06-24
+
+Status: implemented locally (metadata-only client setup/policy guidance; stdio/read-only posture preserved; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added read-only command `nova.lsp.showSetupGuide` to return VS Code and Neovim stdio setup examples.
+- Setup metadata documents validation with `npm run lsp:smoke` and `npm run eval:lsp`.
+- Setup metadata explicitly reports `workspaceEdit: false`, `writeCommands: false`, and `shellCommands: false`.
+- Added LSP policy metadata item for V1.1 client setup and reinforced LSP smoke/eval coverage.
+- Wired `lsp:smoke` and `eval:lsp` into the default `npm run check`; `lsp:smoke` is also included in `check:fast`.
+- Updated LSP README, V1.1 backlog, roadmap, and changelog.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## MCP V1.1 transport readiness policy — 2026-06-24
 
 Status: implemented (metadata-only readiness policy; no HTTP/streamable implementation; no listener, port, or bind; read-only stdio posture preserved); targeted and full validation passed locally before commit.

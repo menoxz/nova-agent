@@ -114,6 +114,14 @@ async function main(): Promise<void> {
     assert(JSON.stringify(commandResult.result).includes('read-only'), 'policy command did not explain read-only mode');
     assert(JSON.stringify(commandResult.result).includes('raw .nova'), 'policy command did not mention raw artifact denial');
 
+    const setupResult = await send('workspace/executeCommand', { command: 'nova.lsp.showSetupGuide', arguments: [] });
+    const setupText = JSON.stringify(setupResult.result);
+    assert(setupText.includes('stdio'), 'setup guide did not preserve stdio transport');
+    assert(setupText.includes('VS Code') && setupText.includes('Neovim'), 'setup guide missing client examples');
+    assert(setupText.includes('lsp:smoke') && setupText.includes('eval:lsp'), 'setup guide missing validation commands');
+    assert(setupText.includes('"workspaceEdit":false'), 'setup guide must keep WorkspaceEdit disabled');
+    assert(setupText.includes('"writeCommands":false') && setupText.includes('"shellCommands":false'), 'setup guide must keep write/shell commands disabled');
+
     for (const deniedCommand of ['nova.lsp.writeFile', 'nova.lsp.shell', 'nova.lsp.unknown']) {
       const deniedResult = await send('workspace/executeCommand', { command: deniedCommand, arguments: ['echo unsafe'] });
       const denial = deniedResult.result as CommandDenial;
