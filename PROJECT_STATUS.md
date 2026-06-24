@@ -1,5 +1,23 @@
 # Project Status
 
+## Heartbeat V3 (Slice 3) — real hardened execution sandbox (capability-only, opt-in) — 2026-06-24
+
+Status: implemented and verified locally (offline; the sandbox is a **capability only** — no caller in `src/heartbeat/**` invokes `run()`, so the heartbeat still fails closed unless explicitly opted in; tests passing (not yet committed).
+
+### Delivered
+
+- Added the real hardened-subprocess sandbox `src/sandbox/sandbox.ts` (`createExecutionSandbox()`), replacing the Slice-1 stub behaviour. It spawns a single command **shell-free** (`shell:false`, so metacharacters are never interpreted), builds the child environment from a per-platform **allow-list only** (never `...process.env`), jails `cwd` under `PROJECT_ROOT` via `assertPathUnderDir` + `deniedPathReason`, enforces a deterministic wall-clock timeout and a combined stdout/stderr truncation budget (both force `exitCode: null`), and tears down the process tree (`taskkill /T /F` on Windows, detached process-group signals on POSIX). Constructing it spawns nothing; the first process is created only on `run()`.
+- Added the platform gate `src/sandbox/platform.ts` (`sandboxIsSupportedPlatform()`), so unsupported platforms keep Gate C closed.
+- Flipped `src/sandbox/probe.ts` from the always-`null` stub to **strict opt-in**: `probeExecutionSandbox(env = process.env)` returns a live sandbox only when `NOVA_ENABLE_EXEC_SANDBOX` is strictly enabled (`"1"`/`"true"`, reusing `isHeartbeatFlagEnabled` — **SB1**) **and** the platform is supported; otherwise `null` (Gate C closed ⇒ fail-closed). The optional `env` parameter keeps the existing `runner.ts` call site (`probeExecutionSandbox()?.available`) unchanged.
+- Security blocker **SB2** enforced in `buildChildEnv`: caller-supplied env may *add* vars but can never override the base loader-resolution vars (`PATH`, plus `SystemRoot`/`COMSPEC`/`PATHEXT` on Windows), and loader-injection vars (`LD_PRELOAD`, `LD_LIBRARY_PATH`, `NODE_OPTIONS`, `DYLD_*`) are dropped; invalid names / non-string / oversized / NUL-bearing entries are dropped; the child env uses a null prototype so a `__proto__` key cannot pollute the chain.
+- Added the isolated smoke `src/sandbox/smoke.ts` (9 tests: env allow-list leak via real spawn, caller deny-list + proto-pollution guard, PATH non-override, timeout, truncation, cwd jail accept/reject, shell-free arg passing, `clampNumber`, probe opt-in) and wired `sandbox:smoke` into both `check` and `check:fast` (after `heartbeat:smoke`).
+- Invariants preserved: **capability-only** — `ExecutionSandbox.run()` has **zero callers** in `src/heartbeat/**` (runner reads only `.available`); all spawn/timer primitives live under `src/sandbox/**`, so the heartbeat static guard (still sweeping its 13 modules) is untouched; the executor execute branch is unchanged; package version stays `0.1.0`; no new dependency (node builtins only).
+
+### Verification run
+
+- `npm run typecheck` and the offline `npm run check` gate exit 0; `npm run sandbox:smoke` passes 9/9 and `npm run heartbeat:smoke` still passes (guard intact), fully offline.
+- See the latest implementation report for exact command output and exit codes.
+
 ## Heartbeat V3 (Slice 2) — cross-tick approval lifecycle (OFFLINE) — 2026-06-23
 
 Status: implemented and verified locally (offline; production Gate C still `null` ⇒ fail-closed preserved; no real execution); tests passing (not yet committed).

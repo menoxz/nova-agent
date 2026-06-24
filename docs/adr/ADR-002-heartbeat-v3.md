@@ -462,3 +462,55 @@ The production gateway is a **read-only stub** — `resolve()` returns `'pending
 ### 13.5 Offline proof (added to `src/heartbeat/smoke.ts`)
 
 Five deterministic scenarios on a fixed `now` clock with a **tracking gateway** stub (records every id it is asked to resolve): (SI-10/SI-9) approve ⇒ execute one tick later ⇒ the next due tick mints a **fresh** id (the grant is single-shot); denied ⇒ `blocked`, pending discarded; pending +25 h ⇒ `expired` ⇒ `needs_user_action` with the gateway **never consulted** (expiry short-circuits Gate B); (SI-1) master flag off ⇒ task stays `due`, gateway never consulted, no execution bookkeeping written (V2 parity even with a gateway injected); the read-only CLI lists a seeded approval and leaves `state.json` byte-identical. `npm run check` exits 0 fully offline.
+
+---
+
+## 14. Slice 3 implementation addendum - real hardened execution sandbox (capability-only, opt-in) (2026-06-24)
+
+> **Status:** Slice 3 implemented and verified **OFFLINE**. Realizes D4 (the execution-sandbox boundary, Gate C) as a real subprocess capability, plus the two Slice-3 security blockers **SB1** (strict opt-in) and **SB2** (env hardening). The sandbox is a **capability only**: `ExecutionSandbox.run()` has **zero callers in `src/heartbeat/**`**, so the heartbeat still fails closed by default and no real heartbeat execution ships. No change to the D1 truth table, the D8 schema, the Slice-2 approval lifecycle, or any default behaviour; package stays `0.1.0` with zero new dependencies (node builtins only).
+
+### 14.1 Scope and the capability-only invariant
+
+Slice 3 builds the missing Gate-C dependency - a sandbox that can actually run a command - but deliberately does **not** wire it into the tick. The Slice-1/Slice-2 contract that production Gate C resolves to a closed gate is preserved by keeping the probe `null` unless an operator explicitly opts in (SB1 below). The wiring of `run()` into the executor execute branch is **deferred to Slice 4**.
+
+- `ExecutionSandbox.run()` (the method name shipped as `run`, where design note D4 had sketched `exec`) has **no caller** anywhere under `src/heartbeat/**`; `runner.ts` consumes only `probeExecutionSandbox()?.available`. This is asserted by audit grep (zero `\.run\(` callers in the heartbeat tree) and is the load-bearing reason the heartbeat behaviour is byte-identical to Slice 2.
+- All spawn/timer primitives live under `src/sandbox/**` (`sandbox.ts`, `smoke.ts`). **None** are added to `src/heartbeat/*.ts`, so the directory-wide D5 static guard (still sweeping its 13 heartbeat modules, non-recursively, excluding its own `smoke.ts`) keeps passing untouched.
+
+### 14.2 The sandbox - `src/sandbox/sandbox.ts`
+
+`createExecutionSandbox()` returns an `ExecutionSandbox { id; available: true; run(req) }`. Constructing it spawns nothing, starts no timer, performs no I/O; the first child process exists only on `run()`.
+
+- **Shell-free spawn.** Commands are spawned with `shell: false`, so shell metacharacters (`|`, `$`, `;`, `&`, backticks) are passed as literal `argv` and never interpreted. `validateCommand` throws on an empty command, a NUL byte, or an oversized argv.
+- **cwd jail.** The requested working directory is resolved and asserted under `PROJECT_ROOT` (reusing `assertPathUnderDir` / `deniedPathReason` from `safe_io`); anything outside (e.g. `os.tmpdir()`) is rejected before any spawn.
+- **Deterministic limits.** A wall-clock timeout and a combined stdout/stderr character budget are clamped to sane floors/ceilings (`clampNumber`; defaults 30 000 ms / 20 000 chars, hard caps 300 000 ms / 200 000 chars). On timeout **or** truncation the result forces `exitCode: null` (a Windows `taskkill /F` would otherwise surface a misleading `1`), with `timedOut` / `truncated` flags set.
+- **Process-tree teardown.** Kill uses `taskkill /T /F` on Windows and a detached process-group signal (`SIGTERM` then `SIGKILL` after a kill-grace) on POSIX, so children of the spawned process do not leak.
+- **Error redaction.** `sanitizeSpawnError` maps spawn failures to stable reasons without leaking absolute paths or the inherited environment.
+
+### 14.3 SB1 - strict opt-in probe - `src/sandbox/probe.ts`
+
+The Slice-1 always-`null` stub is replaced by `probeExecutionSandbox(env = process.env)`:
+
+```ts
+export function probeExecutionSandbox(env: NodeJS.ProcessEnv = process.env): ExecutionSandbox | null {
+  if (!isHeartbeatFlagEnabled(env.NOVA_ENABLE_EXEC_SANDBOX)) return null; // strict: only '1' | 'true'
+  if (!sandboxIsSupportedPlatform()) return null;                          // win32 | linux | darwin
+  return createExecutionSandbox();
+}
+```
+
+- It reuses `isHeartbeatFlagEnabled` (`FLAG_TRUE = {'1','true'}`), so `unset` / `"0"` / `"TRUE"` / `" 1 "` all resolve to **disabled** -> `null` -> Gate C closed -> fail-closed. Only an exact `"1"` or `"true"` on a supported platform yields a live sandbox.
+- The new platform gate lives in `src/sandbox/platform.ts` (`sandboxIsSupportedPlatform()`), keeping unsupported platforms closed.
+- The optional `env` parameter is what makes Slice 3 a zero-call-site-change drop-in: the existing `runner.ts` call `probeExecutionSandbox()?.available` still type-checks and behaves identically (default `process.env`). Note the heartbeat smoke's SI-2, which sets `NOVA_ENABLE_HEARTBEAT_EXEC=1` but **not** `NOVA_ENABLE_EXEC_SANDBOX`, therefore still observes a refused/fail-closed tick - exactly as before.
+
+### 14.4 SB2 - environment hardening - `buildChildEnv`
+
+The child environment is assembled on a **null-prototype** object (`Object.create(null)`) from a per-platform **allow-list** of base loader-resolution vars only - never `...process.env`:
+
+- **Base allow-list (`BASE_ENV_ALLOWLIST`, copied from the parent for these names only):** POSIX `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`; Windows `PATH`, `SystemRoot`, `COMSPEC`, `PATHEXT`, `TEMP`, `TMP`. Every other parent var (secrets, API keys, tokens) is excluded by construction.
+- **Caller env may add but never override the protected subset.** Caller-supplied keys are merged on top, but the loader-resolution vars `PATH` (and on Windows `SystemRoot` / `COMSPEC` / `PATHEXT`, compared case-insensitively) are **not** overridable by the caller - the base value wins.
+- **Loader-injection deny-list dropped unconditionally:** `LD_PRELOAD`, `LD_LIBRARY_PATH`, `NODE_OPTIONS`, and any `DYLD_*` var.
+- **Sanitisation:** invalid names, non-string values, oversized values, and NUL-bearing entries are dropped (continue, not throw). The null prototype means a literal `__proto__` key (e.g. from `JSON.parse('{"__proto__":...}')`) lands as an own property and cannot pollute the prototype chain - `Object.getPrototypeOf(childEnv) === null` is asserted.
+
+### 14.5 Offline proof (`src/sandbox/smoke.ts`) and gate wiring
+
+An **isolated** smoke (separate from `heartbeat/smoke.ts`) runs 9 deterministic, fully-offline tests: (1) end-to-end env allow-list - a real spawn cannot observe a scrubbed `NOVA_SECRET_SENTINEL`; (2) pure `buildChildEnv` loader-deny + `__proto__` non-pollution; (3) pure `PATH` non-override + bad-name drop; (4) a 250 ms timeout forces `exitCode: null`; (5) a 16-char output budget truncates to len 16 with `exitCode: null`; (6) cwd jail accepts a `mkdtemp` dir under `PROJECT_ROOT` and rejects `os.tmpdir()`; (7) shell-free literal arg passing (`alpha|be ta|$NOVA`); (8) `clampNumber` floors/ceilings; (9) the SB1 opt-in matrix (`unset`/`"0"`/`"TRUE"`/`" 1 "` -> `null`; `"1"`/`"true"` -> available). It prints `sandbox:smoke passed` and restores `process.env` afterward. `sandbox:smoke` is wired into both `check` and `check:fast` (after `heartbeat:smoke`); `npm run check` exits 0 fully offline.

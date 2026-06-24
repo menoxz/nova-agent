@@ -122,6 +122,6 @@
 
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel
-  - Sandbox d'exécution pour les commandes bash
+  - [x] Sandbox d'exécution hardened (sous-processus isolé, capability-only, opt-in `NOVA_ENABLE_EXEC_SANDBOX`; ADR-002 Slice 3, `src/sandbox/**`) — câblage exécution déléguée différé (Slice 4)
   - Validation des chemins de fichiers
   - Approbation utilisateur pour les actions destructrices
