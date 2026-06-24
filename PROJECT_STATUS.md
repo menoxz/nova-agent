@@ -1,5 +1,22 @@
 # Project Status
 
+## LSP V1.1 policy/metadata helper smoke — 2026-06-24
+
+Status: implemented locally (helper-level validation only; stdio/read-only posture preserved; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added `npm run lsp:policy-smoke` backed by `src/lsp/policy_smoke.ts`.
+- Covers LSP metadata indexing, read-only command allowlist, capability safety, denied write-like commands, denylist helpers, traversal/NUL refusal, redaction, output caps, safe errors, diagnostics, and setup-guide policy metadata.
+- Wired `lsp:policy-smoke` into `check:fast` and `check`.
+- Expanded `eval:lsp` with `lsp-v1-1-policy-metadata-helper-smoke`.
+- Updated LSP smoke/capabilities/diagnostics docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 client setup policy metadata — 2026-06-24
 
 Status: implemented locally (metadata-only client setup/policy guidance; stdio/read-only posture preserved; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.

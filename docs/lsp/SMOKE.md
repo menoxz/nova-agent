@@ -2,6 +2,8 @@
 
 `npm run lsp:smoke` starts `src/lsp/server.ts --stdio` and exercises the protocol directly.
 
+`npm run lsp:policy-smoke` exercises LSP policy and metadata helpers directly without starting a language-server process.
+
 Verified checks:
 
 - `initialize` advertises expected LSP V1 capabilities.
@@ -9,4 +11,12 @@ Verified checks:
 - No write/shell commands and no `WorkspaceEdit` are advertised.
 - Opened document receives diagnostics for `.env` and raw `.nova/evals` mentions.
 - Hover, completion, document symbols, workspace symbols, and read-only policy command return Nova metadata.
+- `nova.lsp.showSetupGuide` returns stdio-only VS Code/Neovim setup guidance and validation commands.
 - `shutdown` and `exit` complete cleanly.
+
+Additional `lsp:policy-smoke` checks:
+
+- Metadata index contains all read-only LSP command entries and client setup policy metadata.
+- Capabilities remain allowlisted and do not advertise `WorkspaceEdit`, code actions, write commands, or shell commands.
+- Denylist helpers refuse `.env`, `node_modules`, raw `.nova/traces|evals|reports`, private-key extensions, traversal, and NUL-byte paths.
+- Redaction, output caps, safe error formatting, diagnostics, and setup-guide metadata stay deterministic and content-safe.

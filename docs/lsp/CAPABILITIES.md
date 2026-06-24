@@ -14,6 +14,9 @@ Implemented capabilities:
   - `nova.lsp.showRelatedDocs`
   - `nova.lsp.explainPolicy`
   - `nova.lsp.showEvalScenario`
+  - `nova.lsp.showSetupGuide`
+
+V1.1 validation adds `npm run lsp:policy-smoke`, which asserts the capability allowlist and confirms no mutating LSP capability is advertised.
 
 Explicitly not implemented in V1:
 

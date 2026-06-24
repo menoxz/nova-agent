@@ -119,7 +119,8 @@
   - [x] Metadata Nova sûre: scripts, outils/resources/prompts connus, docs, eval suites/scenarios, policy
   - [x] Smoke protocol (`npm run lsp:smoke`) et eval mock (`npm run eval:lsp`)
   - [x] V1.1: setup clients/policy metadata read-only (`nova.lsp.showSetupGuide`) avec smoke/eval renforcés
-  - [ ] V1.1 future: extraction metadata plus riche et tests unitaires policy/metadata
+  - [x] V1.1: smoke helpers policy/metadata (`npm run lsp:policy-smoke`) sans capacités mutatives
+  - [ ] V1.1 future: extraction metadata plus riche
 
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel

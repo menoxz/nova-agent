@@ -11,3 +11,5 @@ Diagnostics are intentionally lightweight and safe:
 - Inform on duplicate metadata labels discovered in the safe metadata index.
 
 Diagnostics do not read denied raw artifacts.
+
+V1.1 helper coverage: `npm run lsp:policy-smoke` validates these diagnostic rules against synthetic document text and also checks the underlying denylist/redaction/output-cap helpers used by the LSP metadata path.
