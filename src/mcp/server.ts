@@ -37,6 +37,8 @@ const VERSION = '0.1.0';
 const MCP_BEHAVIOR_VERSION = '1.1';
 const MCP_RESOURCE_SCHEMA_VERSION = 1;
 const MCP_RESOURCE_POLICY_VERSION = 1;
+const MCP_NODE_COMPATIBILITY = 'Node.js 22.x (CI baseline; current dev target)';
+const MCP_SDK_COMPATIBILITY = '@modelcontextprotocol/sdk ^1.29.0';
 const HARD_OUTPUT_MAX_CHARS = 120_000;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_DIR_ENTRIES = 300;
@@ -86,6 +88,8 @@ const RESOURCE_DEFS = [
   { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.', contentKind: 'json' },
   { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.', contentKind: 'json' },
   { name: 'nova_mcp_resource_schema_policy', uri: 'nova://resources/schema-policy', title: 'Resource Schema Policy', description: 'Stable MCP resource schema/versioning policy and resource inventory.', contentKind: 'json' },
+  { name: 'nova_mcp_release_checklist', uri: 'nova://mcp/release-checklist', title: 'MCP Release Checklist', description: 'Generated MCP packaging/release readiness checklist and validation commands.', contentKind: 'json' },
+  { name: 'nova_mcp_compatibility', uri: 'nova://mcp/compatibility', title: 'MCP Compatibility', description: 'Generated MCP Node/SDK/client compatibility expectations.', contentKind: 'json' },
   { name: 'nova_mcp_tool_schemas_resource', uri: 'nova://tools/schemas', title: 'Tool Schemas', description: 'Generated tool metadata and input schema summary.', contentKind: 'json' },
   { name: 'nova_mcp_docs_index_resource', uri: 'nova://docs/index', title: 'Docs Index', description: 'Curated high-value docs index for MCP clients.', contentKind: 'json' },
   { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.', contentKind: 'markdown' },
@@ -252,6 +256,7 @@ function generatedCapabilities() {
     resources: RESOURCE_DEFS.map(resourceSummary),
     prompts: ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_eval_scenario_design', 'nova_trace_summary_diagnosis', 'nova_mcp_client_setup'],
     disabledToolFamilies: ['nova_bash', 'nova_write_file', 'nova_todo_*', 'nova_goal_*', 'nova_skill_*'],
+    compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
   };
 }
 
@@ -266,6 +271,7 @@ function generatedPolicyMetadata() {
     searchPolicy: { default: 'literal', regexOptIn: true, maxPatternChars: MAX_SEARCH_PATTERN_CHARS, redosGuard: true },
     mutatingTools: { nova_bash: 'absent by default', nova_write_file: 'absent by default', stateTools: 'absent by default' },
     transportPolicy: { stdio: 'default', http: 'not enabled in this slice', publicBind: 'non-goal' },
+    compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
   };
 }
 
@@ -312,6 +318,74 @@ function generatedResourceSchemaPolicy() {
   };
 }
 
+function generatedMcpReleaseChecklist() {
+  return {
+    kind: 'mcp_release_checklist',
+    packageVersion: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    scope: 'MCP stdio packaging and release readiness; metadata only, no publish/tag/release action.',
+    compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
+    requiredCommands: [
+      'npm run typecheck',
+      'npm run mcp:smoke',
+      'npm run mcp:inspect',
+      'npm run mcp:bin-smoke',
+      'npm run eval:mcp',
+      'npm run build',
+      'npm run check',
+      'npm run release:readiness',
+    ],
+    packagingChecks: [
+      'nova-mcp bin is present in package.json bin map and accepts only --help/--version metadata args before stdio startup.',
+      'Package files include bin/, dist/, scripts/assert-release-readiness.mjs, docs/mcp/*.md, packaging docs, changelog, and safe project docs.',
+      'Package manifest excludes source tree, .nova, node_modules, .env files, and built smoke artifacts.',
+      'npm pack dry-run should be run with --ignore-scripts for manifest inspection when a read-only packaging check is required.',
+    ],
+    safetyInvariants: {
+      stdioDefault: true,
+      httpOrStreamableEnabled: false,
+      mutatingToolsRegisteredByDefault: false,
+      rawNovaArtifactsPackagedOrExposed: false,
+      secretsPackagedOrExposed: false,
+      configuredRootsDisclosed: false,
+    },
+    manualReleaseNonGoals: ['No npm publish', 'No git tag', 'No GitHub release', 'No HTTP/streamable transport enablement'],
+    docs: ['docs/mcp/CLIENT_SETUP.md', 'docs/mcp/README.md', 'docs/mcp/RESOURCES.md', 'docs/mcp/BACKLOG_V1_1.md', 'docs/packaging-install.md'],
+  };
+}
+
+function generatedMcpCompatibility() {
+  return {
+    kind: 'mcp_compatibility',
+    packageVersion: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    runtime: {
+      node: MCP_NODE_COMPATIBILITY,
+      ciNodeVersion: 22,
+      moduleSystem: 'ESM',
+      builtEntrypoint: 'dist/mcp/server.js',
+      devEntrypointFallback: 'src/mcp/server.ts via tsx',
+    },
+    sdk: {
+      package: MCP_SDK_COMPATIBILITY,
+      transport: 'stdio only by default',
+      clientExpectation: 'MCP clients should launch nova-mcp through stdio and read curated nova:// resources; no HTTP endpoint is exposed.',
+    },
+    packageEntrypoints: {
+      bin: 'nova-mcp',
+      direct: 'node bin/nova-mcp.js',
+      npmExec: 'npm exec --yes --package @lux-tech/nova-agent -- nova-mcp',
+    },
+    unsupportedByDefault: ['HTTP transport', 'streamable HTTP transport', 'remote bind', 'nova_bash tool', 'nova_write_file tool', 'state tools'],
+    versioning: {
+      packageVersion: VERSION,
+      mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+      resourceSchemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
+      resourcePolicyVersion: MCP_RESOURCE_POLICY_VERSION,
+    },
+  };
+}
+
 function generatedToolSchemas() {
   const inputSummaries: Record<string, Record<string, string>> = {
     nova_tool_catalog: {},
@@ -341,6 +415,7 @@ function generatedDocsIndex() {
     { path: 'docs/mcp/PROMPTS.md', topic: 'Prompt catalog' },
     { path: 'docs/mcp/CLIENT_SETUP.md', topic: 'Client and Inspector setup' },
     { path: 'docs/mcp/BACKLOG_V1_1.md', topic: 'V1.1 backlog and acceptance criteria' },
+    { path: 'docs/packaging-install.md', topic: 'CLI and MCP package/bin installation guidance' },
     { path: 'PROJECT_STATUS.md', topic: 'Project status summaries' },
     { path: 'CHANGELOG.md', topic: 'Released and unreleased changes' },
   ];
@@ -742,6 +817,8 @@ function registerResources(server: McpServer): void {
     'nova://mcp/capabilities': () => JSON.stringify(generatedCapabilities(), null, 2),
     'nova://mcp/policy': () => JSON.stringify(generatedPolicyMetadata(), null, 2),
     'nova://resources/schema-policy': () => JSON.stringify(generatedResourceSchemaPolicy(), null, 2),
+    'nova://mcp/release-checklist': () => JSON.stringify(generatedMcpReleaseChecklist(), null, 2),
+    'nova://mcp/compatibility': () => JSON.stringify(generatedMcpCompatibility(), null, 2),
     'nova://tools/schemas': () => JSON.stringify(generatedToolSchemas(), null, 2),
     'nova://docs/index': () => JSON.stringify(generatedDocsIndex(), null, 2),
     'nova://tools/catalog': generatedToolCatalog,

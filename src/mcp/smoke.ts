@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
-    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
       assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
     }
     const prompts = await client.listPrompts();
@@ -88,6 +88,18 @@ async function main(): Promise<void> {
     assert(schemaPolicyResource.includes('nova://observability/summary'), 'schema policy should inventory observability resource');
     assert(!schemaPolicyResource.includes(projectRoot), 'schema policy must not disclose project root');
     assert(!schemaPolicyResource.includes(fixtureRoot), 'schema policy must not disclose fixture root');
+    const releaseChecklist = await readResourceText(client, 'nova://mcp/release-checklist');
+    assert(releaseChecklist.includes('npm run release:readiness'), 'release checklist should include readiness command');
+    assert(releaseChecklist.includes('"httpOrStreamableEnabled": false'), 'release checklist should keep HTTP/streamable disabled');
+    assert(releaseChecklist.includes('No npm publish'), 'release checklist should state no publish action');
+    assert(!releaseChecklist.includes(projectRoot), 'release checklist must not disclose project root');
+    assert(!releaseChecklist.includes(fixtureRoot), 'release checklist must not disclose fixture root');
+    const compatibility = await readResourceText(client, 'nova://mcp/compatibility');
+    assert(compatibility.includes('Node.js 22'), 'compatibility resource should document Node baseline');
+    assert(compatibility.includes('@modelcontextprotocol/sdk'), 'compatibility resource should document MCP SDK baseline');
+    assert(compatibility.includes('stdio only by default'), 'compatibility resource should document stdio-only default');
+    assert(!compatibility.includes(projectRoot), 'compatibility must not disclose project root');
+    assert(!compatibility.includes(fixtureRoot), 'compatibility must not disclose fixture root');
     const schemasResource = await readResourceText(client, 'nova://tools/schemas');
     assert(schemasResource.includes('nova_read_file'), 'schemas resource should include read_file');
     assert(schemasResource.includes('registered'), 'schemas resource should include registration metadata');

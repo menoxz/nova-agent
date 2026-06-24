@@ -87,7 +87,7 @@ Prepare MCP usage outside a checked-out dev shell:
 - Release checklist covering typecheck, smoke, evals, Inspector automation, docs update, package metadata, and security review.
 - Document compatibility expectations for MCP SDK and Node versions.
 
-Status: first packaging/client setup slice implemented by `nova-mcp`, `npm run mcp:bin-smoke`, packaged MCP docs, and client config examples for checkout, linked/global install, npm exec, and Windows path usage. Resource/schema versioning policy is implemented in the richer curated resources slice; release checklist and compatibility expectations remain documented here.
+Status: implemented for the safe local/stdio packaging track. The first packaging/client setup slice delivered `nova-mcp`, `npm run mcp:bin-smoke`, packaged MCP docs, and client config examples for checkout, linked/global install, npm exec, and Windows path usage. The release-readiness/compatibility slice adds generated resources `nova://mcp/release-checklist` and `nova://mcp/compatibility`, strengthens `npm run release:readiness` so the package manifest must include the MCP bin and MCP docs, and documents Node.js 22 / `@modelcontextprotocol/sdk` expectations. Resource/schema versioning policy is implemented in the richer curated resources slice.
 
 ## Acceptance criteria for V1.1
 

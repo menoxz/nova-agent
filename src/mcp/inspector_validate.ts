@@ -29,7 +29,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const FORBIDDEN_TOOLS = ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'] as const;
-const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
+const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
 const REQUIRED_PROMPTS = ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_mcp_client_setup'] as const;
 
 function assert(condition: unknown, message: string): void {
@@ -126,6 +126,8 @@ async function main(): Promise<void> {
       const capabilities = await readResourceText(client, 'nova://mcp/capabilities');
       const policy = await readResourceText(client, 'nova://mcp/policy');
       const schemaPolicy = await readResourceText(client, 'nova://resources/schema-policy');
+      const releaseChecklist = await readResourceText(client, 'nova://mcp/release-checklist');
+      const compatibility = await readResourceText(client, 'nova://mcp/compatibility');
       const schemas = await readResourceText(client, 'nova://tools/schemas');
       const docsIndex = await readResourceText(client, 'nova://docs/index');
       assert(capabilities.includes('hardOutputMaxChars'), 'capabilities resource missing limits');
@@ -134,10 +136,37 @@ async function main(): Promise<void> {
       assert(schemaPolicy.includes('"resourcePolicyVersion": 1'), 'resource schema policy missing policy version');
       assert(schemaPolicy.includes('"uriStability"'), 'resource schema policy missing URI stability guidance');
       assert(schemaPolicy.includes('"rawNovaArtifactsExposed": false'), 'resource schema policy missing raw artifact invariant');
+      assert(releaseChecklist.includes('npm run release:readiness'), 'release checklist missing readiness command');
+      assert(releaseChecklist.includes('"httpOrStreamableEnabled": false'), 'release checklist missing HTTP disabled invariant');
+      assert(releaseChecklist.includes('No npm publish'), 'release checklist missing no-publish non-goal');
+      assert(compatibility.includes('Node.js 22') && compatibility.includes('@modelcontextprotocol/sdk'), 'compatibility resource missing Node/SDK baselines');
+      assert(compatibility.includes('stdio only by default'), 'compatibility resource missing stdio default');
       assert(schemas.includes('nova_read_file') && schemas.includes('registered'), 'schemas resource missing tool metadata');
       assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index missing MCP backlog');
-      assert(noRootLeak(`${capabilities}\n${policy}\n${schemaPolicy}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
-      return { resourcesRead: 5, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+      assert(noRootLeak(`${capabilities}\n${policy}\n${schemaPolicy}\n${releaseChecklist}\n${compatibility}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
+      return { resourcesRead: 7, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+    }));
+
+    checks.push(await runCheck('release-readiness-compatibility-resources', fixtureRoot, async () => {
+      const releaseText = await readResourceText(client, 'nova://mcp/release-checklist');
+      const compatibilityText = await readResourceText(client, 'nova://mcp/compatibility');
+      const release = JSON.parse(releaseText) as { requiredCommands?: string[]; safetyInvariants?: { httpOrStreamableEnabled?: boolean; mutatingToolsRegisteredByDefault?: boolean; rawNovaArtifactsPackagedOrExposed?: boolean; secretsPackagedOrExposed?: boolean }; manualReleaseNonGoals?: string[] };
+      const compatibility = JSON.parse(compatibilityText) as { runtime?: { ciNodeVersion?: number }; sdk?: { package?: string; transport?: string }; unsupportedByDefault?: string[]; packageEntrypoints?: { bin?: string } };
+      for (const command of ['npm run mcp:smoke', 'npm run mcp:inspect', 'npm run mcp:bin-smoke', 'npm run eval:mcp', 'npm run release:readiness']) {
+        assert(release.requiredCommands?.includes(command), `release checklist missing ${command}`);
+      }
+      assert(release.safetyInvariants?.httpOrStreamableEnabled === false, 'release checklist must keep HTTP/streamable disabled');
+      assert(release.safetyInvariants?.mutatingToolsRegisteredByDefault === false, 'release checklist must keep mutating tools disabled');
+      assert(release.safetyInvariants?.rawNovaArtifactsPackagedOrExposed === false, 'release checklist must keep raw .nova excluded');
+      assert(release.safetyInvariants?.secretsPackagedOrExposed === false, 'release checklist must keep secrets excluded');
+      assert(release.manualReleaseNonGoals?.includes('No npm publish'), 'release checklist must not imply publish');
+      assert(compatibility.runtime?.ciNodeVersion === 22, 'compatibility resource should document CI Node 22');
+      assert(compatibility.sdk?.package?.includes('@modelcontextprotocol/sdk'), 'compatibility resource should document MCP SDK');
+      assert(compatibility.sdk?.transport === 'stdio only by default', 'compatibility resource should document stdio transport');
+      assert(compatibility.packageEntrypoints?.bin === 'nova-mcp', 'compatibility resource should document nova-mcp bin');
+      assert(compatibility.unsupportedByDefault?.includes('HTTP transport'), 'compatibility resource should mark HTTP unsupported by default');
+      assert(noRootLeak(`${releaseText}\n${compatibilityText}`, fixtureRoot), 'release/compatibility resources leaked configured root path');
+      return { requiredCommandCount: release.requiredCommands?.length ?? 0, ciNodeVersion: 22, httpOrStreamableEnabled: false };
     }));
 
     checks.push(await runCheck('resource-schema-policy-versioning', fixtureRoot, async () => {

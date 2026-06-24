@@ -14,6 +14,8 @@ Nova MCP exposes curated resources only. It does not expose a raw filesystem mir
 - `nova://mcp/capabilities`
 - `nova://mcp/policy`
 - `nova://resources/schema-policy`
+- `nova://mcp/release-checklist`
+- `nova://mcp/compatibility`
 - `nova://tools/schemas`
 - `nova://docs/index`
 - `nova://tools/catalog`
@@ -39,5 +41,11 @@ Resources are documentation or generated metadata summaries. Sensitive local art
 - a full inventory of curated resources with `uri`, `title`, `description`, `contentKind`, and `schemaVersion`.
 
 Additive JSON fields keep `resourceSchemaVersion: 1`. Incompatible payload shape changes bump `resourceSchemaVersion`; safety/disclosure policy changes bump `resourcePolicyVersion`; broader MCP-visible behavior changes bump the MCP behavior version. Package version remains governed by `package.json` and is not bumped for this V1.1 metadata-only slice.
+
+## Release readiness and compatibility
+
+`nova://mcp/release-checklist` exposes a metadata-only checklist for MCP stdio packaging readiness. It includes the required validation commands (`typecheck`, MCP smoke/Inspector/bin smoke, `eval:mcp`, build/check, and `release:readiness`), package manifest expectations, and explicit non-goals: no npm publish, no git tag, and no GitHub release as part of this slice.
+
+`nova://mcp/compatibility` exposes Node/MCP SDK/client expectations for MCP consumers: Node.js 22.x as the CI/runtime baseline, `@modelcontextprotocol/sdk ^1.29.0`, and `nova-mcp` stdio entrypoints. HTTP/streamable transport, remote bind, mutating tools, and state tools remain unsupported by default.
 
 Observability resources expose counters, statuses, run IDs, timestamps, gates, failure names/checks, and aggregate metrics. They intentionally omit raw `.nova` eval/trace/report contents, raw trace events, report file paths, configured root paths, and secret-like strings.

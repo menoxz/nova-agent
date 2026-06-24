@@ -86,9 +86,10 @@ En développement, le wrapper fonctionne même si `dist/` est absent grâce au f
 ## Scripts packaging
 
 ```bash
-npm run build       # compile TypeScript vers dist/
-npm run bin:smoke   # vérifie node bin/nova.js + npm link + aide/version sans clé LLM
-npm run mcp:bin-smoke # vérifie node bin/nova-mcp.js + handshake MCP stdio buildé + npm link
+npm run build             # compile TypeScript vers dist/
+npm run bin:smoke         # vérifie node bin/nova.js + npm link + aide/version sans clé LLM
+npm run mcp:bin-smoke     # vérifie node bin/nova-mcp.js + handshake MCP stdio buildé + npm link
+npm run release:readiness # vérifie le manifeste npm dry-run sans scripts
 ```
 
 `node bin/nova.js --version` et `nova --version` utilisent la version de `package.json`. Ces chemins sont des commandes metadata-only : ils ne nécessitent pas `LLM_API_KEY` et ne déclenchent ni agent, ni LLM, ni tools.
@@ -108,8 +109,16 @@ Ne pas utiliser `npm pack` normal pour un dry-run pure read-only : `prepack` ex�
 - `main`: `dist/index.js`
 - `bin.nova`: `./bin/nova.js`
 - `bin.nova-mcp`: `./bin/nova-mcp.js`
-- `files`: `bin/`, `dist/`, `scripts/assert-release-readiness.mjs`, selected docs (`docs/packaging-install.md`, `docs/RUNBOOK.md`, `docs/cli-usage.md`, `docs/mcp/*.md`, `docs/provider-live-smoke-readiness.md`, `docs/release-candidate-dry-run-checklist.md`, `docs/policy/README.md`), `CHANGELOG.md`, `soul.md`
+- `files`: `bin/`, `dist/`, `scripts/assert-release-readiness.mjs`, selected docs (`docs/packaging-install.md`, `docs/RUNBOOK.md`, `docs/cli-usage.md`, `docs/mcp/*.md` including `BACKLOG_V1_1.md`, `docs/provider-live-smoke-readiness.md`, `docs/release-candidate-dry-run-checklist.md`, `docs/policy/README.md`), `CHANGELOG.md`, `soul.md`
 - The package intentionally excludes build smoke outputs (`dist/**/*smoke*.js`, `dist/**/*smoke*.d.ts`) and non-essential source-repository docs.
+
+`npm run release:readiness` requires the MCP stdio bin (`bin/nova-mcp.js`), MCP docs, packaging docs, and release checklist docs in the manifest, while rejecting `.env`, `.nova`, `node_modules`, `tmp`, `.vscode`, `src`, and non-doc smoke artifacts.
+
+## Compatibilité MCP
+
+- Runtime de référence : Node.js 22.x (baseline CI).
+- SDK MCP : `@modelcontextprotocol/sdk ^1.29.0`.
+- Transport package : stdio uniquement via `nova-mcp`; aucun transport HTTP/streamable n'est activé par défaut.
 
 ## Limites V1
 

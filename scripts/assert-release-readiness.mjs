@@ -5,7 +5,15 @@ import { execFileSync } from 'node:child_process';
 const REQUIRED_ENTRIES = [
   'dist/index.js',
   'bin/nova.js',
+  'bin/nova-mcp.js',
   'scripts/assert-release-readiness.mjs',
+  'docs/packaging-install.md',
+  'docs/mcp/BACKLOG_V1_1.md',
+  'docs/mcp/CLIENT_SETUP.md',
+  'docs/mcp/README.md',
+  'docs/mcp/RESOURCES.md',
+  'docs/mcp/SECURITY.md',
+  'docs/mcp/TOOLS.md',
   'docs/release-candidate-dry-run-checklist.md',
 ];
 

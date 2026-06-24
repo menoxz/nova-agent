@@ -1,5 +1,21 @@
 # Project Status
 
+## MCP V1.1 release readiness and compatibility resources — 2026-06-24
+
+Status: implemented locally (metadata-only MCP resources plus package-manifest readiness checks; no publish/tag/release; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added generated resources `nova://mcp/release-checklist` and `nova://mcp/compatibility` for MCP packaging consumers.
+- Release checklist metadata includes required local validation commands, package manifest safety expectations, no-publish/no-tag/no-release non-goals, and invariants keeping HTTP/streamable transport, mutating tools, raw `.nova`, secrets, and configured root disclosure absent.
+- Compatibility metadata documents Node.js 22.x, `@modelcontextprotocol/sdk ^1.29.0`, `nova-mcp` stdio entrypoints, unsupported-by-default HTTP/streamable/mutating/state surfaces, and versioning metadata.
+- Strengthened `npm run release:readiness` to require the MCP stdio bin and MCP docs in the npm manifest; added `docs/mcp/BACKLOG_V1_1.md` to package files.
+- Reinforced `mcp:smoke`, `mcp:inspect`, and `eval:mcp` coverage for the new resources.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run eval:mcp`, `npm run build`, `npm run check`, and `npm run release:readiness` exit 0.
+
 ## MCP V1.1 resource schema/versioning policy — 2026-06-24
 
 Status: implemented locally (curated resource metadata only; no raw `.nova` content; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).
