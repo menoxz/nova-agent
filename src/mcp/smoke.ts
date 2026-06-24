@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
-    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/transport-readiness', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
       assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
     }
     const prompts = await client.listPrompts();
@@ -80,6 +80,15 @@ async function main(): Promise<void> {
     const policyResource = await readResourceText(client, 'nova://mcp/policy');
     assert(policyResource.includes('raw .nova/traces'), 'policy resource should document raw trace denial');
     assert(policyResource.includes('literal'), 'policy resource should document literal search default');
+    const transportReadiness = await readResourceText(client, 'nova://mcp/transport-readiness');
+    assert(transportReadiness.includes('"activeTransport": "stdio"'), 'transport readiness should keep stdio active');
+    assert(transportReadiness.includes('"httpEnabled": false'), 'transport readiness should keep HTTP disabled');
+    assert(transportReadiness.includes('"streamableHttpEnabled": false'), 'transport readiness should keep streamable HTTP disabled');
+    assert(transportReadiness.includes('"networkListenerCreated": false'), 'transport readiness should avoid listeners');
+    assert(transportReadiness.includes('"portOpened": false'), 'transport readiness should avoid opening ports');
+    assert(transportReadiness.includes('localhost-only bind'), 'transport readiness should require localhost-only bind in future');
+    assert(!transportReadiness.includes(projectRoot), 'transport readiness must not disclose project root');
+    assert(!transportReadiness.includes(fixtureRoot), 'transport readiness must not disclose fixture root');
     const gatedToolsPolicy = await readResourceText(client, 'nova://mcp/gated-tools-policy');
     assert(gatedToolsPolicy.includes('"mutatingToolsRegisteredByDefault": false'), 'gated tools policy should keep mutating tools disabled');
     assert(gatedToolsPolicy.includes('"novaBashRegistered": false'), 'gated tools policy should keep nova_bash absent');

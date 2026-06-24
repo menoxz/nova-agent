@@ -25,6 +25,8 @@ V1.1 may add an opt-in HTTP or streamable transport alongside stdio. Requirement
 - Clear docs for threat model, config examples, and safe failure modes.
 - No transport change may weaken allowed-root, denylist, redaction, output-cap, or tool-registration rules.
 
+Status: metadata/readiness policy implemented by `nova://mcp/transport-readiness`. The resource documents current stdio-only posture, confirms HTTP/streamable HTTP are not implemented or enabled, confirms no listener/port/bind is created, and records requirements for any future opt-in network transport.
+
 ### 2. Automated MCP Inspector tests
 
 Add repeatable MCP Inspector validation so manual Inspector checks become CI-friendly:

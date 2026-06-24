@@ -30,3 +30,9 @@ Errors are returned as MCP tool errors with safe messages; stack traces and conf
 `nova_bash` and `nova_write_file` are intentionally absent by default. State tools are not implemented in V1. Default MCP server startup is read-only and does not create project files or directories. Any future mutating/state capability must be explicitly env-gated and documented before registration.
 
 `nova://mcp/gated-tools-policy` exposes the current roadmap and gate requirements as safe metadata only. It confirms that mutating/state tools are not registered, actions are not implemented in this slice, and future activation would require per-family environment gates, dry-run previews, human approval semantics, redacted audit logs, denylist/allowed-root enforcement, output caps, and dedicated smoke/Inspector/eval coverage.
+
+## Optional transport readiness
+
+`nova://mcp/transport-readiness` exposes the current transport posture as safe metadata only. The active transport is stdio; HTTP and streamable HTTP are not implemented/enabled, no listener is created, no port is opened, and public bind is not allowed by default.
+
+Any future network transport must be explicit opt-in, localhost-only by default, authenticated before non-local or browser-accessible deployment, origin-restricted, rate-limited, and covered by targeted smoke/Inspector/eval/security review. A future transport must not weaken allowed-root, denylist, redaction, output-cap, resource, prompt, or tool-registration rules.

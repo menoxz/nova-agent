@@ -87,6 +87,7 @@ const RESOURCE_DEFS = [
   { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.', contentKind: 'markdown' },
   { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.', contentKind: 'json' },
   { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.', contentKind: 'json' },
+  { name: 'nova_mcp_transport_readiness', uri: 'nova://mcp/transport-readiness', title: 'Transport Readiness Policy', description: 'Metadata-only readiness policy for any future optional HTTP/streamable transport; no network transport enabled.', contentKind: 'json' },
   { name: 'nova_mcp_gated_tools_policy', uri: 'nova://mcp/gated-tools-policy', title: 'Gated Tools Policy', description: 'Metadata-only roadmap and activation gates for future mutating/state tools; no actions enabled.', contentKind: 'json' },
   { name: 'nova_mcp_resource_schema_policy', uri: 'nova://resources/schema-policy', title: 'Resource Schema Policy', description: 'Stable MCP resource schema/versioning policy and resource inventory.', contentKind: 'json' },
   { name: 'nova_mcp_release_checklist', uri: 'nova://mcp/release-checklist', title: 'MCP Release Checklist', description: 'Generated MCP packaging/release readiness checklist and validation commands.', contentKind: 'json' },
@@ -257,6 +258,7 @@ function generatedCapabilities() {
     resources: RESOURCE_DEFS.map(resourceSummary),
     prompts: ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_eval_scenario_design', 'nova_trace_summary_diagnosis', 'nova_mcp_client_setup'],
     disabledToolFamilies: ['nova_bash', 'nova_write_file', 'nova_todo_*', 'nova_goal_*', 'nova_skill_*'],
+    transportReadinessResource: 'nova://mcp/transport-readiness',
     gatedToolsPolicyResource: 'nova://mcp/gated-tools-policy',
     compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
   };
@@ -274,6 +276,64 @@ function generatedPolicyMetadata() {
     mutatingTools: { nova_bash: 'absent by default', nova_write_file: 'absent by default', stateTools: 'absent by default' },
     transportPolicy: { stdio: 'default', http: 'not enabled in this slice', publicBind: 'non-goal' },
     compatibility: { node: MCP_NODE_COMPATIBILITY, sdk: MCP_SDK_COMPATIBILITY },
+  };
+}
+
+function generatedTransportReadiness() {
+  return {
+    kind: 'mcp_transport_readiness',
+    packageVersion: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    policyVersion: MCP_RESOURCE_POLICY_VERSION,
+    currentDefault: {
+      activeTransport: 'stdio',
+      stdioEnabled: true,
+      httpEnabled: false,
+      streamableHttpEnabled: false,
+      networkListenerCreated: false,
+      portOpened: false,
+      bindAddress: null,
+      publicBindAllowedByDefault: false,
+    },
+    futureOptionalTransports: [
+      {
+        transport: 'HTTP',
+        status: 'not_implemented_or_enabled',
+        futureActivationGate: 'explicit opt-in flag plus completed security checklist; no default network exposure',
+      },
+      {
+        transport: 'streamable HTTP',
+        status: 'not_implemented_or_enabled',
+        futureActivationGate: 'explicit opt-in flag plus completed security checklist; no default network exposure',
+      },
+    ],
+    readinessRequirements: [
+      'stdio remains the default transport',
+      'disabled by default with no listener, bind, or port unless explicitly opted in',
+      'localhost-only bind by default (127.0.0.1 or equivalent)',
+      'never bind 0.0.0.0 unless a separate explicit public-bind flag is set',
+      'authentication required before any non-local or browser-accessible deployment',
+      'strict origin allowlist for browser-based clients',
+      'rate limiting for requests, sessions, and expensive tool/resource operations',
+      'safe failure modes and operator-visible diagnostics without secrets or configured roots',
+      'no weakening of allowed-root, denylist, redaction, output-cap, resource, prompt, or tool-registration policies',
+      'targeted smoke, Inspector, eval, and security review coverage before implementation activation',
+    ],
+    securityInvariants: {
+      readOnlyDefault: true,
+      mutatingToolsRegisteredByDefault: false,
+      rawNovaArtifactsExposed: false,
+      secretsExposed: false,
+      configuredRootsDisclosed: false,
+      outputCapsRemainEnforced: true,
+      denylistPrecedencePreserved: true,
+    },
+    nonGoalsForThisSlice: ['No HTTP server implementation', 'No streamable HTTP server implementation', 'No network listener', 'No port bind', 'No public bind', 'No authentication secret handling'],
+    validation: {
+      expectedTransport: 'stdio',
+      expectedNetworkExposure: 'none',
+      expectedChecks: ['mcp:smoke', 'mcp:inspect', 'eval:mcp'],
+    },
   };
 }
 
@@ -891,6 +951,7 @@ function registerResources(server: McpServer): void {
     'nova://docs/mcp/client-setup': () => readDocResource('docs/mcp/CLIENT_SETUP.md', '# Nova MCP Client Setup\n'),
     'nova://mcp/capabilities': () => JSON.stringify(generatedCapabilities(), null, 2),
     'nova://mcp/policy': () => JSON.stringify(generatedPolicyMetadata(), null, 2),
+    'nova://mcp/transport-readiness': () => JSON.stringify(generatedTransportReadiness(), null, 2),
     'nova://mcp/gated-tools-policy': () => JSON.stringify(generatedGatedToolsPolicy(), null, 2),
     'nova://resources/schema-policy': () => JSON.stringify(generatedResourceSchemaPolicy(), null, 2),
     'nova://mcp/release-checklist': () => JSON.stringify(generatedMcpReleaseChecklist(), null, 2),

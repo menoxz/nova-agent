@@ -29,7 +29,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const FORBIDDEN_TOOLS = ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'] as const;
-const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
+const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://mcp/transport-readiness', 'nova://mcp/gated-tools-policy', 'nova://resources/schema-policy', 'nova://mcp/release-checklist', 'nova://mcp/compatibility', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
 const REQUIRED_PROMPTS = ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_mcp_client_setup'] as const;
 
 function assert(condition: unknown, message: string): void {
@@ -125,6 +125,7 @@ async function main(): Promise<void> {
     checks.push(await runCheck('curated-resource-reads', fixtureRoot, async () => {
       const capabilities = await readResourceText(client, 'nova://mcp/capabilities');
       const policy = await readResourceText(client, 'nova://mcp/policy');
+      const transportReadiness = await readResourceText(client, 'nova://mcp/transport-readiness');
       const gatedToolsPolicy = await readResourceText(client, 'nova://mcp/gated-tools-policy');
       const schemaPolicy = await readResourceText(client, 'nova://resources/schema-policy');
       const releaseChecklist = await readResourceText(client, 'nova://mcp/release-checklist');
@@ -133,6 +134,9 @@ async function main(): Promise<void> {
       const docsIndex = await readResourceText(client, 'nova://docs/index');
       assert(capabilities.includes('hardOutputMaxChars'), 'capabilities resource missing limits');
       assert(policy.includes('raw .nova/traces') && policy.includes('literal'), 'policy resource missing deny/search metadata');
+      assert(transportReadiness.includes('"activeTransport": "stdio"'), 'transport readiness missing stdio active default');
+      assert(transportReadiness.includes('"httpEnabled": false') && transportReadiness.includes('"streamableHttpEnabled": false'), 'transport readiness must keep HTTP transports disabled');
+      assert(transportReadiness.includes('"networkListenerCreated": false') && transportReadiness.includes('"portOpened": false'), 'transport readiness must avoid network listeners/ports');
       assert(gatedToolsPolicy.includes('"mutatingToolsRegisteredByDefault": false'), 'gated tools policy missing disabled mutating invariant');
       assert(gatedToolsPolicy.includes('NOVA_MCP_ENABLE_BASH=1') && gatedToolsPolicy.includes('NOVA_MCP_ENABLE_WRITE_FILE=1') && gatedToolsPolicy.includes('NOVA_MCP_ENABLE_STATE_TOOLS=1'), 'gated tools policy missing env gates');
       assert(gatedToolsPolicy.includes('"actionsImplementedInThisSlice": false'), 'gated tools policy must not implement actions');
@@ -147,8 +151,36 @@ async function main(): Promise<void> {
       assert(compatibility.includes('stdio only by default'), 'compatibility resource missing stdio default');
       assert(schemas.includes('nova_read_file') && schemas.includes('registered'), 'schemas resource missing tool metadata');
       assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index missing MCP backlog');
-      assert(noRootLeak(`${capabilities}\n${policy}\n${gatedToolsPolicy}\n${schemaPolicy}\n${releaseChecklist}\n${compatibility}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
-      return { resourcesRead: 8, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+      assert(noRootLeak(`${capabilities}\n${policy}\n${transportReadiness}\n${gatedToolsPolicy}\n${schemaPolicy}\n${releaseChecklist}\n${compatibility}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
+      return { resourcesRead: 9, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+    }));
+
+    checks.push(await runCheck('transport-readiness-policy-resource', fixtureRoot, async () => {
+      const text = await readResourceText(client, 'nova://mcp/transport-readiness');
+      const policy = JSON.parse(text) as { currentDefault?: { activeTransport?: string; stdioEnabled?: boolean; httpEnabled?: boolean; streamableHttpEnabled?: boolean; networkListenerCreated?: boolean; portOpened?: boolean; publicBindAllowedByDefault?: boolean }; futureOptionalTransports?: Array<{ transport?: string; status?: string }>; readinessRequirements?: string[]; securityInvariants?: { readOnlyDefault?: boolean; mutatingToolsRegisteredByDefault?: boolean; rawNovaArtifactsExposed?: boolean; secretsExposed?: boolean; configuredRootsDisclosed?: boolean }; nonGoalsForThisSlice?: string[]; validation?: { expectedTransport?: string; expectedNetworkExposure?: string } };
+      assert(policy.currentDefault?.activeTransport === 'stdio', 'stdio must be the only active transport');
+      assert(policy.currentDefault?.stdioEnabled === true, 'stdio should be enabled');
+      assert(policy.currentDefault?.httpEnabled === false, 'HTTP must be disabled');
+      assert(policy.currentDefault?.streamableHttpEnabled === false, 'streamable HTTP must be disabled');
+      assert(policy.currentDefault?.networkListenerCreated === false, 'no network listener should be created');
+      assert(policy.currentDefault?.portOpened === false, 'no port should be opened');
+      assert(policy.currentDefault?.publicBindAllowedByDefault === false, 'public bind must not be allowed by default');
+      for (const transportName of ['HTTP', 'streamable HTTP']) {
+        assert(policy.futureOptionalTransports?.some((entry) => entry.transport === transportName && entry.status === 'not_implemented_or_enabled'), `${transportName} should be future-only`);
+      }
+      for (const requirement of ['localhost-only bind by default', 'Authentication required before any non-local', 'strict origin allowlist', 'Rate limiting']) {
+        assert(policy.readinessRequirements?.some((entry) => entry.toLowerCase().includes(requirement.toLowerCase())), `missing transport readiness requirement: ${requirement}`);
+      }
+      assert(policy.securityInvariants?.readOnlyDefault === true, 'read-only default must be preserved');
+      assert(policy.securityInvariants?.mutatingToolsRegisteredByDefault === false, 'mutating tools must remain disabled');
+      assert(policy.securityInvariants?.rawNovaArtifactsExposed === false, 'raw .nova artifacts must remain hidden');
+      assert(policy.securityInvariants?.secretsExposed === false, 'secrets must remain hidden');
+      assert(policy.securityInvariants?.configuredRootsDisclosed === false, 'configured roots must remain hidden');
+      assert(policy.nonGoalsForThisSlice?.includes('No network listener'), 'transport policy must be metadata-only');
+      assert(policy.validation?.expectedTransport === 'stdio', 'validation should expect stdio');
+      assert(policy.validation?.expectedNetworkExposure === 'none', 'validation should expect no network exposure');
+      assert(noRootLeak(text, fixtureRoot), 'transport readiness leaked configured root path');
+      return { activeTransport: 'stdio', httpEnabled: false, streamableHttpEnabled: false, networkExposure: 'none' };
     }));
 
     checks.push(await runCheck('gated-tools-policy-resource', fixtureRoot, async () => {

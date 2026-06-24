@@ -1,5 +1,21 @@
 # Project Status
 
+## MCP V1.1 transport readiness policy — 2026-06-24
+
+Status: implemented (metadata-only readiness policy; no HTTP/streamable implementation; no listener, port, or bind; read-only stdio posture preserved); targeted and full validation passed locally before commit.
+
+### Delivered
+
+- Added generated resource `nova://mcp/transport-readiness` documenting current stdio-only transport posture and future optional HTTP/streamable requirements.
+- Confirmed in metadata that `activeTransport` is `stdio`, HTTP and streamable HTTP are disabled/not implemented, no listener is created, no port is opened, and public bind is not allowed by default.
+- Documented readiness requirements for any future network transport: explicit opt-in, localhost-only bind by default, no `0.0.0.0` without a separate public-bind flag, authentication for non-local/browser deployment, strict origin allowlist, rate limiting, safe diagnostics, and preservation of allowed-root/denylist/redaction/output-cap/resource/prompt/tool-registration policies.
+- Reinforced `mcp:smoke`, `mcp:inspect`, and `eval:mcp` coverage for the transport readiness resource and no-network invariants.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, and `npm run eval:mcp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## MCP V1.1 gated mutating/state tools policy — 2026-06-24
 
 Status: implemented locally (metadata-only roadmap; no mutating/state tool registration; no HTTP transport; read-only stdio posture preserved); tests passing locally (not yet committed).

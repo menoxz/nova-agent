@@ -13,6 +13,7 @@ Nova MCP exposes curated resources only. It does not expose a raw filesystem mir
 - `nova://docs/mcp/client-setup`
 - `nova://mcp/capabilities`
 - `nova://mcp/policy`
+- `nova://mcp/transport-readiness`
 - `nova://mcp/gated-tools-policy`
 - `nova://resources/schema-policy`
 - `nova://mcp/release-checklist`
@@ -54,5 +55,11 @@ Additive JSON fields keep `resourceSchemaVersion: 1`. Incompatible payload shape
 `nova://mcp/gated-tools-policy` is a metadata-only roadmap for possible future `nova_bash`, `nova_write_file`, and state tool families (`nova_todo_*`, `nova_goal_*`, `nova_skill_*`). It does not register or implement those tools.
 
 The policy records that all mutating/state tools remain absent by default, read-only stdio remains the default posture, and future registration would require explicit per-family environment gates, dry-run previews, human approval semantics, redacted audit logs, denylist/allowed-root enforcement, output caps, and targeted smoke/Inspector/eval coverage before activation.
+
+## Optional transport readiness policy
+
+`nova://mcp/transport-readiness` is a metadata-only readiness policy for any possible future HTTP or streamable HTTP transport. It confirms the current active transport is `stdio`, HTTP and streamable HTTP are not implemented/enabled, no network listener is created, no port is opened, and public bind is not allowed by default.
+
+The policy records requirements that must be satisfied before any future network transport: explicit opt-in, localhost-only bind by default, no `0.0.0.0` without a separate public-bind flag, authentication for non-local/browser-accessible deployments, strict origin allowlists, rate limiting, safe diagnostics, and no weakening of allowed-root, denylist, redaction, output-cap, resource, prompt, or tool-registration rules.
 
 Observability resources expose counters, statuses, run IDs, timestamps, gates, failure names/checks, and aggregate metrics. They intentionally omit raw `.nova` eval/trace/report contents, raw trace events, report file paths, configured root paths, and secret-like strings.
