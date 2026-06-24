@@ -27,5 +27,6 @@ Transport is stdio via `@modelcontextprotocol/sdk`. HTTP is not implemented/enab
 - Raw `.env`, `.git`, `node_modules`, private keys, and raw `.nova/traces`, `.nova/evals`, `.nova/reports` artifacts are denied.
 - `nova_search_text` is literal by default; `regex: true` opts into guarded regex mode with length/ReDoS safeguards.
 - V1.1 adds curated metadata only: `nova_mcp_capabilities`, `nova://mcp/capabilities`, `nova://mcp/policy`, `nova://tools/schemas`, and `nova://docs/index`.
+- `npm run mcp:inspect` provides repeatable Inspector-style stdio validation with metadata-only output.
 
 See `SECURITY.md`, `TOOLS.md`, `RESOURCES.md`, `PROMPTS.md`, `CLIENT_SETUP.md`, and `BACKLOG_V1_1.md`.

@@ -2,7 +2,7 @@
 
 Nova MCP V1 is complete as a local, read-only stdio server. V1.1 keeps that posture as the safe default while preparing optional transports, stronger automated validation, richer curated resources, and explicitly gated mutating capabilities.
 
-> Implementation note (2026-06-24): the first V1.1 implementation slice delivers reinforced curated metadata/resources and eval/smoke coverage while intentionally leaving HTTP/streamable transport and mutating/state tools unimplemented by default.
+> Implementation note (2026-06-24): the first V1.1 implementation slice delivers reinforced curated metadata/resources and eval/smoke coverage while intentionally leaving HTTP/streamable transport and mutating/state tools unimplemented by default. The follow-up validation slice adds `npm run mcp:inspect`, a repeatable Inspector-style stdio validation command with metadata-only output.
 
 ## Goals
 
@@ -33,6 +33,8 @@ Add repeatable MCP Inspector validation so manual Inspector checks become CI-fri
 - Inspector scenario covering representative calls for safe reads, denied paths, resources, and prompts.
 - Output summarized as pass/fail metadata only; no raw `.nova` traces, eval reports, secrets, or file contents in generated artifacts.
 - Runbook instructions for local usage and future CI invocation.
+
+Status: first local automation slice implemented by `npm run mcp:inspect`; it starts the stdio server, validates listing/calls/resources/prompts with synthetic fixtures, and prints pass/fail metadata only.
 
 ### 3. Reinforced MCP evals
 

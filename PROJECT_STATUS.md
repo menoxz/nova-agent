@@ -1,5 +1,20 @@
 # Project Status
 
+## MCP V1.1 Inspector-style stdio validation — 2026-06-24
+
+Status: implemented and committed locally (not yet pushed; stdio-only validation; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally.
+
+### Delivered
+
+- Added `src/mcp/inspector_validate.ts` and the `npm run mcp:inspect` script. The validator starts the local MCP server over stdio with a synthetic temporary allowed root, mirroring manual Inspector checks without opening network transport.
+- Coverage includes tool/resource/prompt listing, `nova_mcp_capabilities`, curated V1.1 resources, prompt retrieval, safe read metadata, representative denied reads, synthetic secret redaction, literal search default, regex opt-in, and regex guardrails.
+- Output is pass/fail metadata only: no report file is written, no configured root paths are printed, no raw `.nova` artifacts are read or emitted, and no secrets/private-key fixtures are exposed.
+- Wired `mcp:inspect` into `npm run check` and documented local usage in MCP client/setup docs and backlog status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 curated metadata/resources slice — 2026-06-24
 
 Status: implemented, committed, and pushed to `main` (stdio remains the only/default transport; read-only posture preserved; mutating/state tools remain absent by default); local tests and CI passing.
