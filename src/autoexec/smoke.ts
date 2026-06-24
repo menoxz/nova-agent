@@ -34,17 +34,22 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { z } from 'zod';
 
 import { createDelegatedExecutionCapability } from './capability.js';
+import { createHeartbeatDecisionApplier, mapHeartbeatDecisionError } from './decision_applier.js';
 import { createHeartbeatApprovalBridge, type HeartbeatApprovalBridge } from './approval_gateway.js';
 import { ApprovalManager } from '../approval/manager.js';
+import { SessionRunManager } from '../session/manager.js';
 import { createExecutionSandbox } from '../sandbox/sandbox.js';
 import type { ExecutionSandbox, SandboxExecResult } from '../sandbox/types.js';
 import { runHeartbeatDryRunTick } from '../heartbeat/runner.js';
 import { HeartbeatStore } from '../heartbeat/store.js';
+import { ToolRegistry } from '../tools/registry.js';
 import type { HeartbeatApprovalGateway } from '../heartbeat/executor.js';
 import type { HeartbeatExecutionFlags } from '../heartbeat/execution_gate.js';
 import type { HeartbeatConfig, HeartbeatState, HeartbeatTaskState } from '../heartbeat/types.js';
+import type { NovaTool } from '../types.js';
 
 /** A fake sandbox returning a fixed result — never spawns a process. */
 function fakeSandbox(result: SandboxExecResult): ExecutionSandbox {
@@ -199,6 +204,79 @@ async function runOfflineBridgeUnit(): Promise<void> {
   console.log('autoexec:smoke offline bridge unit passed');
 }
 
+/** OFFLINE: prove the S5 run-scoped decision applier is exact-tuple, plain-data, and fail-closed. */
+async function runOfflineDecisionApplierUnit(): Promise<void> {
+  const applierSource = await readFile(resolve(process.cwd(), 'src/autoexec/decision_applier.ts'), 'utf-8');
+  assert.match(applierSource, /\.decideApproval\(/, 'S5 C2: the decision applier owns the run-scoped decideApproval call');
+  assert.doesNotMatch(applierSource, /\.decide\(/, 'S5 C2: the decision applier never uses bare decide');
+  assert.doesNotMatch(applierSource, /ApprovalManager/, 'S5 C2: the decision applier never imports or constructs ApprovalManager');
+
+  for (const [thrown, expected] of [
+    ['Unknown run: ses_x/run_x', 'unknown_run'],
+    ['Unknown approval: approval_1', 'unknown_approval'],
+    ['Approval is not pending: approval_1', 'not_pending'],
+    ['filesystem exploded', 'io_error'],
+  ] as const) {
+    const mapped = mapHeartbeatDecisionError(new Error(thrown));
+    assert.deepEqual(mapped, { ok: false, error: expected }, `S5 C4 maps ${thrown} to ${expected}`);
+    assert.notDeepEqual(mapped, { ok: true, status: 'approved' }, 'S5 C4: an unknown throw never yields approved');
+  }
+
+  const roundTripRoot = await mkdtemp(join(tmpdir(), 'nova-autoexec-decision-'));
+  try {
+    const sessions = new SessionRunManager({ projectRoot: roundTripRoot });
+    const session = await sessions.createSession({ title: 'heartbeat decision smoke', tags: ['heartbeat'] });
+    const approveRun = await sessions.startRun({ sessionId: session.id, objective: 'approve smoke', input: 'heartbeat:inspection:approve' });
+    const approvePending = await sessions.requestApproval(session.id, approveRun.id, { capability: 'shell', action: 'heartbeat:inspection:execute', riskLevel: 'high', reason: 'smoke approve' });
+    const approveId = approvePending.approvals.at(-1)!.id;
+    const applier = createHeartbeatDecisionApplier({ projectRoot: roundTripRoot });
+    const approveOutcome = await applier.apply({ locator: { sessionId: session.id, runId: approveRun.id, approvalId: approveId }, decision: 'approved', reason: 'approve reason' });
+    assert.deepEqual(approveOutcome, { ok: true, status: 'approved' }, 'S5 applier approve round-trip returns plain status');
+    assert.doesNotMatch(JSON.stringify(approveOutcome), /ses_|run_|approval_/, 'S5 C5: approve outcome contains no RunRecord or locator');
+    const approvedRun = await sessions.store.getRun(session.id, approveRun.id);
+    assert.equal(approvedRun!.approvals[0]!.status, 'approved', 'S5 applier forwards the exact approval tuple for approve');
+    assert.equal(approvedRun!.approvals[0]!.decisionReason, 'approve reason', 'S5 applier forwards the reason');
+
+    const denyRun = await sessions.startRun({ sessionId: session.id, objective: 'deny smoke', input: 'heartbeat:inspection:deny' });
+    const denyPending = await sessions.requestApproval(session.id, denyRun.id, { capability: 'shell', action: 'heartbeat:inspection:execute', riskLevel: 'high', reason: 'smoke deny' });
+    const denyId = denyPending.approvals.at(-1)!.id;
+    const denyOutcome = await applier.apply({ locator: { sessionId: session.id, runId: denyRun.id, approvalId: denyId }, decision: 'denied', reason: 'deny reason' });
+    assert.deepEqual(denyOutcome, { ok: true, status: 'denied' }, 'S5 applier deny round-trip returns plain status');
+    assert.doesNotMatch(JSON.stringify(denyOutcome), /ses_|run_|approval_/, 'S5 C5: deny outcome contains no RunRecord or locator');
+    const deniedRun = await sessions.store.getRun(session.id, denyRun.id);
+    assert.equal(deniedRun!.approvals[0]!.status, 'denied', 'S5 applier forwards the exact approval tuple for deny');
+    assert.equal(deniedRun!.approvals[0]!.decisionReason, 'deny reason', 'S5 applier forwards the deny reason');
+  } finally {
+    await rm(roundTripRoot, { recursive: true, force: true });
+  }
+
+  console.log('autoexec:smoke offline decision applier unit passed');
+}
+
+/** OFFLINE: prove the D4.4 tool-runtime policy hook gates delegated writes. */
+async function runOfflinePolicyCompositionUnit(): Promise<void> {
+  const ask = () => ({ decision: 'ask' as const, ruleId: 'hb-d44-ask', reason: 'D4.4 forces an ask decision', safeMessage: 'D4.4 ask' });
+  const probe: NovaTool = {
+    name: 'hb-write-probe',
+    description: 'D4.4 delegated write probe',
+    inputSchema: z.object({ value: z.string() }),
+    readOnly: false,
+    async execute(input: { value: string }) { return `D44_OK:${input.value}`; },
+  };
+  const registry = new ToolRegistry();
+  registry.register(probe);
+
+  const allowed = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', approvalProvided: true, hook: ask } });
+  const allowedOut = await (allowed['hb-write-probe'] as any).execute({ value: 'unit' });
+  assert.equal(String(allowedOut), 'D44_OK:unit', 'D4.4: an approved ask widens to allow and the tool executes');
+
+  const refused = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', hook: ask } });
+  const refusedOut = await (refused['hb-write-probe'] as any).execute({ value: 'unit' });
+  assert.match(String(refusedOut), /Policy ask/, 'D4.4: an un-approved ask is refused with the policy string');
+
+  console.log('autoexec:smoke offline policy composition unit passed');
+}
+
 /** Read the persisted heartbeat task state for a project root (raw, no normalize). */
 async function persistedTaskState(projectRoot: string, taskId: string): Promise<HeartbeatTaskState | undefined> {
   const state = JSON.parse(await readFile(new HeartbeatStore(projectRoot).paths.state, 'utf-8')) as HeartbeatState;
@@ -254,6 +332,8 @@ function liveOptIn(): boolean {
 async function main(): Promise<void> {
   await runOfflineProducerUnit();
   await runOfflineBridgeUnit();
+  await runOfflineDecisionApplierUnit();
+  await runOfflinePolicyCompositionUnit();
   if (!liveOptIn()) {
     console.log('autoexec:live-smoke skipped (opt-in)');
     return;

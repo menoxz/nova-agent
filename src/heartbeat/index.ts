@@ -1,4 +1,4 @@
-import { relative } from 'node:path';
+import { dirname, relative } from 'node:path';
 
 import type { ProjectConfigLoadResult } from '../config/project.js';
 import { readProjectConfig } from '../config/project.js';
@@ -8,10 +8,12 @@ import { HeartbeatStore } from './store.js';
 import { runHeartbeatDryRunTick } from './runner.js';
 import { readHeartbeatExecutionFlags } from './execution_gate.js';
 import { createHeartbeatApprovalBridge } from '../autoexec/approval_gateway.js';
+import { createHeartbeatDecisionApplier, type HeartbeatDecisionApplier, type HeartbeatDecisionLocator, type HeartbeatDecisionOutcome } from '../autoexec/decision_applier.js';
 import { projectHeartbeatPlan } from './planner.js';
 import { buildAutomationManifest, defaultTickEveryMinutes } from './automation.js';
 import { HeartbeatScheduleError, parseDurationMinutes } from './schedule.js';
 import { resolveAutomationOutPath } from './paths.js';
+import { HEARTBEAT_APPROVAL_TTL_MS, isHeartbeatApprovalExpired } from './executor.js';
 import {
   safeHeartbeatManifest,
   safeHeartbeatPath,
@@ -21,6 +23,8 @@ import {
   safeHeartbeatText,
 } from './redaction.js';
 import type { HeartbeatAutomationManifest, HeartbeatAutomationTarget, HeartbeatConfig, HeartbeatPlanReport, HeartbeatTickReport } from './types.js';
+
+type HeartbeatDecisionCliError = 'no_pending_approval' | 'expired' | 'unknown_run' | 'unknown_approval' | 'not_pending' | 'io_error';
 
 export * from './types.js';
 export * from './config.js';
@@ -43,6 +47,7 @@ export async function handleHeartbeatCommand(args: string[]): Promise<boolean> {
   if (action === 'status') return printHeartbeatStatus(project);
   if (action === 'tasks') return printHeartbeatTasks(project);
   if (action === 'approvals') return printHeartbeatApprovals(project);
+  if (action === 'decide') return runHeartbeatDecideCli(project, rest);
   if (action === 'tick') return runHeartbeatTickCli(project, rest);
   if (action === 'plan') return runHeartbeatPlanCli(project, rest);
   if (action === 'automation' && rest[0] === 'export') return runHeartbeatAutomationExportCli(project, rest.slice(1));
@@ -122,6 +127,75 @@ async function printHeartbeatApprovals(project: ProjectConfigLoadResult): Promis
     }));
   console.log(JSON.stringify({ ok: true, enabled: heartbeat.enabled, statePath: safeHeartbeatPath(store.paths.state), count: approvals.length, approvals }, null, 2));
   return true;
+}
+
+export async function runHeartbeatDecideCli(project: ProjectConfigLoadResult, rest: string[], applier?: HeartbeatDecisionApplier): Promise<true> {
+  if (!project.ok) return printInvalidProject(project);
+  const taskId = rest[0];
+  if (taskId === undefined || taskId.startsWith('--')) return heartbeatUsageError('Heartbeat decide requires <taskId>. Usage: nova heartbeat decide <taskId> (--approve|--deny|--review) [--reason <text>]');
+  const approve = rest.includes('--approve');
+  const deny = rest.includes('--deny');
+  const review = rest.includes('--review');
+  const reason = readFlagValue(rest, '--reason');
+  if ([approve, deny, review].filter(Boolean).length !== 1) return heartbeatUsageError('Heartbeat decide requires exactly one of --approve, --deny, or --review.');
+
+  const heartbeat = resolveHeartbeatConfig(project.config?.heartbeat);
+  const projectRoot = projectRootFromConfigPath(project.path);
+  const store = new HeartbeatStore(projectRoot);
+  const state = await store.readState(heartbeat.enabled);
+  const taskState = state.tasks[taskId];
+  if (taskState === undefined || taskState.pendingApprovalId === undefined) return failHeartbeatDecision('no_pending_approval');
+  if (taskState.pendingSessionId === undefined || taskState.pendingSessionRunId === undefined || taskState.pendingSessionApprovalId === undefined) return failHeartbeatDecision('no_pending_approval');
+
+  const now = new Date();
+  if (isHeartbeatApprovalExpired(taskState.pendingApprovalAt, now)) return failHeartbeatDecision('expired');
+
+  const taskConfig = heartbeat.tasks.find((task) => task.id === taskId);
+  if (review) {
+    console.log(JSON.stringify({
+      ok: true,
+      taskId: safeHeartbeatText(taskId),
+      name: safeHeartbeatText(taskConfig?.name),
+      action: safeHeartbeatText(taskConfig?.action ?? taskConfig?.kind),
+      pendingApprovalId: safeHeartbeatText(taskState.pendingApprovalId),
+      pendingApprovalAt: taskState.pendingApprovalAt,
+      ttlRemainingMs: heartbeatApprovalTtlRemainingMs(taskState.pendingApprovalAt, now),
+      pending: true,
+      status: 'pending',
+    }, null, 2));
+    process.exitCode = 0;
+    return true;
+  }
+
+  const locator: HeartbeatDecisionLocator = {
+    sessionId: taskState.pendingSessionId,
+    runId: taskState.pendingSessionRunId,
+    approvalId: taskState.pendingSessionApprovalId,
+  };
+  const decision = approve ? 'approved' : 'denied';
+  const outcome = await (applier ?? createHeartbeatDecisionApplier({ projectRoot })).apply({ locator, decision, reason });
+  if (outcome.ok) {
+    console.log(JSON.stringify({ ok: true, taskId: safeHeartbeatText(taskId), status: outcome.status }, null, 2));
+    process.exitCode = 0;
+    return true;
+  }
+  return failHeartbeatDecision(outcome.error);
+}
+
+function failHeartbeatDecision(error: HeartbeatDecisionCliError): true {
+  console.error(`Heartbeat decide refused: ${safeHeartbeatText(String(error))}`);
+  process.exitCode = 1;
+  return true;
+}
+
+function heartbeatApprovalTtlRemainingMs(requestedAt: string | undefined, now: Date): number {
+  const requestedMs = requestedAt === undefined ? NaN : Date.parse(requestedAt);
+  if (!Number.isFinite(requestedMs)) return 0;
+  return Math.max(0, HEARTBEAT_APPROVAL_TTL_MS - (now.getTime() - requestedMs));
+}
+
+function projectRootFromConfigPath(configPath: string): string {
+  return dirname(dirname(configPath));
 }
 
 async function runHeartbeatTickCli(project: ProjectConfigLoadResult, rest: string[]): Promise<true> {

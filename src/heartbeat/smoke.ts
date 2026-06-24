@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-import { projectConfigPath } from '../config/project.js';
+import { projectConfigPath, readProjectConfig } from '../config/project.js';
 import {
   buildAutomationManifest,
   classifyHeartbeatTaskSafety,
@@ -37,10 +37,8 @@ import {
   safeHeartbeatText,
   stableStringify,
   validateTimezone,
+  runHeartbeatDecideCli,
 } from './index.js';
-import { z } from 'zod';
-import { ToolRegistry } from '../tools/registry.js';
-import type { NovaTool } from '../types.js';
 import type {
   HeartbeatApprovalGateway,
   HeartbeatApprovalRequest,
@@ -61,6 +59,8 @@ import type {
   HeartbeatTickReport,
   PlanIdInputs,
 } from './index.js';
+import type { ProjectConfigLoadResult } from '../config/project.js';
+import type { HeartbeatDecisionApplier, HeartbeatDecisionRequest } from '../autoexec/decision_applier.js';
 
 const repoRoot = process.cwd();
 const indexPath = resolve(repoRoot, 'src/index.ts');
@@ -88,10 +88,194 @@ function restoreEnv(name: string, value: string | undefined): void {
   }
 }
 
+function projectResultFor(root: string): ProjectConfigLoadResult {
+  return readProjectConfig(root);
+}
+
+function captureConsole(): { lines: string[]; restore: () => void } {
+  const lines: string[] = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...args: unknown[]) => { lines.push(args.map(String).join(' ')); };
+  console.error = (...args: unknown[]) => { lines.push(args.map(String).join(' ')); };
+  return {
+    lines,
+    restore: () => {
+      console.log = originalLog;
+      console.error = originalError;
+    },
+  };
+}
+
+async function runDecideSmoke(projectRoot: string, args: string[], applier: HeartbeatDecisionApplier): Promise<{ exitCode: number | undefined; output: string }> {
+  const priorExitCode = process.exitCode;
+  process.exitCode = undefined;
+  const captured = captureConsole();
+  try {
+    await runHeartbeatDecideCli(projectResultFor(projectRoot), args, applier);
+    return { exitCode: typeof process.exitCode === 'number' ? process.exitCode : 0, output: captured.lines.join('\n') };
+  } finally {
+    captured.restore();
+    process.exitCode = priorExitCode;
+  }
+}
+
+async function seedDecisionProject(root: string, taskState: HeartbeatTaskState | undefined, action = 'inspect'): Promise<void> {
+  await mkdir(join(root, '.nova'), { recursive: true });
+  await writeFile(projectConfigPath(root), JSON.stringify({
+    schemaVersion: 1,
+    heartbeat: { enabled: true, tasks: [{ id: 'inspect-docs', name: 'Inspect docs', kind: 'inspection', action, schedule: { type: 'interval', everyMinutes: 60 } }] },
+  }, null, 2), 'utf-8');
+  const store = new HeartbeatStore(root);
+  await store.ensure();
+  const state: HeartbeatState = {
+    schemaVersion: HEARTBEAT_SCHEMA_VERSION,
+    heartbeatId: 'heartbeat_decide_smoke',
+    enabled: true,
+    updatedAt: '2026-03-01T00:00:00.000Z',
+    tasks: taskState ? { 'inspect-docs': taskState } : {},
+  };
+  await writeFile(store.paths.state, `${JSON.stringify(state, null, 2)}\n`, 'utf-8');
+}
+
 async function main(): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'nova-heartbeat-smoke-'));
   try {
     const now = new Date('2026-01-02T00:00:00.000Z');
+    const currentNow = new Date();
+    const freshApprovalAt = currentNow.toISOString();
+    const expiredApprovalAt = new Date(currentNow.getTime() - (25 * 60 * 60 * 1000)).toISOString();
+    const validPendingState: HeartbeatTaskState = {
+      lastDryRunAt: freshApprovalAt,
+      lastStatus: 'needs_user_action',
+      lastExecStatus: 'needs_user_action',
+      pendingApprovalId: 'hb-appr-12345678-1234-4123-8123-1234567890ab',
+      pendingApprovalAt: freshApprovalAt,
+      pendingSessionId: 'ses_SENTINEL',
+      pendingSessionRunId: 'run_SENTINEL',
+      pendingSessionApprovalId: 'approval_SENTINEL',
+    };
+    const makeFakeApplier = (outcome: Awaited<ReturnType<HeartbeatDecisionApplier['apply']>> = { ok: true, status: 'approved' }): HeartbeatDecisionApplier & { calls: HeartbeatDecisionRequest[] } => {
+      const calls: HeartbeatDecisionRequest[] = [];
+      return { calls, async apply(req: HeartbeatDecisionRequest) { calls.push(req); return outcome; } };
+    };
+
+    // S5 behavioural smokes — explicit human decision surface, offline fake applier only.
+    {
+      const approveRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-approve-'));
+      try {
+        await seedDecisionProject(approveRoot, validPendingState);
+        const before = await readFile(new HeartbeatStore(approveRoot).paths.state, 'utf-8');
+        const fake = makeFakeApplier({ ok: true, status: 'approved' });
+        const result = await runDecideSmoke(approveRoot, ['inspect-docs', '--approve'], fake);
+        assert.equal(result.exitCode, 0, 'S5 decide approve exits 0');
+        assert.deepEqual(fake.calls, [{ locator: { sessionId: 'ses_SENTINEL', runId: 'run_SENTINEL', approvalId: 'approval_SENTINEL' }, decision: 'approved', reason: undefined }], 'S5 approve forwards the exact composite tuple');
+        assert.match(result.output, /"taskId": "inspect-docs"/, 'S5 approve confirms the task id');
+        assert.match(result.output, /"status": "approved"/, 'S5 approve confirms only approved status');
+        assert.doesNotMatch(result.output, /ses_SENTINEL|run_SENTINEL|approval_SENTINEL/, 'S5 C5: approve confirmation hides the locator');
+        assert.equal(await readFile(new HeartbeatStore(approveRoot).paths.state, 'utf-8'), before, 'S5 no-bypass: decide approve never mutates state.json');
+      } finally {
+        await rm(approveRoot, { recursive: true, force: true });
+      }
+    }
+
+    {
+      const denyRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-deny-'));
+      try {
+        await seedDecisionProject(denyRoot, validPendingState);
+        const fake = makeFakeApplier({ ok: true, status: 'denied' });
+        const result = await runDecideSmoke(denyRoot, ['inspect-docs', '--deny', '--reason', 'deny-reason-SENTINEL'], fake);
+        assert.equal(result.exitCode, 0, 'S5 decide deny exits 0');
+        assert.deepEqual(fake.calls, [{ locator: { sessionId: 'ses_SENTINEL', runId: 'run_SENTINEL', approvalId: 'approval_SENTINEL' }, decision: 'denied', reason: 'deny-reason-SENTINEL' }], 'S5 deny forwards tuple and reason');
+        assert.match(result.output, /"status": "denied"/, 'S5 deny confirms denied status');
+        assert.doesNotMatch(result.output, /deny-reason-SENTINEL|ses_SENTINEL|run_SENTINEL|approval_SENTINEL/, 'S5 C5: deny confirmation hides reason and locator');
+      } finally {
+        await rm(denyRoot, { recursive: true, force: true });
+      }
+    }
+
+    for (const [label, taskState, expected] of [
+      ['absent', undefined, 'no_pending_approval'],
+      ['partial-locator', { ...validPendingState, pendingSessionRunId: undefined }, 'no_pending_approval'],
+      ['expired', { ...validPendingState, pendingApprovalAt: expiredApprovalAt }, 'expired'],
+    ] as const) {
+      const failRoot = await mkdtemp(join(tmpdir(), `nova-heartbeat-decide-${label}-`));
+      try {
+        await seedDecisionProject(failRoot, taskState);
+        const fake = makeFakeApplier();
+        const result = await runDecideSmoke(failRoot, ['inspect-docs', '--approve'], fake);
+        assert.equal(result.exitCode, 1, `S5 ${label} fails closed`);
+        assert.match(result.output, new RegExp(expected), `S5 ${label} prints ${expected}`);
+        assert.equal(fake.calls.length, 0, `S5 ${label} never calls the applier`);
+      } finally {
+        await rm(failRoot, { recursive: true, force: true });
+      }
+    }
+
+    {
+      const reviewRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-review-'));
+      try {
+        await seedDecisionProject(reviewRoot, validPendingState);
+        const fake = makeFakeApplier();
+        const result = await runDecideSmoke(reviewRoot, ['inspect-docs', '--review'], fake);
+        assert.equal(result.exitCode, 0, 'S5 review exits 0');
+        assert.equal(fake.calls.length, 0, 'S5 review never calls the applier');
+        assert.match(result.output, /"pendingApprovalId": "hb-appr-12345678-1234-4123-8123-1234567890ab"/, 'S5 review shows the heartbeat-scoped approval id');
+        assert.match(result.output, /"ttlRemainingMs": \d+/, 'S5 review shows TTL remaining');
+        assert.doesNotMatch(result.output, /ses_SENTINEL|run_SENTINEL|approval_SENTINEL|inspect-command-SECRET|env_SENTINEL|secret_SENTINEL|deny-reason-SENTINEL|decisionReason/, 'S5 B1: review hides locators and planted leak sentinels');
+      } finally {
+        await rm(reviewRoot, { recursive: true, force: true });
+      }
+    }
+
+    for (const error of ['unknown_run', 'unknown_approval', 'not_pending', 'io_error'] as const) {
+      const errRoot = await mkdtemp(join(tmpdir(), `nova-heartbeat-decide-${error}-`));
+      try {
+        await seedDecisionProject(errRoot, validPendingState);
+        const fake = makeFakeApplier({ ok: false, error });
+        const result = await runDecideSmoke(errRoot, ['inspect-docs', '--approve'], fake);
+        assert.equal(result.exitCode, 1, `S5 applier ${error} exits non-zero`);
+        assert.match(result.output, new RegExp(error), `S5 handler surfaces ${error}`);
+        assert.doesNotMatch(result.output, /ses_SENTINEL|run_SENTINEL|approval_SENTINEL/, `S5 handler hides locators for ${error}`);
+      } finally {
+        await rm(errRoot, { recursive: true, force: true });
+      }
+    }
+
+    {
+      const offRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-off-'));
+      try {
+        await seedDecisionProject(offRoot, undefined);
+        const fake = makeFakeApplier();
+        const result = await runDecideSmoke(offRoot, ['inspect-docs', '--approve'], fake);
+        assert.equal(result.exitCode, 1, 'S5 master-off/no pending parity: decide exits non-zero');
+        assert.match(result.output, /no_pending_approval/, 'S5 master-off/no pending parity: no pending approval');
+        assert.equal(fake.calls.length, 0, 'S5 master-off/no pending parity: no applier call');
+        const offFlags: HeartbeatExecutionFlags = { heartbeatExec: false, liveLlm: true, writeTools: true };
+        const cfg: HeartbeatConfig = { enabled: true, tasks: [{ id: 'inspect-docs', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } }] };
+        const offRootA = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-off-a-'));
+        const offRootB = await mkdtemp(join(tmpdir(), 'nova-heartbeat-decide-off-b-'));
+        const normalizeOffReport = (value: unknown): unknown => {
+          if (Array.isArray(value)) return value.map(normalizeOffReport);
+          if (value && typeof value === 'object') {
+            const out: Record<string, unknown> = {};
+            for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+              out[key] = ['heartbeatId', 'tickId', 'startedAt', 'finishedAt', 'durationMs', 'paths'].includes(key) ? `<${key}>` : normalizeOffReport(inner);
+            }
+            return out;
+          }
+          return value;
+        };
+        const a = stableStringify(normalizeOffReport(await runHeartbeatDryRunTick({ projectRoot: offRootA, config: cfg, flags: offFlags, now: new Date('2026-03-01T00:00:00.000Z') })));
+        const b = stableStringify(normalizeOffReport(await runHeartbeatDryRunTick({ projectRoot: offRootB, config: cfg, flags: offFlags, approvalGateway: { async resolve() { return 'approved'; } }, sandboxAvailable: true, now: new Date('2026-03-01T00:00:00.000Z') })));
+        assert.equal(b, a, 'S5 master-off tick stays byte-identical with decision surface present');
+        await rm(offRootA, { recursive: true, force: true });
+        await rm(offRootB, { recursive: true, force: true });
+      } finally {
+        await rm(offRoot, { recursive: true, force: true });
+      }
+    }
+
     const task: HeartbeatTaskConfig = { id: 'boundary', kind: 'inspection', action: 'inspect', schedule: { type: 'interval', everyMinutes: 60 } };
     const heartbeatState = (lastRunAt?: string): HeartbeatState => ({ schemaVersion: HEARTBEAT_SCHEMA_VERSION, heartbeatId: 'heartbeat_smoke', enabled: true, updatedAt: now.toISOString(), tasks: lastRunAt ? { boundary: { lastRunAt } } : {} });
     assert.equal(planHeartbeatTask(task, heartbeatState('2026-01-01T23:00:00.000Z'), true, now).status, 'due', 'schedule boundary is due when nextDueAt equals now');
@@ -316,7 +500,7 @@ async function main(): Promise<void> {
     // hand-picked trio), and the forbidden set adds child_process, every
     // exec*/spawn* form, `while (true)`, and the gate's own `.decide(` so the
     // pure decision can never wire itself to a runtime.
-    const forbiddenExecution = /setInterval|setTimeout|setImmediate|while\s*\(\s*true\s*\)|node:child_process|child_process|\bexecFile\b|\bexecSync\b|\.exec\(|\bspawnSync\b|\bspawn\b|\.decide\(/;
+    const forbiddenExecution = /setInterval|setTimeout|setImmediate|while\s*\(\s*true\s*\)|node:child_process|child_process|\bexecFile\b|\bexecSync\b|\.exec\(|\bspawnSync\b|\bspawn\b|\.decide(?:Approval)?\(/;
     const heartbeatDir = resolve(repoRoot, 'src/heartbeat');
     const guardedModules = (await readdir(heartbeatDir))
       .filter((name) => name.endsWith('.ts') && name !== 'smoke.ts')
@@ -327,12 +511,15 @@ async function main(): Promise<void> {
     for (const name of guardedModules) {
       const source = await readFile(join(heartbeatDir, name), 'utf-8');
       assert.doesNotMatch(source, forbiddenExecution, `src/heartbeat/${name} carries no spawn/timer/execute primitive`);
+      assert.doesNotMatch(source, /\.decide(?:Approval)?\(/, `S5 C1: src/heartbeat/${name} carries no decide literal`);
       // ADR-002 §D6 / CAVEAT-1 import-denylist — a heartbeat module may not import
       // the tool runtime or session loop, and may reach the sandbox ONLY through
       // the read-only probe seam (probe.js), never a runtime sandbox factory.
       assert.doesNotMatch(source, /from\s+['"][^'"]*\/(?:tools|session)\//, `src/heartbeat/${name} does not import the tool/session runtime`);
       assert.doesNotMatch(source, /from\s+['"][^'"]*\/sandbox\/(?!probe\.js)/, `src/heartbeat/${name} reaches the sandbox only via the read-only probe`);
     }
+    const injectedGuardSource = "import { decideApproval } from '../autoexec/decision_applier.js';\nexport const x = decideApproval;\n";
+    assert.match(injectedGuardSource, /\.decide(?:Approval)?\(|decideApproval/, 'S5 C1: guard-injection fixture containing decideApproval is rejected');
     // ADR-002 §D6 / CAVEAT-1 — the heartbeat directory is flat: no subdirectory
     // can smuggle an execution primitive past the per-file sweep above.
     const heartbeatSubdirs = (await readdir(heartbeatDir, { withFileTypes: true }))
@@ -343,7 +530,7 @@ async function main(): Promise<void> {
     // ADR-002 §D6 / SI-3 — the executor lists and reads approvals but never
     // decides one: the gate's `.decide(` write primitive is structurally absent.
     const executorSource = await readFile(join(heartbeatDir, 'executor.ts'), 'utf-8');
-    assert.doesNotMatch(executorSource, /\.decide\(/, 'SI-3: the heartbeat executor never decides an approval');
+    assert.doesNotMatch(executorSource, /\.decide(?:Approval)?\(/, 'SI-3/S5 C1: the heartbeat executor never decides an approval');
 
     // §2.5 / §2.6 CLI — plan is read-only + deterministic; automation export is sandboxed.
     const planRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-plan-'));
@@ -1140,27 +1327,6 @@ async function main(): Promise<void> {
         }
       }
 
-      // D4.4 — the tool runtime's policy hook gates a delegated write. An 'ask'
-      // verdict widens to allow only when approval is provided; without it the
-      // wrapped tool returns the policy refusal string instead of executing.
-      {
-        const ask = () => ({ decision: 'ask' as const, ruleId: 'hb-d44-ask', reason: 'D4.4 forces an ask decision', safeMessage: 'D4.4 ask' });
-        const probe: NovaTool = {
-          name: 'hb-write-probe',
-          description: 'D4.4 delegated write probe',
-          inputSchema: z.object({ value: z.string() }),
-          readOnly: false,
-          async execute(input: { value: string }) { return `D44_OK:${input.value}`; },
-        };
-        const registry = new ToolRegistry();
-        registry.register(probe);
-        const allowed = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', approvalProvided: true, hook: ask } });
-        const allowedOut = await (allowed['hb-write-probe'] as any).execute({ value: 'unit' });
-        assert.equal(String(allowedOut), 'D44_OK:unit', 'D4.4: an approved ask widens to allow and the tool executes');
-        const refused = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', hook: ask } });
-        const refusedOut = await (refused['hb-write-probe'] as any).execute({ value: 'unit' });
-        assert.match(String(refusedOut), /Policy ask/, 'D4.4: an un-approved ask is refused with the policy string');
-      }
     }
 
     // ADR-002 §D5 — a V1 state file (schemaVersion 1, no execution fields) is

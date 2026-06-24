@@ -600,3 +600,29 @@ Off by default the bridge is **not constructed** and no `.nova/sessions/` I/O ha
 - **In `check` (offline):** `heartbeat:smoke` gains the locator-persistence mint, the B1 throwing-requester and throwing-gateway fail-closed cases, the B2 wrong-run disambiguation, the C5 anti-leak sentinel (absent-from-report/present-in-state), the B4 `capability:'shell'` pin, the TTL-skew expiry, and the master-off parity case. `autoexec:smoke` gains the bridge round-trip (mint ⇒ pending ⇒ operator verdict ⇒ resolve), the B2 two-run case, the C5 reason-redaction case, and a `.decide(`-absent source guard on `approval_gateway.ts`.
 - **Out of `check` (opt-in):** an offline real-sandbox bridge run drives a real `node --version` through the full gated path end to end.
 - `npm run check` exits 0 fully offline; write-confinement holds (heartbeat writes only `.nova/heartbeat/`; every `.nova/sessions/` access goes through the session API in `src/autoexec/**`). Package stays `0.1.0`, zero new dependencies, no daemon/timers, `src/sandbox/**` untouched, static guard green.
+
+## 17. Slice 5 implementation addendum - operator decision surface (run-scoped, fail-closed, no-bypass) (2026-06-24)
+
+> **Status:** Slice 5 implemented and verified **OFFLINE**. Adds the explicit human command `nova heartbeat decide <taskId> (--approve|--deny|--review) [--reason <text>]`, closing the S4b operator loop without letting Nova self-decide. The command reads the heartbeat ledger, validates the persisted S4b composite locator, and delegates the actual session decision to an out-of-tree adapter. It never writes `.nova/heartbeat/state.json`; the next externally invoked tick still re-evaluates A∧C∧B and grant precedence before any execution.
+
+### 17.1 Human-only command and locator validation
+
+`src/heartbeat/index.ts` wires a new `decide` subcommand beside the read-only `approvals` view. The task id is positional and exactly one of `--approve`, `--deny`, or `--review` is required. Before any decision call, the handler reads `.nova/heartbeat/state.json` and fails closed when the task is absent, no `pendingApprovalId` exists, any composite field (`pendingSessionId`, `pendingSessionRunId`, `pendingSessionApprovalId`) is missing, or the heartbeat TTL has expired. Expiry is checked with `isHeartbeatApprovalExpired(task.pendingApprovalAt, now)`, so an expired heartbeat approval is refused even if the underlying session approval is still pending.
+
+### 17.2 Out-of-tree decision applier
+
+All `.nova/sessions/` I/O for Slice 5 lives outside the swept tree in `src/autoexec/decision_applier.ts`. `createHeartbeatDecisionApplier({ projectRoot })` constructs **only** `SessionRunManager` and calls the run-scoped primitive `decideApproval(sessionId, runId, approvalId, decision, { decidedBy:'heartbeat-operator', reason })`. It never uses `ApprovalManager.decide` and never matches by bare approval id. The adapter returns only plain data (`{ ok:true, status }` or `{ ok:false, error }`) and discards the returned `RunRecord`, so locators and session contents cannot be printed by the heartbeat CLI.
+
+### 17.3 Fail-closed error mapping and redacted review
+
+The applier maps exact `SessionRunManager` throw prefixes to safe enums: `Unknown run:` ⇒ `unknown_run`, `Unknown approval:` ⇒ `unknown_approval`, `Approval is not pending:` ⇒ `not_pending`; all other failures become `io_error`, never `approved`. The CLI confirmation prints only `taskId` and `status`. `--review` uses an explicit allow-list projection: task id, name, action, heartbeat-scoped `hb-appr-…` id, request timestamp, TTL remaining, and pending status. It never spreads state and never exposes the session locator (`ses_…`, `run_…`, `approval_<N>`), command/env/secret material, or the operator reason.
+
+### 17.4 No-bypass and static confinement
+
+`decide` feeds only Gate B by updating the underlying session approval; it does **not** clear heartbeat pending state, execute a task, or mutate `.nova/heartbeat/state.json`. The next tick resolves the composite locator through the S4b gateway, honours single-use/expiry/reset rules, and still requires Gate A and Gate C. With the master flag off, there is no pending approval to decide and the tick remains byte-identical to V2. The heartbeat static guard is strengthened to reject both `.decide(` and `.decideApproval(` in guarded heartbeat modules, while the adapter is the sole production holder of `decideApproval`.
+
+### 17.5 Offline proof
+
+- `heartbeat:smoke` adds approve/deny happy paths with a fake applier (exact composite tuple forwarded), absent/partial/expired fail-closed paths with zero applier calls, `--review` and confirmation anti-leak sentinels, handler error surfacing, no-bypass state byte-equality, master-off parity, and a guard-injection fixture for `decideApproval` literals.
+- `autoexec:smoke` adds decision-applier static checks, approve/deny round-trips through a real temporary `SessionRunManager`, plain-data outcome assertions, and exact error-prefix mapping.
+- `npm run typecheck`, `npm run build`, and the offline `npm run check` gate exit 0. Package stays `0.1.0`, schema stays `3`, zero dependencies are added, no daemon/timers are introduced, and `src/sandbox/**` is untouched.

@@ -308,6 +308,7 @@ function heartbeatHelp(): string {
       ['nova heartbeat status', 'Show local heartbeat state and report paths.'],
       ['nova heartbeat tasks', 'Classify configured tasks as due/skipped/blocked/needs_user_action.'],
       ['nova heartbeat approvals', 'Show the read-only cross-tick approval ledger from .nova/heartbeat/state.json (never decides).'],
+      ['nova heartbeat decide <taskId> (--approve|--deny|--review) [--reason <text>]', 'Human-only, run-scoped decision surface for one pending heartbeat approval.'],
       ['nova heartbeat tick --dry-run', 'Run one planning-only tick and write JSON + Markdown reports under .nova/heartbeat.'],
       ['nova heartbeat plan', 'Project upcoming dry-run occurrences read-only and write a redacted plan under .nova/heartbeat/plans.'],
       ['nova heartbeat automation export', 'Write an inert (installed=false) operator manifest that only runs nova heartbeat tick --dry-run.'],
