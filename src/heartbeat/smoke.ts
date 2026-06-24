@@ -38,11 +38,15 @@ import {
   stableStringify,
   validateTimezone,
 } from './index.js';
+import { z } from 'zod';
+import { ToolRegistry } from '../tools/registry.js';
+import type { NovaTool } from '../types.js';
 import type {
   HeartbeatApprovalGateway,
   HeartbeatApprovalResolution,
   HeartbeatAutomationManifest,
   HeartbeatConfig,
+  HeartbeatExecutionCapability,
   HeartbeatExecutionDecidedBy,
   HeartbeatExecutionFlags,
   HeartbeatExecutionMode,
@@ -320,7 +324,19 @@ async function main(): Promise<void> {
     for (const name of guardedModules) {
       const source = await readFile(join(heartbeatDir, name), 'utf-8');
       assert.doesNotMatch(source, forbiddenExecution, `src/heartbeat/${name} carries no spawn/timer/execute primitive`);
+      // ADR-002 §D6 / CAVEAT-1 import-denylist — a heartbeat module may not import
+      // the tool runtime or session loop, and may reach the sandbox ONLY through
+      // the read-only probe seam (probe.js), never a runtime sandbox factory.
+      assert.doesNotMatch(source, /from\s+['"][^'"]*\/(?:tools|session)\//, `src/heartbeat/${name} does not import the tool/session runtime`);
+      assert.doesNotMatch(source, /from\s+['"][^'"]*\/sandbox\/(?!probe\.js)/, `src/heartbeat/${name} reaches the sandbox only via the read-only probe`);
     }
+    // ADR-002 §D6 / CAVEAT-1 — the heartbeat directory is flat: no subdirectory
+    // can smuggle an execution primitive past the per-file sweep above.
+    const heartbeatSubdirs = (await readdir(heartbeatDir, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    assert.deepEqual(heartbeatSubdirs, [], `the heartbeat directory stays flat (found ${heartbeatSubdirs.join(', ') || 'none'})`);
     // ADR-002 §D6 / SI-3 — the executor lists and reads approvals but never
     // decides one: the gate's `.decide(` write primitive is structurally absent.
     const executorSource = await readFile(join(heartbeatDir, 'executor.ts'), 'utf-8');
@@ -713,6 +729,43 @@ async function main(): Promise<void> {
         return { calls, gateway: { async resolve(approvalId: string): Promise<HeartbeatApprovalResolution> { calls.push(approvalId); return verdict; } } };
       };
 
+      // ADR-002 §S4 — delegated execution capabilities. Each is a pure stub that
+      // records the kind it was asked to run and returns a fixed outcome, so a test
+      // can drive every refused/executed branch of resolveDelegatedExecution without
+      // a real sandbox. The summary carries a synthetic secret where a leak is being
+      // probed (D4.5 / R3), proving redaction holds at the trust boundary.
+      const okCapability: HeartbeatExecutionCapability = {
+        async run({ kind }) { return { ok: true, summary: `task=${kind} exit=0 dur=4ms`, exitCode: 0, durationMs: 4 }; },
+      };
+      const throwingCapability: HeartbeatExecutionCapability = {
+        async run() { throw new Error(`delegated boom ${SYNTHETIC_SECRET}`); },
+      };
+      const failingCapability: HeartbeatExecutionCapability = {
+        async run({ kind }) { return { ok: false, summary: `task=${kind} exit=1 dur=2ms`, exitCode: 1, durationMs: 2 }; },
+      };
+      const leakyCapability: HeartbeatExecutionCapability = {
+        async run({ kind }) { return { ok: true, summary: `task=${kind} exit=0 token=${SYNTHETIC_SECRET}`, exitCode: 0, durationMs: 1 }; },
+      };
+
+      // Mint a fresh approval (T0, no capability) then resolve it one minute later
+      // (T1) WITH the supplied capability, returning the grant tick, the persisted
+      // task state after it, the minted id, and the ids the gateway was asked to
+      // resolve — so each delegated-execution test asserts status, bookkeeping, and
+      // single-shot consumption from one shared, temp-root-scoped lifecycle.
+      const runGrantedTick = async (capability: HeartbeatExecutionCapability | undefined) => {
+        const grantRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-grant-'));
+        const { gateway, calls } = trackingGateway('approved');
+        try {
+          await runHeartbeatDryRunTick({ projectRoot: grantRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+          const mintedId = (await taskStateOf(grantRoot))!.pendingApprovalId!;
+          const tick = await runHeartbeatDryRunTick({ projectRoot: grantRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, capability, now: new Date('2026-03-01T00:01:00.000Z') });
+          const state = await taskStateOf(grantRoot);
+          return { tick, state, mintedId, calls };
+        } finally {
+          await rm(grantRoot, { recursive: true, force: true });
+        }
+      };
+
       // SI-10 + SI-9 — a granted approval executes one tick later, then the next
       // due tick must mint a FRESH approval (the grant is single-shot).
       {
@@ -735,7 +788,7 @@ async function main(): Promise<void> {
 
           // T1 — the gateway now grants the pending id: all gates open, the task
           // executes, and the pending request is cleared.
-          const t1 = await runHeartbeatDryRunTick({ projectRoot: approveRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, now: new Date('2026-03-01T00:01:00.000Z') });
+          const t1 = await runHeartbeatDryRunTick({ projectRoot: approveRoot, config: execConfig, flags: onFlags, sandboxAvailable: true, approvalGateway: gateway, capability: okCapability, now: new Date('2026-03-01T00:01:00.000Z') });
           assert.equal(t1.tasks[0]!.status, 'executed', 'T1 executes once the approval is granted');
           assert.equal(t1.status, 'executed', 'T1 tick status is executed');
           assert.equal(t1.dryRun, false, 'an executed tick is not a dry run');
@@ -867,6 +920,123 @@ async function main(): Promise<void> {
         } finally {
           await rm(cliRoot, { recursive: true, force: true });
         }
+      }
+
+      // ===== ADR-002 Heartbeat V3 Slice 4 — delegated execution at Gate B =====
+
+      // D4.3 / R1 — a granted approval with NO capability wired fails closed: the
+      // task is refused, nothing executes, and the grant is RETAINED so the user's
+      // approval is not silently burned by a missing runtime.
+      {
+        const { tick, state, mintedId, calls } = await runGrantedTick(undefined);
+        assert.equal(tick.tasks[0]!.status, 'refused', 'D4.3: no capability fails closed to refused');
+        assert.equal(tick.status, 'refused', 'D4.3: the tick status is refused');
+        assert.equal(tick.safety.autonomousActionsExecuted, false, 'D4.3: a fail-closed refusal executes nothing');
+        assert.deepEqual(calls, [mintedId], 'D4.3: the granted approval is still resolved once');
+        assert.equal(state!.pendingApprovalId, mintedId, 'D4.3: the grant is RETAINED for a later capable tick');
+        assert.equal(state!.lastApprovalId, undefined, 'D4.3: a retained grant is not yet an audited approval');
+        assert.equal(state!.lastExecAt, undefined, 'D4.3: a fail-closed refusal stamps no execution time');
+        assert.equal(state!.lastExecStatus, 'refused', 'D4.3: the refusal is recorded');
+      }
+
+      // R3 — a capability that THROWS is caught at the trust boundary: the task is
+      // refused, the grant is consumed (the attempt happened), and the thrown error
+      // message — which carries a synthetic secret — never reaches the tick.
+      {
+        const { tick, state, mintedId } = await runGrantedTick(throwingCapability);
+        assert.equal(tick.tasks[0]!.status, 'refused', 'R3: a thrown capability error refuses the task');
+        assert.doesNotMatch(JSON.stringify(tick), new RegExp(SYNTHETIC_SECRET), 'R3: a thrown error message never leaks into the tick');
+        assert.equal(state!.pendingApprovalId, undefined, 'R3: an attempted execution consumes the grant');
+        assert.equal(state!.lastApprovalId, mintedId, 'R3: the attempted approval id is audited');
+        assert.equal(state!.lastExecAt, undefined, 'R3: a failed attempt stamps no execution time');
+      }
+
+      // D4 ok:false — a capability that returns a non-ok outcome refuses the task
+      // and consumes the grant, exactly like a throw but via the returned summary.
+      {
+        const { tick, state, mintedId } = await runGrantedTick(failingCapability);
+        assert.equal(tick.tasks[0]!.status, 'refused', 'ok:false refuses the task');
+        assert.equal(tick.safety.autonomousActionsExecuted, false, 'ok:false executes nothing');
+        assert.equal(state!.pendingApprovalId, undefined, 'ok:false consumes the grant');
+        assert.equal(state!.lastApprovalId, mintedId, 'ok:false audits the attempted approval id');
+        assert.equal(state!.lastExecStatus, 'refused', 'ok:false records a refused execution');
+      }
+
+      // D4.5 — a successful capability executes the task: the grant is consumed,
+      // the run is stamped, and a leaked secret in the outcome summary is redacted
+      // out of the tick (status + bookkeeping prove success without exposing it).
+      {
+        const { tick, state, mintedId } = await runGrantedTick(leakyCapability);
+        assert.equal(tick.tasks[0]!.status, 'executed', 'D4.5: a successful capability executes the task');
+        assert.equal(tick.status, 'executed', 'D4.5: the tick status is executed');
+        assert.equal(tick.dryRun, false, 'D4.5: an executed tick is not a dry run');
+        assert.equal(tick.safety.autonomousActionsExecuted, true, 'D4.5: an autonomous action is recorded');
+        assert.doesNotMatch(JSON.stringify(tick), new RegExp(SYNTHETIC_SECRET, 'g'), 'D4.5: the leaked summary secret is redacted from the tick');
+        assert.equal(state!.pendingApprovalId, undefined, 'D4.5: a successful execution consumes the grant');
+        assert.equal(state!.lastApprovalId, mintedId, 'D4.5: the executed approval id is audited');
+        assert.equal(state!.lastExecAt, '2026-03-01T00:01:00.000Z', 'D4.5: lastExecAt uses the injected clock');
+        assert.equal(state!.lastExecStatus, 'executed', 'D4.5: the execution status is executed');
+      }
+
+      // D4.2 — kind-independence of the dry-run path. With the master flag OFF every
+      // safe kind produces a byte-identical report once volatile fields (ids, kind,
+      // names, timestamps, paths) are normalized, proving the dry-run projection does
+      // not branch on the task kind.
+      {
+        const offFlagsParity: HeartbeatExecutionFlags = { heartbeatExec: false, liveLlm: true, writeTools: true };
+        const kinds: Array<HeartbeatTaskConfig['kind']> = ['inspection', 'eval', 'batch-dry-run', 'maintenance'];
+        const VOLATILE_KEYS = new Set(['heartbeatId', 'tickId', 'startedAt', 'finishedAt', 'durationMs', 'paths', 'id', 'kind', 'name']);
+        const normalizeKindReport = (value: unknown): unknown => {
+          if (Array.isArray(value)) return value.map(normalizeKindReport);
+          if (value && typeof value === 'object') {
+            const out: Record<string, unknown> = {};
+            for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+              out[key] = VOLATILE_KEYS.has(key) ? `<${key}>` : normalizeKindReport(inner);
+            }
+            return out;
+          }
+          return value;
+        };
+        const normalizedReports: string[] = [];
+        for (const kind of kinds) {
+          const kindRoot = await mkdtemp(join(tmpdir(), 'nova-heartbeat-kind-'));
+          try {
+            const kindConfig: HeartbeatConfig = { enabled: true, tasks: [{ id: `task-${kind}`, kind, schedule: { type: 'interval', everyMinutes: 60 } }] };
+            const report = await runHeartbeatDryRunTick({ projectRoot: kindRoot, config: kindConfig, flags: offFlagsParity, sandboxAvailable: true, approvalGateway: trackingGateway('approved').gateway, now: new Date('2026-03-01T00:00:00.000Z') });
+            assert.equal(report.status, 'dry_run_completed', `D4.2: ${kind} completes a dry run under master-off`);
+            assert.equal(report.dryRun, true, `D4.2: ${kind} is a dry run`);
+            assert.equal(report.safety.autonomousActionsExecuted, false, `D4.2: ${kind} executes nothing`);
+            assert.equal(report.tasks[0]!.status, 'due', `D4.2: ${kind} is due under master-off (V2 parity)`);
+            normalizedReports.push(stableStringify(normalizeKindReport(report)));
+          } finally {
+            await rm(kindRoot, { recursive: true, force: true });
+          }
+        }
+        for (let i = 1; i < normalizedReports.length; i += 1) {
+          assert.equal(normalizedReports[i], normalizedReports[0], `D4.2: the ${kinds[i]} dry-run report is identical to inspection once volatiles are normalized`);
+        }
+      }
+
+      // D4.4 — the tool runtime's policy hook gates a delegated write. An 'ask'
+      // verdict widens to allow only when approval is provided; without it the
+      // wrapped tool returns the policy refusal string instead of executing.
+      {
+        const ask = () => ({ decision: 'ask' as const, ruleId: 'hb-d44-ask', reason: 'D4.4 forces an ask decision', safeMessage: 'D4.4 ask' });
+        const probe: NovaTool = {
+          name: 'hb-write-probe',
+          description: 'D4.4 delegated write probe',
+          inputSchema: z.object({ value: z.string() }),
+          readOnly: false,
+          async execute(input: { value: string }) { return `D44_OK:${input.value}`; },
+        };
+        const registry = new ToolRegistry();
+        registry.register(probe);
+        const allowed = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', approvalProvided: true, hook: ask } });
+        const allowedOut = await (allowed['hb-write-probe'] as any).execute({ value: 'unit' });
+        assert.equal(String(allowedOut), 'D44_OK:unit', 'D4.4: an approved ask widens to allow and the tool executes');
+        const refused = registry.toAITools({ policy: { enabled: true, profileId: 'readonly', hook: ask } });
+        const refusedOut = await (refused['hb-write-probe'] as any).execute({ value: 'unit' });
+        assert.match(String(refusedOut), /Policy ask/, 'D4.4: an un-approved ask is refused with the policy string');
       }
     }
 

@@ -514,3 +514,49 @@ The child environment is assembled on a **null-prototype** object (`Object.creat
 ### 14.5 Offline proof (`src/sandbox/smoke.ts`) and gate wiring
 
 An **isolated** smoke (separate from `heartbeat/smoke.ts`) runs 9 deterministic, fully-offline tests: (1) end-to-end env allow-list - a real spawn cannot observe a scrubbed `NOVA_SECRET_SENTINEL`; (2) pure `buildChildEnv` loader-deny + `__proto__` non-pollution; (3) pure `PATH` non-override + bad-name drop; (4) a 250 ms timeout forces `exitCode: null`; (5) a 16-char output budget truncates to len 16 with `exitCode: null`; (6) cwd jail accepts a `mkdtemp` dir under `PROJECT_ROOT` and rejects `os.tmpdir()`; (7) shell-free literal arg passing (`alpha|be ta|$NOVA`); (8) `clampNumber` floors/ceilings; (9) the SB1 opt-in matrix (`unset`/`"0"`/`"TRUE"`/`" 1 "` -> `null`; `"1"`/`"true"` -> available). It prints `sandbox:smoke passed` and restores `process.env` afterward. `sandbox:smoke` is wired into both `check` and `check:fast` (after `heartbeat:smoke`); `npm run check` exits 0 fully offline.
+
+## 15. Slice 4 implementation addendum - real delegated execution wired behind the triple-gate (fail-closed, opt-in) (2026-06-24)
+
+> **Status:** Slice 4 implemented and verified **OFFLINE**. Wires the executor `execute` branch (formerly an `executed`-fabricating stub) to a **real delegated run** via an injected capability that composes `ToolRegistry.toAITools` + the Slice-3 `ExecutionSandbox.run`. Real execution is **off by default and gated on A∧B∧C**; with the master flag off the tick is **byte-identical to V2** (whole-report parity snapshot), and **production Gate B still resolves to `'pending'`**, so row 8 is physically unreachable in production (double fail-closed). Scope is **mechanism-only**: the `hb-appr-<uuid>` ↔ `approval_<N>` session bridge is **deferred to Slice 4b**. No change to the D1 truth table, the D8 schema, or any default behaviour; package stays `0.1.0` with zero new dependencies; `src/sandbox/**` is untouched.
+
+### 15.1 The execution port and the row-8 handler
+
+The stub at `executor.ts:135-142` previously returned `status: 'executed'` on row 8 **without running anything** - a latent danger now removed. Slice 4 adds an injectable port and a dedicated handler:
+
+- **`HeartbeatExecutionCapability { run(req: HeartbeatExecRequest): Promise<HeartbeatExecOutcome> }`** - the heartbeat owns **no** runner; it only invokes `.run` on this seam. `HeartbeatExecRequest` is the secret-free `{ taskId, kind }`; `HeartbeatExecOutcome` is metadata-only `{ ok, summary, exitCode?, durationMs? }`.
+- **`capability?` is threaded** through `runHeartbeatDryRunTick` (`runner.ts`) into `HeartbeatEvaluationInput`. Absent at row 8 ⇒ fail-closed refuse.
+- **`resolveDelegatedExecution`** replaces the stub return and maps the outcome to a result + approval patch under the §D9 rules below.
+
+### 15.2 §D9 trust boundary - the four row-8 branches
+
+| Condition | Result status | Approval patch | Grant |
+|-----------|---------------|----------------|-------|
+| capability absent | `refused` | `{kind:'refused'}` | **retained** (transient; R1 - never fabricate `executed`) |
+| `capability.run` throws/rejects | `refused` | `{kind:'blocked'}` | **consumed** (R3 - caught at the boundary) |
+| `outcome.ok === false` | `refused` | `{kind:'blocked'}` | **consumed** |
+| `outcome.ok === true` | `executed` | `{kind:'executed', approvalId, at}` | **consumed** |
+
+- **R3 (load-bearing):** the `await capability.run(...)` is wrapped in `try/catch`; a thrown/rejected error **never** propagates out of `evaluateHeartbeatExecution`. If it did, the `Promise.all` in `runner.ts:40` would reject, the tick state would never persist (crash/retry loop) and SI-9 would break. The catch maps to `refused` + grant consumed.
+- **R1:** a missing capability maps to `refused` with the grant **retained** so a later tick (once wiring exists) can still execute - the heartbeat never invents an `executed` outcome.
+
+### 15.3 BLOCKER-2 - redaction allow-by-default (SI-8)
+
+`redaction.ts:35,46` spread `...task` / `...report`, i.e. redaction is **allow-by-default**: any *new* persisted field would survive unredacted. Slice 4 therefore adds **no** free-text field to `HeartbeatTaskResult` / `HeartbeatTickReport` / `HeartbeatTaskState`. The outcome `summary` is surfaced **only** through `result.reason`, which `redaction.ts:41` already routes through `safeHeartbeatText` (truncate 500 + `containsSecretLike`). The smoke proves this with a **full-blob** assertion - `assert.doesNotMatch(JSON.stringify(tick), /<secret>/)` - not a field-level check.
+
+### 15.4 Production wiring outside the swept tree - `src/autoexec/**`
+
+To keep the heartbeat static guard pristine, the real capability lives in a **new directory** that the guard does not sweep:
+
+- **`src/autoexec/capability.ts`** (`createDelegatedExecutionCapability`) composes the ADR-mandated routes - `ToolRegistry.toAITools({ policy: { profileId:'readonly', approvalProvided:true, hook } })` (exercising the `registry.ts:191` `ask -> allow` widening) and/or `ExecutionSandbox.run` for subprocess tasks. It imports the sandbox **types only** (the real instance is injected).
+- **CAVEAT-5 (producer-side redaction):** when mapping `SandboxExecResult` (which carries `stdout`/`stderr`) to `HeartbeatExecOutcome`, the bodies are **dropped**; `summary` is metadata-only (e.g. `exit=<code> dur=<ms>ms`) and never raw output, env, or secrets.
+- **Guard hardening (CAVEAT-1):** the directory sweep in `heartbeat/smoke.ts` now adds an **import-denylist** - no `src/heartbeat/*` module may import the `tools`/`session` runtime or reach `sandbox/` except the read-only `probe.js` - on top of the existing forbidden-token regex.
+
+### 15.5 Offline proof and opt-in live proof
+
+- **In `check` (offline):** `heartbeat:smoke` gains the whole-report byte-identical parity snapshot under master-off (across task kinds, CAVEAT-3), capability-absent⇒refused (grant retained), throw⇒refused (secret absent from the serialized tick), `ok:false`⇒refused, success⇒executed (summary secret redacted from the full tick, approval id audited), and the `registry.toAITools` policy-composition unit. A new `autoexec:smoke` offline unit asserts the producer never emits stdout/stderr bodies.
+- **Out of `check` (opt-in):** `autoexec:live-smoke` (`--live`) builds a real `ExecutionSandbox` + `ToolRegistry`, injects an approving gateway + the real capability with the flags on, runs a tick under a temp `.nova/` root cleaned in `finally`, and asserts a **real** `node --version` execution (`status:'executed'`, an executed non-dry-run tick), with no write outside `.nova/`.
+- `npm run check` exits 0 fully offline; the live path runs only when explicitly opted in.
+
+### 15.6 Deferred to Slice 4b
+
+The `hb-appr-<uuid>` (heartbeat ledger) ↔ `approval_<N>` (session manager) **namespace bridge** is **not** built in Slice 4. Production Gate B therefore stays `'pending'` and row 8 remains unreachable in production; lighting it up - plus the security re-audit of the bridged path (CAVEAT-6) - is Slice 4b.

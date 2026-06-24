@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { HeartbeatApprovalStatus, HeartbeatExecutionFlags } from './execution_gate.js';
 import { decideHeartbeatExecution, heartbeatTaskNeeds } from './execution_gate.js';
-import type { HeartbeatTaskConfig, HeartbeatTaskResult, HeartbeatTaskState } from './types.js';
+import type { HeartbeatTaskConfig, HeartbeatTaskKind, HeartbeatTaskResult, HeartbeatTaskState } from './types.js';
 
 /** 24h approval validity window (ADR-002 §D7). */
 export const HEARTBEAT_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
@@ -91,6 +91,38 @@ export type HeartbeatApprovalPatch =
   | { kind: 'reset' }
   | { kind: 'executed'; approvalId?: string; at: string };
 
+/**
+ * Minimal, secret-free execution request handed to the delegated capability.
+ * Carries only the task identity and kind — never prompts, env, or secrets.
+ */
+export interface HeartbeatExecRequest {
+  taskId: string;
+  kind: HeartbeatTaskKind;
+}
+
+/**
+ * Metadata-only outcome of a delegated execution. `summary` is surfaced ONLY
+ * through the redacted `result.reason` (redaction.ts:41) — never as a new field
+ * on the result/report/state (BLOCKER-2). It must never carry raw output, env,
+ * or secrets (CAVEAT-5); fold any exit/duration detail into the text.
+ */
+export interface HeartbeatExecOutcome {
+  ok: boolean;
+  summary: string;
+  exitCode?: number;
+  durationMs?: number;
+}
+
+/**
+ * Injectable delegated-execution port. The heartbeat NEVER constructs a runner
+ * itself; it only invokes `.run` on this seam, so every process-control and
+ * timer primitive stays outside src/heartbeat/** (ADR-002 §D5). The production
+ * wiring lives in src/autoexec/**.
+ */
+export interface HeartbeatExecutionCapability {
+  run(req: HeartbeatExecRequest): Promise<HeartbeatExecOutcome>;
+}
+
 export interface HeartbeatEvaluationInput {
   /** The V2 planner result for this task (status due/skipped/blocked/...). */
   planned: HeartbeatTaskResult;
@@ -101,6 +133,8 @@ export interface HeartbeatEvaluationInput {
   sandboxAvailable: boolean;
   gateway: HeartbeatApprovalGateway;
   now: Date;
+  /** Injected delegated-execution port (S4). Absent at row 8 ⇒ fail-closed refuse. */
+  capability?: HeartbeatExecutionCapability;
 }
 
 export interface HeartbeatEvaluation {
@@ -118,7 +152,7 @@ export interface HeartbeatEvaluation {
  * exactly as planned (byte-identical to V2, SI-1).
  */
 export async function evaluateHeartbeatExecution(input: HeartbeatEvaluationInput): Promise<HeartbeatEvaluation> {
-  const { planned, task, taskState, flags, sandboxAvailable, gateway, now } = input;
+  const { planned, task, taskState, flags, sandboxAvailable, gateway, now, capability } = input;
   if (planned.status !== 'due') return { result: planned, patch: { kind: 'none' } };
 
   const pendingId = taskState?.pendingApprovalId;
@@ -134,12 +168,10 @@ export async function evaluateHeartbeatExecution(input: HeartbeatEvaluationInput
 
   switch (decision.mode) {
     case 'execute':
-      // All gates open: the pending approval is granted. Persist the run and
-      // clear the pending request so the next due tick must re-request (SI-9).
-      return {
-        result: { ...planned, status: 'executed', reason: decision.reason },
-        patch: { kind: 'executed', approvalId: pendingId, at: now.toISOString() },
-      };
+      // Row 8 — all gates open. Delegate to the injected capability (the
+      // heartbeat constructs no runner of its own) and map the metadata-only
+      // outcome to a result + approval patch. Fail-closed + trust-bounded (D9).
+      return resolveDelegatedExecution(planned, task, pendingId, capability, now);
     case 'refused':
       // Gate C fail-closed (no sandbox). Transient; a pending approval is kept.
       return {
@@ -153,6 +185,52 @@ export async function evaluateHeartbeatExecution(input: HeartbeatEvaluationInput
       // Flags off (V2 parity) or any unmodelled mode: leave the task as planned.
       return { result: planned, patch: { kind: 'none' } };
   }
+}
+
+/**
+ * Row-8 delegated execution (ADR-002 §D9). The heartbeat owns NO runner: it
+ * invokes the injected capability's `.run` and maps the metadata-only outcome
+ * to a result + state patch.
+ *  - no capability wired       ⇒ refuse, grant RETAINED  (transient; R1 / D5)
+ *  - capability throws/rejects ⇒ refuse, grant CONSUMED  (R3 trust boundary)
+ *  - outcome.ok === false      ⇒ refuse, grant CONSUMED  (failure summary → reason)
+ *  - outcome.ok === true       ⇒ executed, grant CONSUMED (summary → reason)
+ * `summary` reaches the report ONLY through the redacted `reason` (redaction.ts:41);
+ * no result/report/state field carries it (BLOCKER-2).
+ */
+async function resolveDelegatedExecution(
+  planned: HeartbeatTaskResult,
+  task: HeartbeatTaskConfig,
+  pendingId: string | undefined,
+  capability: HeartbeatExecutionCapability | undefined,
+  now: Date,
+): Promise<HeartbeatEvaluation> {
+  if (capability === undefined) {
+    return {
+      result: { ...planned, status: 'refused', reason: 'No execution capability is wired; fail-closed refuse.' },
+      patch: { kind: 'refused' },
+    };
+  }
+  let outcome: HeartbeatExecOutcome;
+  try {
+    outcome = await capability.run({ taskId: task.id, kind: task.kind });
+  } catch {
+    // R3 trust boundary: a delegated failure NEVER propagates out of the tick.
+    return {
+      result: { ...planned, status: 'refused', reason: 'Delegated execution failed; refused.' },
+      patch: { kind: 'blocked', approvalId: pendingId ?? '' },
+    };
+  }
+  if (!outcome.ok) {
+    return {
+      result: { ...planned, status: 'refused', reason: outcome.summary },
+      patch: { kind: 'blocked', approvalId: pendingId ?? '' },
+    };
+  }
+  return {
+    result: { ...planned, status: 'executed', reason: outcome.summary },
+    patch: { kind: 'executed', approvalId: pendingId, at: now.toISOString() },
+  };
 }
 
 /**

@@ -1,5 +1,22 @@
 # Project Status
 
+## Heartbeat V3 (Slice 4) — real delegated execution wired behind the triple-gate (fail-closed, opt-in) — 2026-06-24
+
+Status: implemented and verified locally (offline `check` green; the real execution path is **off by default** and reachable only under A∧B∧C; production Gate B stays `'pending'` so row 8 is unreachable in production — double fail-closed); tests passing (not yet committed).
+
+### Delivered
+
+- Replaced the executor `execute`-branch stub (`executor.ts:135-142`, which fabricated `executed` without running anything) with a real delegated run. Added the injectable port `HeartbeatExecutionCapability.run(req)` (secret-free `{taskId, kind}` request, metadata-only `{ok, summary, exitCode?, durationMs?}` outcome), threaded `capability?` through `runner.ts` into `evaluateHeartbeatExecution`; row 8 now calls `resolveDelegatedExecution`.
+- §D9 trust boundary enforced: **no capability ⇒ `refused` (grant RETAINED, R1)**; **throw/reject ⇒ `refused` (grant CONSUMED, caught — never propagates out of the tick, R3)**; **`ok:false` ⇒ `refused` (CONSUMED)**; **`ok:true` ⇒ `executed` (CONSUMED)**. The `summary` surfaces **only** via the redacted `result.reason` — no new field on result/report/state (BLOCKER-2/SI-8).
+- Added the production wiring **outside** the swept heartbeat tree: `src/autoexec/capability.ts` (`createDelegatedExecutionCapability`) composes `ToolRegistry.toAITools({ policy… })` + `ExecutionSandbox.run` (S3, unmodified) with producer-side redaction dropping stdout/stderr bodies (CAVEAT-5). Added `src/autoexec/smoke.ts` (offline unit in `check` as `autoexec:smoke`; opt-in real e2e `autoexec:live-smoke --live`, out of `check`).
+- Offline smokes added to `src/heartbeat/smoke.ts`: whole-report byte-identical parity under master-off (SI-1), capability-absent⇒refused, throw⇒refused (secret absent from `JSON.stringify(tick)`), `ok:false`⇒refused, success⇒executed (summary secret redacted from full tick), `registry.toAITools` policy-composition. Static guard hardened (CAVEAT-1): import-denylist on `tools`/`session` and sandbox-only-via-`probe.js`.
+- Scope is **mechanism-only**: the `hb-appr-<uuid>` ↔ `approval_<N>` session bridge is **deferred to Slice 4b**.
+- Invariants preserved: package `0.1.0`; zero new dependencies; no daemon/timers; `src/sandbox/**` untouched; heartbeat static guard green; writes confined to `.nova/heartbeat/`; default-off behaviour byte-identical to V2.
+
+### Verification run
+
+- `npm run typecheck` and the offline `npm run check` gate exit 0 (eval 100%, gates passed); `npm run heartbeat:smoke` passes (guard + Slice 4 offline scenarios); `npm run autoexec:smoke` passes offline and correctly skips the live path; `NOVA`-gated `npm run autoexec:live-smoke` passes the real `node --version` end-to-end run. Independently re-run by the orchestrator before commit.
+
 ## Heartbeat V3 (Slice 3) — real hardened execution sandbox (capability-only, opt-in) — 2026-06-24
 
 Status: implemented and verified locally (offline; the sandbox is a **capability only** — no caller in `src/heartbeat/**` invokes `run()`, so the heartbeat still fails closed unless explicitly opted in; tests passing (not yet committed).

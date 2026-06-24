@@ -5,7 +5,7 @@ import { HEARTBEAT_SCHEMA_VERSION } from './types.js';
 import { classifyHeartbeatTaskSafety, normalizeHeartbeatSchedule, resolveHeartbeatConfig } from './config.js';
 import type { HeartbeatExecutionFlags } from './execution_gate.js';
 import { readHeartbeatExecutionFlags } from './execution_gate.js';
-import type { HeartbeatApprovalGateway, HeartbeatApprovalPatch } from './executor.js';
+import type { HeartbeatApprovalGateway, HeartbeatApprovalPatch, HeartbeatExecutionCapability } from './executor.js';
 import { applyHeartbeatApprovalPatch, createReadOnlyApprovalGateway, evaluateHeartbeatExecution } from './executor.js';
 import { probeExecutionSandbox } from '../sandbox/probe.js';
 import { heartbeatTickJsonPath, heartbeatTickMarkdownPath } from './paths.js';
@@ -20,6 +20,7 @@ export async function runHeartbeatDryRunTick(input: {
   flags?: HeartbeatExecutionFlags;
   sandboxAvailable?: boolean;
   approvalGateway?: HeartbeatApprovalGateway;
+  capability?: HeartbeatExecutionCapability;
 }): Promise<HeartbeatTickReport> {
   const projectRoot = input.projectRoot ?? process.cwd();
   const now = input.now ?? new Date();
@@ -47,6 +48,7 @@ export async function runHeartbeatDryRunTick(input: {
           sandboxAvailable,
           gateway,
           now,
+          capability: input.capability,
         }),
       ),
     );
