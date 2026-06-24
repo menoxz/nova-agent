@@ -2,7 +2,7 @@
 
 Nova MCP V1 is complete as a local, read-only stdio server. V1.1 keeps that posture as the safe default while preparing optional transports, stronger automated validation, richer curated resources, and explicitly gated mutating capabilities.
 
-> Implementation note (2026-06-24): the first V1.1 implementation slice delivers reinforced curated metadata/resources and eval/smoke coverage while intentionally leaving HTTP/streamable transport and mutating/state tools unimplemented by default. The follow-up validation slice adds `npm run mcp:inspect`, a repeatable Inspector-style stdio validation command with metadata-only output.
+> Implementation note (2026-06-24): the first V1.1 implementation slice delivers reinforced curated metadata/resources and eval/smoke coverage while intentionally leaving HTTP/streamable transport and mutating/state tools unimplemented by default. Follow-up slices add `npm run mcp:inspect` for repeatable Inspector-style stdio validation and `nova-mcp` as a dedicated packaged stdio entrypoint.
 
 ## Goals
 
@@ -82,6 +82,8 @@ Prepare MCP usage outside a checked-out dev shell:
 - Versioning policy for MCP behavior changes, especially tool/schema/resource changes.
 - Release checklist covering typecheck, smoke, evals, Inspector automation, docs update, package metadata, and security review.
 - Document compatibility expectations for MCP SDK and Node versions.
+
+Status: first packaging/client setup slice implemented by `nova-mcp`, `npm run mcp:bin-smoke`, packaged MCP docs, and client config examples for checkout, linked/global install, npm exec, and Windows path usage.
 
 ## Acceptance criteria for V1.1
 

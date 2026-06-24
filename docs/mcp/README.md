@@ -11,6 +11,8 @@ cd C:\jeanluc\nova-agent
 npm run mcp:stdio
 # equivalent
 npx tsx src/mcp/server.ts
+# packaged/bin entrypoint
+nova-mcp
 ```
 
 Transport is stdio via `@modelcontextprotocol/sdk`. HTTP is not implemented/enabled in V1.1; any future HTTP/streamable transport must be opt-in, localhost-only by default, authenticated when exposed, rate-limited, and origin-restricted.
@@ -28,5 +30,6 @@ Transport is stdio via `@modelcontextprotocol/sdk`. HTTP is not implemented/enab
 - `nova_search_text` is literal by default; `regex: true` opts into guarded regex mode with length/ReDoS safeguards.
 - V1.1 adds curated metadata only: `nova_mcp_capabilities`, `nova://mcp/capabilities`, `nova://mcp/policy`, `nova://tools/schemas`, and `nova://docs/index`.
 - `npm run mcp:inspect` provides repeatable Inspector-style stdio validation with metadata-only output.
+- `nova-mcp` is the dedicated packaged stdio entrypoint; `npm run mcp:bin-smoke` verifies the built and linked bin path.
 
 See `SECURITY.md`, `TOOLS.md`, `RESOURCES.md`, `PROMPTS.md`, `CLIENT_SETUP.md`, and `BACKLOG_V1_1.md`.

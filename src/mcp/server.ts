@@ -611,14 +611,14 @@ export function createNovaMcpServer(): McpServer {
   return server;
 }
 
-async function main(): Promise<void> {
+export async function startNovaMcpStdioServer(): Promise<void> {
   const server = createNovaMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
+  startNovaMcpStdioServer().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Nova MCP server failed: ${redactText(message)}`);
     process.exit(1);

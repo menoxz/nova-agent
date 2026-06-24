@@ -1,5 +1,21 @@
 # Project Status
 
+## MCP V1.1 packaging/client setup slice — 2026-06-24
+
+Status: implemented locally (dedicated packaged stdio entrypoint; no HTTP transport; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added `bin/nova-mcp.js` and the package bin `nova-mcp`, separate from the interactive `nova` CLI. The wrapper starts `dist/mcp/server.js` after build and falls back to `src/mcp/server.ts` through `tsx` in dev.
+- Kept the entrypoint stdio-only and metadata-safe: `--help`/`--version` are the only accepted arguments, unsupported args exit 2, and the entrypoint does not enable HTTP/streamable transport or mutating/state tools.
+- Added `src/mcp/bin_smoke.ts` and `npm run mcp:bin-smoke`, covering help/version, unsupported-arg refusal, built MCP stdio handshake, disabled tool absence, V1.1 resource visibility, and linked-package `nova-mcp` usage.
+- Wired `mcp:bin-smoke` into `check` and `check:fast`; packaged files now include MCP docs needed for installed client setup.
+- Updated MCP client setup and packaging docs with checkout, installed/linked, npm-exec, and Windows-path client config examples.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:bin-smoke`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run bin:smoke`, `npm pack --dry-run --ignore-scripts`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 Inspector-style stdio validation — 2026-06-24
 
 Status: implemented and committed locally (not yet pushed; stdio-only validation; read-only posture preserved; mutating/state tools remain absent by default); tests passing locally.

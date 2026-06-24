@@ -15,9 +15,24 @@ Alternative direct command:
 npx @modelcontextprotocol/inspector npx tsx src/mcp/server.ts
 ```
 
+Packaged/stdout-safe stdio entrypoint after build or install:
+
+```bash
+npm run build
+node bin/nova-mcp.js
+```
+
+With a linked or globally installed package:
+
+```bash
+nova-mcp
+```
+
+`nova-mcp` is dedicated to the MCP stdio server. It does not start the interactive Nova CLI, does not enable HTTP/streamable transport, and rejects extra CLI arguments other than `--help`/`--version`.
+
 ## Generic MCP client config
 
-Use stdio transport with:
+Use stdio transport from a repository checkout with:
 
 ```json
 {
@@ -31,13 +46,55 @@ Use stdio transport with:
 }
 ```
 
+For an installed or linked package, prefer the dedicated bin:
+
+```json
+{
+  "mcpServers": {
+    "nova-agent": {
+      "command": "nova-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+For clients that should resolve the package at launch time without a global install:
+
+```json
+{
+  "mcpServers": {
+    "nova-agent": {
+      "command": "npm",
+      "args": ["exec", "--yes", "--package", "@lux-tech/nova-agent", "--", "nova-mcp"]
+    }
+  }
+}
+```
+
+Windows clients that require an explicit local path can use:
+
+```json
+{
+  "mcpServers": {
+    "nova-agent": {
+      "command": "node",
+      "args": ["C:\\jeanluc\\nova-agent\\bin\\nova-mcp.js"]
+    }
+  }
+}
+```
+
 ## Smoke check
 
 ```bash
 npm run mcp:smoke
+npm run mcp:bin-smoke
 ```
 
 The smoke check starts the server through stdio, lists tools/resources/prompts, confirms `nova_bash` and `nova_write_file` are absent, verifies path traversal/outside-root/denylist protections, checks synthetic secret redaction/refusal, verifies truncation metadata, and confirms safe reads/searches still work.
+
+`mcp:bin-smoke` verifies the dedicated packaged entrypoint metadata paths, the built stdio handshake, and linked-package `nova-mcp --help` / `--version` behaviour.
 
 ## Inspector-style automated validation
 
