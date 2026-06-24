@@ -1,5 +1,20 @@
 # Project Status
 
+## Sandboxed BashTool V1 — opt-in ExecutionSandbox routing — 2026-06-24
+
+Status: implemented locally (legacy behaviour preserved by default; sandboxed path opt-in via `NOVA_ENABLE_EXEC_SANDBOX=1|true`); tests passing locally (not yet committed).
+
+### Delivered
+
+- Routed the existing mutating `bash` tool through the hardened `ExecutionSandbox` when the sandbox opt-in flag is enabled. Default behaviour remains the legacy shell runner, preserving compatibility unless the operator explicitly opts in.
+- Preserved existing bash guardrails: timeout/output caps, interactive/long-running command refusal, workdir validation, and process-tree cleanup semantics. The sandboxed path reuses the sandbox env allow-list, cwd jail, protected loader vars, truncation/timeout handling, and fail-closed probe semantics.
+- Added a `bash:smoke` gate and wired it into `check`/`check:fast`. Coverage: default legacy mode and output, sandbox opt-in marker, caller env allow-list addition without leaking a synthetic secret, protected `PATH` non-override, and stdin refusal because the sandbox contract does not support stdin.
+- Invariants preserved: package `0.1.0`; zero new dependencies; no daemon/timers; Heartbeat V3 unchanged except via shared sandbox usage; sandbox remains opt-in and fail-closed.
+
+### Verification run
+
+- `npm run typecheck` and `npm run bash:smoke` exit 0; full build/check verification recorded in the implementation run.
+
 ## Heartbeat V3 (Slice 5) — operator decision surface (run-scoped, fail-closed, no-bypass) — 2026-06-24
 
 Status: implemented and verified locally (offline `check` green; `decide` is an explicit human command only, never called by the autonomous tick; default-off behaviour remains byte-identical to V2); tests passing (not yet committed).

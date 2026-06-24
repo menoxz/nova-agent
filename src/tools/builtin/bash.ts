@@ -18,6 +18,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { NovaTool } from '../../types.js';
+import { probeExecutionSandbox } from '../../sandbox/probe.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 300_000;
@@ -41,6 +42,8 @@ type RunResult = {
   durationMs: number;
   shell: string;
 };
+
+type BashExecutionMode = 'legacy-shell' | 'execution-sandbox';
 
 type CommandRisk = {
   blocked: boolean;
@@ -132,6 +135,30 @@ function buildEnv(input: unknown): NodeJS.ProcessEnv {
   return merged;
 }
 
+function buildSandboxEnv(input: unknown): Record<string, string> | undefined {
+  if (!input) return undefined;
+  const clean: Record<string, string> = {};
+  const env = input as Record<string, string>;
+  for (const [key, value] of Object.entries(env)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      throw new Error(`Invalid env var name: ${key}`);
+    }
+    if (typeof value !== 'string') {
+      throw new Error(`Invalid env var value for ${key}: expected string`);
+    }
+    if (value.length > 8192) {
+      throw new Error(`Env var ${key} is too large (>8192 chars)`);
+    }
+    if (isSensitiveEnvName(key)) continue;
+    clean[key] = value;
+  }
+  return clean;
+}
+
+function isSensitiveEnvName(key: string): boolean {
+  return /(^|[._-])(secret|token|credential|credentials|api[_-]?key|private[_-]?key|password|passwd)([._-]|$)/i.test(key);
+}
+
 function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
   return Math.max(min, Math.min(max, n));
@@ -146,6 +173,11 @@ function formatOutput(stdout: string, stderr: string): string {
   if (stdout) parts.push(stripTrailingNewline(stdout));
   if (stderr) parts.push(`[stderr]\n${stripTrailingNewline(stderr)}`);
   return parts.join('\n') || '(no output)';
+}
+
+function sandboxRequested(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.NOVA_ENABLE_EXEC_SANDBOX;
+  return value === '1' || value === 'true';
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -268,6 +300,53 @@ async function runWithFallbackShells(params: Omit<Parameters<typeof runWithShell
   throw lastError ?? new Error('No supported shell found.');
 }
 
+async function runWithExecutionSandbox(params: {
+  command: string;
+  cwd: string;
+  env?: Record<string, string>;
+  timeoutMs: number;
+  maxOutputChars: number;
+}): Promise<RunResult> {
+  const sandbox = probeExecutionSandbox();
+  if (!sandbox?.available) {
+    throw new Error('ExecutionSandbox requested but unavailable; set NOVA_ENABLE_EXEC_SANDBOX=1 on a supported platform or disable the sandbox opt-in.');
+  }
+
+  const candidates = shellCandidates();
+  let lastError: unknown;
+  for (const shell of candidates) {
+    try {
+      const result = await sandbox.run({
+        command: shell.executable,
+        args: shell.args(params.command),
+        cwd: params.cwd,
+        env: params.env,
+        timeoutMs: params.timeoutMs,
+        maxOutputChars: params.maxOutputChars,
+      });
+
+      return {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        signal: null,
+        timedOut: result.timedOut,
+        outputLimited: result.truncated,
+        durationMs: result.durationMs,
+        shell: `${sandbox.id} via ${shell.label}`,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('ENOENT')) {
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError ?? new Error('ExecutionSandbox could not spawn a supported shell.');
+}
+
 export const bashTool: NovaTool = {
   name: 'bash',
   description: 'Execute a bounded non-interactive shell command with timeout, output limits, safe cwd/env validation, interactive/server command detection, stdin support, and process-tree cleanup on timeout. ⚠️ Can modify system state — use with caution.',
@@ -298,15 +377,27 @@ export const bashTool: NovaTool = {
       }
 
       const cwd = await validateCwd(workdir);
-      const shellEnv = buildEnv(env);
-      const result = await runWithFallbackShells({
-        command: cmd,
-        cwd,
-        env: shellEnv,
-        stdin: stdin as string | undefined,
-        timeoutMs,
-        maxOutputChars: outputLimit,
-      });
+      const mode: BashExecutionMode = sandboxRequested() ? 'execution-sandbox' : 'legacy-shell';
+      if (mode === 'execution-sandbox' && stdin !== undefined) {
+        return `${context}Refused to run via ExecutionSandbox: stdin is not supported by the sandboxed bash path.`;
+      }
+
+      const result = mode === 'execution-sandbox'
+        ? await runWithExecutionSandbox({
+            command: cmd,
+            cwd,
+            env: buildSandboxEnv(env),
+            timeoutMs,
+            maxOutputChars: outputLimit,
+          })
+        : await runWithFallbackShells({
+            command: cmd,
+            cwd,
+            env: buildEnv(env),
+            stdin: stdin as string | undefined,
+            timeoutMs,
+            maxOutputChars: outputLimit,
+          });
 
       const status = result.exitCode === 0 && !result.timedOut && !result.outputLimited ? 'Exit code: 0' : `Command failed (exit code ${result.exitCode ?? '?'})${result.signal ? ` (signal: ${result.signal})` : ''}`;
       const flags = [
@@ -315,6 +406,7 @@ export const bashTool: NovaTool = {
       ].filter(Boolean).join(', ');
       const header = [
         `${context}${status}`,
+        `Mode: ${mode}`,
         `Shell: ${result.shell}`,
         `Cwd: ${cwd}`,
         `Duration: ${result.durationMs} ms`,
