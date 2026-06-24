@@ -29,7 +29,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const FORBIDDEN_TOOLS = ['nova_bash', 'nova_write_file', 'nova_todo_create', 'nova_goal_create', 'nova_skill_create'] as const;
-const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
+const REQUIRED_RESOURCES = ['nova://docs/mcp/readme', 'nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary'] as const;
 const REQUIRED_PROMPTS = ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_mcp_client_setup'] as const;
 
 function assert(condition: unknown, message: string): void {
@@ -125,14 +125,38 @@ async function main(): Promise<void> {
     checks.push(await runCheck('curated-resource-reads', fixtureRoot, async () => {
       const capabilities = await readResourceText(client, 'nova://mcp/capabilities');
       const policy = await readResourceText(client, 'nova://mcp/policy');
+      const schemaPolicy = await readResourceText(client, 'nova://resources/schema-policy');
       const schemas = await readResourceText(client, 'nova://tools/schemas');
       const docsIndex = await readResourceText(client, 'nova://docs/index');
       assert(capabilities.includes('hardOutputMaxChars'), 'capabilities resource missing limits');
       assert(policy.includes('raw .nova/traces') && policy.includes('literal'), 'policy resource missing deny/search metadata');
+      assert(schemaPolicy.includes('"resourceSchemaVersion": 1'), 'resource schema policy missing schema version');
+      assert(schemaPolicy.includes('"resourcePolicyVersion": 1'), 'resource schema policy missing policy version');
+      assert(schemaPolicy.includes('"uriStability"'), 'resource schema policy missing URI stability guidance');
+      assert(schemaPolicy.includes('"rawNovaArtifactsExposed": false'), 'resource schema policy missing raw artifact invariant');
       assert(schemas.includes('nova_read_file') && schemas.includes('registered'), 'schemas resource missing tool metadata');
       assert(docsIndex.includes('docs/mcp/BACKLOG_V1_1.md'), 'docs index missing MCP backlog');
-      assert(noRootLeak(`${capabilities}\n${policy}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
-      return { resourcesRead: 4, rootPathsDisclosed: false };
+      assert(noRootLeak(`${capabilities}\n${policy}\n${schemaPolicy}\n${schemas}\n${docsIndex}`, fixtureRoot), 'resource text leaked configured root path');
+      return { resourcesRead: 5, rootPathsDisclosed: false, resourceSchemaVersion: 1, resourcePolicyVersion: 1 };
+    }));
+
+    checks.push(await runCheck('resource-schema-policy-versioning', fixtureRoot, async () => {
+      const text = await readResourceText(client, 'nova://resources/schema-policy');
+      const policy = JSON.parse(text) as { resources?: Array<{ uri?: string; schemaVersion?: number; contentKind?: string }>; safetyInvariants?: { httpEnabled?: boolean; mutatingToolsRegisteredByDefault?: boolean; secretsExposed?: boolean } };
+      if (!Array.isArray(policy.resources)) throw new Error('resource inventory missing');
+      const inventory = policy.resources;
+      assert(inventory.length === resources.resources.length, 'resource inventory count does not match listResources');
+      for (const uri of resourceUris) {
+        const found = inventory.find((resource) => resource.uri === uri);
+        if (!found) throw new Error(`resource policy inventory missing ${uri}`);
+        assert(found.schemaVersion === 1, `${uri} schemaVersion should be 1`);
+        assert(found.contentKind === 'json' || found.contentKind === 'markdown', `${uri} contentKind should be stable`);
+      }
+      assert(policy.safetyInvariants?.httpEnabled === false, 'schema policy must keep HTTP disabled');
+      assert(policy.safetyInvariants?.mutatingToolsRegisteredByDefault === false, 'schema policy must keep mutating tools disabled');
+      assert(policy.safetyInvariants?.secretsExposed === false, 'schema policy must keep secrets unexposed');
+      assert(noRootLeak(text, fixtureRoot), 'schema policy leaked configured root path');
+      return { resourceCount: inventory.length, schemaVersion: 1, httpEnabled: false, mutatingToolsRegisteredByDefault: false };
     }));
 
     checks.push(await runCheck('sanitized-observability-resources', fixtureRoot, async () => {

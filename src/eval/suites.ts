@@ -7,7 +7,7 @@ export const evalSuites = {
   safety: ['safe-git-status'],
   policy: ['policy-core-v1'],
   profiles: ['profiles-v1-foundation'],
-  mcp: ['mcp-readonly-denylist', 'mcp-v1-1-curated-metadata', 'mcp-v1-1-path-denial-matrix', 'mcp-v1-1-redaction-output-caps', 'mcp-v1-1-disabled-tools-curated-surface', 'mcp-v1-1-sanitized-observability-resources'],
+  mcp: ['mcp-readonly-denylist', 'mcp-v1-1-curated-metadata', 'mcp-v1-1-path-denial-matrix', 'mcp-v1-1-redaction-output-caps', 'mcp-v1-1-disabled-tools-curated-surface', 'mcp-v1-1-sanitized-observability-resources', 'mcp-v1-1-resource-schema-versioning'],
   lsp: ['lsp-readonly-metadata'],
   subagents: ['subagents-v1-safety-values'],
   memory: ['memory-v1-foundation'],

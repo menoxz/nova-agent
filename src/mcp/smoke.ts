@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
     const resources = await client.listResources();
     assert(resources.resources.some((resource) => resource.uri === 'nova://docs/mcp/readme'), 'missing MCP README resource');
-    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
+    for (const required of ['nova://mcp/capabilities', 'nova://mcp/policy', 'nova://resources/schema-policy', 'nova://tools/schemas', 'nova://docs/index', 'nova://eval/recent-summary', 'nova://eval/latest-summary', 'nova://reports/latest-summary', 'nova://trace/summary', 'nova://observability/summary']) {
       assert(resources.resources.some((resource) => resource.uri === required), `missing V1.1 resource ${required}`);
     }
     const prompts = await client.listPrompts();
@@ -80,6 +80,14 @@ async function main(): Promise<void> {
     const policyResource = await readResourceText(client, 'nova://mcp/policy');
     assert(policyResource.includes('raw .nova/traces'), 'policy resource should document raw trace denial');
     assert(policyResource.includes('literal'), 'policy resource should document literal search default');
+    const schemaPolicyResource = await readResourceText(client, 'nova://resources/schema-policy');
+    assert(schemaPolicyResource.includes('"resourceSchemaVersion": 1'), 'schema policy should expose resource schema version');
+    assert(schemaPolicyResource.includes('"resourcePolicyVersion": 1'), 'schema policy should expose resource policy version');
+    assert(schemaPolicyResource.includes('"uriStability"'), 'schema policy should document URI stability');
+    assert(schemaPolicyResource.includes('"rawNovaArtifactsExposed": false'), 'schema policy should preserve raw artifact invariant');
+    assert(schemaPolicyResource.includes('nova://observability/summary'), 'schema policy should inventory observability resource');
+    assert(!schemaPolicyResource.includes(projectRoot), 'schema policy must not disclose project root');
+    assert(!schemaPolicyResource.includes(fixtureRoot), 'schema policy must not disclose fixture root');
     const schemasResource = await readResourceText(client, 'nova://tools/schemas');
     assert(schemasResource.includes('nova_read_file'), 'schemas resource should include read_file');
     assert(schemasResource.includes('registered'), 'schemas resource should include registration metadata');

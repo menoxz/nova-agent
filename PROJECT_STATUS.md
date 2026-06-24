@@ -1,5 +1,20 @@
 # Project Status
 
+## MCP V1.1 resource schema/versioning policy — 2026-06-24
+
+Status: implemented locally (curated resource metadata only; no raw `.nova` content; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).
+
+### Delivered
+
+- Added generated resource `nova://resources/schema-policy` with package version `0.1.0`, MCP behavior version `1.1`, `resourceSchemaVersion: 1`, `resourcePolicyVersion: 1`, URI stability rules, behavior/schema/policy bump rules, safety invariants, and a full curated resource inventory.
+- Added resource schema/version metadata to generated MCP capabilities/policy resources, `nova://eval/schema`, and observability JSON resources.
+- Kept resource URI behavior additive and stable; existing resources remain curated and read-only with no raw filesystem mirror.
+- Reinforced `mcp:smoke`, `mcp:inspect`, and `eval:mcp` coverage for schema-policy presence, inventory/version consistency, and safety invariants.
+
+### Verification run
+
+- `npm run typecheck`, `npm run mcp:smoke`, `npm run mcp:inspect`, `npm run eval:mcp`, `npm run build`, and `npm run check` exit 0.
+
 ## MCP V1.1 sanitized observability resources — 2026-06-24
 
 Status: implemented locally (read-only generated MCP resources; no raw `.nova` content; no HTTP transport; mutating/state tools remain absent by default); tests passing locally (not yet committed).

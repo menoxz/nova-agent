@@ -75,7 +75,7 @@ Add more `nova://` resources without exposing a raw filesystem mirror:
 - Resource schema/policy metadata for consumers.
 - Explicitly no raw `.nova` artifacts, raw traces, raw eval reports, `.env`, private keys, or generated sensitive artifacts.
 
-Status: sanitized observability resources implemented for eval recent/latest summaries, reports latest summary, trace summary, and combined observability summary. They expose summary metadata only and omit raw `.nova` contents, raw events, report paths, configured roots, and secrets.
+Status: implemented. Curated metadata resources include the resource schema/version policy at `nova://resources/schema-policy`, with `resourceSchemaVersion: 1`, `resourcePolicyVersion: 1`, URI stability rules, behavior/schema/policy bump rules, and an inventory of all curated resources. Sanitized observability resources are implemented for eval recent/latest summaries, reports latest summary, trace summary, and combined observability summary. They expose summary metadata only and omit raw `.nova` contents, raw events, report paths, configured roots, and secrets.
 
 ### 6. Packaging and distribution
 
@@ -87,7 +87,7 @@ Prepare MCP usage outside a checked-out dev shell:
 - Release checklist covering typecheck, smoke, evals, Inspector automation, docs update, package metadata, and security review.
 - Document compatibility expectations for MCP SDK and Node versions.
 
-Status: first packaging/client setup slice implemented by `nova-mcp`, `npm run mcp:bin-smoke`, packaged MCP docs, and client config examples for checkout, linked/global install, npm exec, and Windows path usage.
+Status: first packaging/client setup slice implemented by `nova-mcp`, `npm run mcp:bin-smoke`, packaged MCP docs, and client config examples for checkout, linked/global install, npm exec, and Windows path usage. Resource/schema versioning policy is implemented in the richer curated resources slice; release checklist and compatibility expectations remain documented here.
 
 ## Acceptance criteria for V1.1
 

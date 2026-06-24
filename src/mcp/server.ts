@@ -34,6 +34,9 @@ import { TRACE_SCHEMA_VERSION } from '../trace/schema.js';
 import { summarizeTraces } from '../trace/summary.js';
 
 const VERSION = '0.1.0';
+const MCP_BEHAVIOR_VERSION = '1.1';
+const MCP_RESOURCE_SCHEMA_VERSION = 1;
+const MCP_RESOURCE_POLICY_VERSION = 1;
 const HARD_OUTPUT_MAX_CHARS = 120_000;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_DIR_ENTRIES = 300;
@@ -73,26 +76,29 @@ const toolCatalog: ReadableTool[] = [
 ];
 
 const RESOURCE_DEFS = [
-  { name: 'nova_mcp_status', uri: 'nova://docs/status', title: 'Nova MCP Status', description: 'Current MCP phase/status summary.' },
-  { name: 'nova_mcp_readme', uri: 'nova://docs/mcp/readme', title: 'MCP README', description: 'MCP server overview.' },
-  { name: 'nova_mcp_tools', uri: 'nova://docs/mcp/tools', title: 'MCP Tools', description: 'Tool contract and safety annotations.' },
-  { name: 'nova_mcp_security', uri: 'nova://docs/mcp/security', title: 'MCP Security', description: 'Read-only policy and denied surfaces.' },
-  { name: 'nova_mcp_resources', uri: 'nova://docs/mcp/resources', title: 'MCP Resources', description: 'Curated nova:// resources.' },
-  { name: 'nova_mcp_prompts', uri: 'nova://docs/mcp/prompts', title: 'MCP Prompts', description: 'Prompt catalog.' },
-  { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.' },
-  { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.' },
-  { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.' },
-  { name: 'nova_mcp_tool_schemas_resource', uri: 'nova://tools/schemas', title: 'Tool Schemas', description: 'Generated tool metadata and input schema summary.' },
-  { name: 'nova_mcp_docs_index_resource', uri: 'nova://docs/index', title: 'Docs Index', description: 'Curated high-value docs index for MCP clients.' },
-  { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.' },
-  { name: 'nova_eval_scenarios_resource', uri: 'nova://eval/scenarios', title: 'Eval Scenarios', description: 'Default eval scenario IDs and tags only.' },
-  { name: 'nova_eval_schema_resource', uri: 'nova://eval/schema', title: 'Eval Schema Info', description: 'Eval and trace schema metadata only.' },
-  { name: 'nova_eval_recent_summary_resource', uri: 'nova://eval/recent-summary', title: 'Recent Eval Summary', description: 'Sanitized recent eval run summaries; no raw reports.' },
-  { name: 'nova_eval_latest_summary_resource', uri: 'nova://eval/latest-summary', title: 'Latest Eval Summary', description: 'Sanitized latest eval report summary; no raw report content.' },
-  { name: 'nova_reports_latest_summary_resource', uri: 'nova://reports/latest-summary', title: 'Latest Report Summary', description: 'Sanitized latest report/SLO summary; no raw report artifacts.' },
-  { name: 'nova_trace_summary_resource', uri: 'nova://trace/summary', title: 'Trace Summary', description: 'Sanitized aggregate trace summary; no raw trace events.' },
-  { name: 'nova_observability_summary_resource', uri: 'nova://observability/summary', title: 'Observability Summary', description: 'Sanitized eval/report/trace observability rollup.' },
+  { name: 'nova_mcp_status', uri: 'nova://docs/status', title: 'Nova MCP Status', description: 'Current MCP phase/status summary.', contentKind: 'markdown' },
+  { name: 'nova_mcp_readme', uri: 'nova://docs/mcp/readme', title: 'MCP README', description: 'MCP server overview.', contentKind: 'markdown' },
+  { name: 'nova_mcp_tools', uri: 'nova://docs/mcp/tools', title: 'MCP Tools', description: 'Tool contract and safety annotations.', contentKind: 'markdown' },
+  { name: 'nova_mcp_security', uri: 'nova://docs/mcp/security', title: 'MCP Security', description: 'Read-only policy and denied surfaces.', contentKind: 'markdown' },
+  { name: 'nova_mcp_resources', uri: 'nova://docs/mcp/resources', title: 'MCP Resources', description: 'Curated nova:// resources.', contentKind: 'markdown' },
+  { name: 'nova_mcp_prompts', uri: 'nova://docs/mcp/prompts', title: 'MCP Prompts', description: 'Prompt catalog.', contentKind: 'markdown' },
+  { name: 'nova_mcp_client_setup', uri: 'nova://docs/mcp/client-setup', title: 'MCP Client Setup', description: 'Client and Inspector setup.', contentKind: 'markdown' },
+  { name: 'nova_mcp_capabilities_resource', uri: 'nova://mcp/capabilities', title: 'MCP Capabilities', description: 'Generated capabilities and limits summary.', contentKind: 'json' },
+  { name: 'nova_mcp_policy_resource', uri: 'nova://mcp/policy', title: 'MCP Policy Metadata', description: 'Generated read-only policy and non-goal summary.', contentKind: 'json' },
+  { name: 'nova_mcp_resource_schema_policy', uri: 'nova://resources/schema-policy', title: 'Resource Schema Policy', description: 'Stable MCP resource schema/versioning policy and resource inventory.', contentKind: 'json' },
+  { name: 'nova_mcp_tool_schemas_resource', uri: 'nova://tools/schemas', title: 'Tool Schemas', description: 'Generated tool metadata and input schema summary.', contentKind: 'json' },
+  { name: 'nova_mcp_docs_index_resource', uri: 'nova://docs/index', title: 'Docs Index', description: 'Curated high-value docs index for MCP clients.', contentKind: 'json' },
+  { name: 'nova_tool_catalog_resource', uri: 'nova://tools/catalog', title: 'Tool Catalog', description: 'Generated tool catalog snapshot.', contentKind: 'markdown' },
+  { name: 'nova_eval_scenarios_resource', uri: 'nova://eval/scenarios', title: 'Eval Scenarios', description: 'Default eval scenario IDs and tags only.', contentKind: 'json' },
+  { name: 'nova_eval_schema_resource', uri: 'nova://eval/schema', title: 'Eval Schema Info', description: 'Eval and trace schema metadata only.', contentKind: 'json' },
+  { name: 'nova_eval_recent_summary_resource', uri: 'nova://eval/recent-summary', title: 'Recent Eval Summary', description: 'Sanitized recent eval run summaries; no raw reports.', contentKind: 'json' },
+  { name: 'nova_eval_latest_summary_resource', uri: 'nova://eval/latest-summary', title: 'Latest Eval Summary', description: 'Sanitized latest eval report summary; no raw report content.', contentKind: 'json' },
+  { name: 'nova_reports_latest_summary_resource', uri: 'nova://reports/latest-summary', title: 'Latest Report Summary', description: 'Sanitized latest report/SLO summary; no raw report artifacts.', contentKind: 'json' },
+  { name: 'nova_trace_summary_resource', uri: 'nova://trace/summary', title: 'Trace Summary', description: 'Sanitized aggregate trace summary; no raw trace events.', contentKind: 'json' },
+  { name: 'nova_observability_summary_resource', uri: 'nova://observability/summary', title: 'Observability Summary', description: 'Sanitized eval/report/trace observability rollup.', contentKind: 'json' },
 ] as const;
+
+type ResourceDefinition = (typeof RESOURCE_DEFS)[number];
 
 function allowedRoots(): string[] {
   const extra = splitRootsEnv(process.env.NOVA_MCP_ALLOWED_ROOTS);
@@ -225,6 +231,9 @@ function formatJsonMarkdown(value: unknown): string {
 function generatedCapabilities() {
   return {
     version: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    resourceSchemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
+    resourcePolicyVersion: MCP_RESOURCE_POLICY_VERSION,
     transport: { default: 'stdio', http: 'not implemented/enabled in this V1.1 slice', networkExposure: 'none by default' },
     posture: { defaultReadOnly: true, startupCreatesFiles: false, mutatingToolsRegisteredByDefault: false },
     limits: {
@@ -240,7 +249,7 @@ function generatedCapabilities() {
       disabled: toolCatalog.filter((tool) => !tool.defaultEnabled).length,
       totalCatalogEntries: toolCatalog.length,
     },
-    resources: RESOURCE_DEFS.map(({ uri, title, description }) => ({ uri, title, description })),
+    resources: RESOURCE_DEFS.map(resourceSummary),
     prompts: ['nova_repository_orientation', 'nova_readonly_review', 'nova_tool_safety_review', 'nova_eval_scenario_design', 'nova_trace_summary_diagnosis', 'nova_mcp_client_setup'],
     disabledToolFamilies: ['nova_bash', 'nova_write_file', 'nova_todo_*', 'nova_goal_*', 'nova_skill_*'],
   };
@@ -248,12 +257,58 @@ function generatedCapabilities() {
 
 function generatedPolicyMetadata() {
   return {
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    resourceSchemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
+    resourcePolicyVersion: MCP_RESOURCE_POLICY_VERSION,
     allowedRoots: 'configured locally; enforced but not disclosed by MCP tools/resources',
     deniedSurfaces: ['.env', '.env.*', '.git', 'node_modules', 'raw .nova/traces', 'raw .nova/evals', 'raw .nova/reports', 'private key extensions', 'secret-like filenames'],
     contentProtections: ['private key content refusal', 'secret-like string redaction', 'output caps and truncation metadata', 'safe errors without allowed-root disclosure'],
     searchPolicy: { default: 'literal', regexOptIn: true, maxPatternChars: MAX_SEARCH_PATTERN_CHARS, redosGuard: true },
     mutatingTools: { nova_bash: 'absent by default', nova_write_file: 'absent by default', stateTools: 'absent by default' },
     transportPolicy: { stdio: 'default', http: 'not enabled in this slice', publicBind: 'non-goal' },
+  };
+}
+
+function resourceSummary(def: ResourceDefinition) {
+  return {
+    uri: def.uri,
+    title: def.title,
+    description: def.description,
+    contentKind: def.contentKind,
+    schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
+  };
+}
+
+function generatedResourceSchemaPolicy() {
+  return {
+    kind: 'mcp_resource_schema_policy',
+    packageVersion: VERSION,
+    mcpBehaviorVersion: MCP_BEHAVIOR_VERSION,
+    resourceSchemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
+    resourcePolicyVersion: MCP_RESOURCE_POLICY_VERSION,
+    compatibility: {
+      packageVersionSource: 'package.json / server version; unchanged for additive V1.1 resource metadata',
+      behaviorVersion: 'Bumps only for MCP-visible behavior or compatibility contract changes.',
+      resourceSchemaVersion: 'Bumps for incompatible resource payload shape changes; additive fields keep the same major schema version.',
+      resourcePolicyVersion: 'Bumps when safety policy semantics change, including disclosure, redaction, transport, or mutating-tool posture.',
+      uriStability: 'Existing nova:// resource URIs stay stable during a behavior version unless deprecated with docs and eval coverage.',
+    },
+    safetyInvariants: {
+      curatedResourcesOnly: true,
+      rawFilesystemMirror: false,
+      rawNovaArtifactsExposed: false,
+      configuredRootsDisclosed: false,
+      secretsExposed: false,
+      stdioDefault: true,
+      httpEnabled: false,
+      mutatingToolsRegisteredByDefault: false,
+    },
+    requiredEnvelope: {
+      jsonResources: ['kind', 'schemaVersion or resourceSchemaVersion when applicable', 'policy metadata for safety-sensitive summaries'],
+      markdownResources: ['curated documentation text only; no raw sensitive local artifacts'],
+      generatedResources: ['stable uri', 'title', 'description', 'contentKind', 'schemaVersion in policy inventory'],
+    },
+    resources: RESOURCE_DEFS.map(resourceSummary),
   };
 }
 
@@ -336,6 +391,7 @@ async function generatedEvalRecentSummary() {
   const runs = await listEvalReports({ limit: 10 }).catch(() => []);
   return sanitizeObservabilityValue({
     kind: 'eval_recent_summary',
+    schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
     policy: observabilityPolicy(),
     runCount: runs.length,
     runs: runs.map(({ reportPath: _reportPath, ...run }) => run),
@@ -348,11 +404,12 @@ async function generatedEvalLatestSummary() {
     const summary = summarizeEvalReport(report, path);
     return sanitizeObservabilityValue({
       kind: 'eval_latest_summary',
+      schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
       policy: observabilityPolicy(),
       summary,
     });
   } catch (err) {
-    return sanitizeObservabilityValue({ kind: 'eval_latest_summary', policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
+    return sanitizeObservabilityValue({ kind: 'eval_latest_summary', schemaVersion: MCP_RESOURCE_SCHEMA_VERSION, policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -363,12 +420,13 @@ async function generatedReportLatestSummary() {
     const slo = buildEvalSloDashboard(summary);
     return sanitizeObservabilityValue({
       kind: 'report_latest_summary',
+      schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
       policy: observabilityPolicy(),
       report: summary,
       slo,
     });
   } catch (err) {
-    return sanitizeObservabilityValue({ kind: 'report_latest_summary', policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
+    return sanitizeObservabilityValue({ kind: 'report_latest_summary', schemaVersion: MCP_RESOURCE_SCHEMA_VERSION, policy: observabilityPolicy(), available: false, reason: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -376,6 +434,7 @@ async function generatedTraceSummary() {
   const summary = await summarizeTraces({ limit: 25 }).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
   return sanitizeObservabilityValue({
     kind: 'trace_summary',
+    schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
     policy: observabilityPolicy(),
     summary,
   });
@@ -390,6 +449,7 @@ async function generatedObservabilitySummary() {
   ]);
   return sanitizeObservabilityValue({
     kind: 'observability_summary',
+    schemaVersion: MCP_RESOURCE_SCHEMA_VERSION,
     policy: observabilityPolicy(),
     evalRecent,
     evalLatest,
@@ -666,9 +726,8 @@ function generatedToolCatalog(): string {
   return `# Nova MCP Tool Catalog\n\n${toolCatalog.map((tool) => `- **${tool.name}** — ${tool.defaultEnabled ? 'enabled' : 'disabled/absent'} — ${tool.readOnly ? 'read-only' : 'write/exec'} — ${tool.description}`).join('\n')}\n`;
 }
 
-function resourceMimeType(uri: string): 'application/json' | 'text/markdown' {
-  if (uri.includes('eval') || uri.includes('schema') || uri.includes('capabilities') || uri.includes('policy') || uri.includes('docs/index') || uri.includes('report') || uri.includes('trace') || uri.includes('observability')) return 'application/json';
-  return 'text/markdown';
+function resourceMimeType(def: ResourceDefinition): 'application/json' | 'text/markdown' {
+  return def.contentKind === 'json' ? 'application/json' : 'text/markdown';
 }
 
 function registerResources(server: McpServer): void {
@@ -682,11 +741,12 @@ function registerResources(server: McpServer): void {
     'nova://docs/mcp/client-setup': () => readDocResource('docs/mcp/CLIENT_SETUP.md', '# Nova MCP Client Setup\n'),
     'nova://mcp/capabilities': () => JSON.stringify(generatedCapabilities(), null, 2),
     'nova://mcp/policy': () => JSON.stringify(generatedPolicyMetadata(), null, 2),
+    'nova://resources/schema-policy': () => JSON.stringify(generatedResourceSchemaPolicy(), null, 2),
     'nova://tools/schemas': () => JSON.stringify(generatedToolSchemas(), null, 2),
     'nova://docs/index': () => JSON.stringify(generatedDocsIndex(), null, 2),
     'nova://tools/catalog': generatedToolCatalog,
     'nova://eval/scenarios': () => JSON.stringify(defaultScenarios.map(({ id, name, tags, description }) => ({ id, name, tags, description })), null, 2),
-    'nova://eval/schema': () => JSON.stringify({ evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, rawArtifacts: 'Denied by filesystem tools; use summaries only.' }, null, 2),
+    'nova://eval/schema': () => JSON.stringify({ kind: 'eval_schema_info', schemaVersion: MCP_RESOURCE_SCHEMA_VERSION, resourceSchemaVersion: MCP_RESOURCE_SCHEMA_VERSION, evalSchemaVersion: EVAL_SCHEMA_VERSION, traceSchemaVersion: TRACE_SCHEMA_VERSION, rawArtifacts: 'Denied by filesystem tools; use summaries only.' }, null, 2),
     'nova://eval/recent-summary': async () => JSON.stringify(await generatedEvalRecentSummary(), null, 2),
     'nova://eval/latest-summary': async () => JSON.stringify(await generatedEvalLatestSummary(), null, 2),
     'nova://reports/latest-summary': async () => JSON.stringify(await generatedReportLatestSummary(), null, 2),
@@ -694,7 +754,7 @@ function registerResources(server: McpServer): void {
     'nova://observability/summary': async () => JSON.stringify(await generatedObservabilitySummary(), null, 2),
   };
   for (const def of RESOURCE_DEFS) {
-    const mimeType = resourceMimeType(def.uri);
+    const mimeType = resourceMimeType(def);
     server.registerResource(def.name, def.uri, { title: def.title, description: def.description, mimeType }, async (uri) => {
       const text = await readers[def.uri]();
       return { contents: [{ uri: uri.href, mimeType, text }] };
