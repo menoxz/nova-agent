@@ -82,6 +82,7 @@
   - [x] Retry sur les appels LLM non-streaming
   - [x] Classification rate limit/provider/network/auth/timeout
   - [x] Timeout configurables
+  - [x] Token Management V1.1 CLI estimator/doctor local-only (`nova tokens estimate/compact/doctor`)
 
 - [x] **Mode batch / script**
   - Lire une liste de prompts depuis un fichier

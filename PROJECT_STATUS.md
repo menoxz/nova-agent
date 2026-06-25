@@ -1,5 +1,23 @@
 # Project Status
 
+## Token Management V1.1 CLI estimator/doctor — 2026-06-25
+
+Status: implemented locally with deterministic token estimation, compaction, and pricing diagnostics exposed through local-only CLI commands; no LLM/tool invocation, network, write/shell, or secret reads.
+
+### Delivered
+
+- Added `nova tokens estimate <text>` for deterministic prompt token estimation and optional configured cost.
+- Added `nova tokens compact <text> --budget <tokens>` for deterministic compaction with budget/reason metadata.
+- Added `nova tokens doctor` for estimator/pricing/compaction/safety diagnostics.
+- Wired tokens CLI help, CLI smoke, `tokens:smoke`, `eval:tokens`, and check gates.
+- Updated token docs, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run cli:smoke`, `npm run tokens:smoke`, and `npm run eval:tokens` exit 0.
+- CLI smoke verified `nova tokens estimate`, `nova tokens compact --budget`, and `nova tokens doctor` without requiring `LLM_API_KEY`.
+- `npm run build && npm run check` exits 0.
+
 ## Agent Profiles V1.1 CLI catalogue/doctor — 2026-06-25
 
 Status: implemented locally with metadata-only profile listing, lookup, and diagnostics; no LLM/tool invocation, secret reads, write/shell capability, or profile mutation.

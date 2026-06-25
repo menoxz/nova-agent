@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { compactTextToTokenBudget, estimateTokenCost, estimateTokenUsage, estimateTokens, extractTokenUsage, responseTokenMetrics, tokensPerSecond } from './index.js';
+import { pricingFromEnv } from './cli.js';
 
 function main(): void {
   assert.equal(estimateTokens('abcd'), 1, '4 chars ~= 1 token');
@@ -17,6 +18,7 @@ function main(): void {
   assert.equal(compacted.compacted, true, 'long text compacts');
   assert.ok(compacted.compactedTokens <= 60, 'compaction respects budget');
   assert.match(compacted.text, /compacted/, 'compaction marker explains omission');
+  assert.deepEqual(pricingFromEnv({ LLM_INPUT_COST_PER_1M_TOKENS: '2', LLM_OUTPUT_COST_PER_1M_TOKENS: '3', LLM_PRICING_CURRENCY: 'eur' } as NodeJS.ProcessEnv), { currency: 'EUR', inputCostPer1MTokens: 2, outputCostPer1MTokens: 3, source: 'env' }, 'pricing env parsed safely');
   console.log('tokens:smoke passed');
 }
 

@@ -292,9 +292,9 @@ export const defaultScenarios: EvalScenario[] = [
   {
     id: 'token-management-v1',
     name: 'Token management metrics and context compaction',
-    description: 'Token management should estimate usage, extract provider usage when present, compute response tokens/sec, estimate spend from configurable pricing, compact oversized context with reasons, and expose auto-suggestion scoring metadata for skills/MCP.',
+    description: 'Token management should estimate usage, expose local-only CLI estimator/doctor diagnostics, extract provider usage when present, compute response tokens/sec, estimate spend from configurable pricing, compact oversized context with reasons, and expose auto-suggestion scoring metadata for skills/MCP.',
     tags: ['tokens', 'context', 'compaction', 'capabilities'],
-    prompt: 'Verify Nova token management: estimated/provider token usage, response tokens per second, estimated spend from configurable pricing, context compaction with reasons, and skills/MCP auto-suggestion scoring/injection thresholds. Do not modify files.',
+    prompt: 'Verify Nova token management: estimated/provider token usage, local-only tokens estimate/compact/doctor CLI diagnostics without LLM/tools/secrets/writes, response tokens per second, estimated spend from configurable pricing, context compaction with reasons, and skills/MCP auto-suggestion scoring/injection thresholds. Do not modify files.',
     expectedAnyTools: ['tokens:smoke', 'context:smoke', 'read_file', 'grep'],
     forbiddenTools: ['write_file', 'bash'],
     maxToolCalls: 8,
@@ -302,7 +302,7 @@ export const defaultScenarios: EvalScenario[] = [
     requiredAnswerIncludes: ['token', 'cost', 'compaction', 'suggestion'],
     mock: {
       tools: ['tokens:smoke'],
-      finalAnswer: 'Token management V1 estimates token usage, extracts provider token usage when available, computes response token/second speed, estimates cost from configurable per-1M token pricing, compacts oversized context with explicit compaction reasons, and records skills/MCP auto-suggestion scoring plus injection thresholds in context metadata.',
+      finalAnswer: 'Token management V1/V1.1 estimates token usage, exposes local-only tokens estimate/compact/doctor CLI diagnostics without LLM/tools/secrets/writes, extracts provider token usage when available, computes response token/second speed, estimates cost from configurable per-1M token pricing, compacts oversized context with explicit compaction reasons, and records skills/MCP auto-suggestion scoring plus injection thresholds in context metadata.',
     },
   },
   {

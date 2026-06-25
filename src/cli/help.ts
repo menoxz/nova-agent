@@ -1,10 +1,10 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents' | 'tokens';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents', 'tokens'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget', 'reason']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
@@ -77,6 +77,7 @@ function globalHelp(): string {
       ['eval', 'Read-only local eval report list/summary/compare commands.'],
       ['memory', 'Persistent local memory and RAG retrieval commands.'],
       ['subagents', 'Bounded sub-agent roles and metadata-only DAG planning.'],
+      ['tokens', 'Local token estimation, cost and compaction diagnostics.'],
     ]),
     '',
     section('Main flags', [
@@ -418,6 +419,27 @@ function subagentsHelp(): string {
   ].join('\n');
 }
 
+function tokensHelp(): string {
+  return [
+    'Nova CLI help — tokens',
+    '',
+    section('Commands', [
+      ['nova tokens estimate <text>', 'Estimate prompt tokens locally and optional cost from pricing env.'],
+      ['nova tokens compact <text> --budget N', 'Deterministically compact text to a token budget.'],
+      ['nova tokens doctor', 'Run local estimator/pricing/compaction diagnostics.'],
+    ]),
+    '',
+    section('Pricing env', [
+      ['LLM_INPUT_COST_PER_1M_TOKENS', 'Optional input cost per 1M tokens.'],
+      ['LLM_OUTPUT_COST_PER_1M_TOKENS', 'Optional output cost per 1M tokens.'],
+      ['LLM_PRICING_CURRENCY', 'Currency code, default USD.'],
+      ['LLM_PRICING_SOURCE', 'Human-readable pricing source.'],
+    ]),
+    '',
+    'Token commands are local-only and deterministic. They do not invoke LLM/tools, read secrets, or write files.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -434,6 +456,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'eval': return evalHelp();
     case 'memory': return memoryHelp();
     case 'subagents': return subagentsHelp();
+    case 'tokens': return tokensHelp();
     case 'global': return globalHelp();
   }
 }

@@ -99,6 +99,22 @@ Le bloc `<context_budget>` liste les suggestions avec score, matches et statut `
 - `NOVA_CONTEXT_TOKEN_BUDGET`
 - `NOVA_CONTEXT_*_TOKEN_BUDGET`
 
+## CLI estimator / doctor
+
+Token Management V1.1 exposes local-only CLI commands:
+
+```bash
+nova tokens estimate "texte à estimer"
+nova tokens compact "long texte" --budget 120
+nova tokens doctor
+```
+
+- `estimate` uses the deterministic `ceil(chars / 4)` estimator and optionally returns estimated cost when `LLM_INPUT_COST_PER_1M_TOKENS` / `LLM_OUTPUT_COST_PER_1M_TOKENS` are configured.
+- `compact` applies the same deterministic compaction marker used by Context Builder.
+- `doctor` verifies estimator, pricing parsing, compaction, and local-only safety metadata.
+
+These commands do not call an LLM, execute tools, read `.env` directly, or write files.
+
 ## Vérification
 
 - `npm run tokens:smoke`
