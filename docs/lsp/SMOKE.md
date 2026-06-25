@@ -9,6 +9,7 @@ Verified checks:
 - `initialize` advertises expected LSP V1 capabilities.
 - `executeCommandProvider` contains only read-only Nova commands.
 - No write/shell commands and no `WorkspaceEdit` are advertised.
+- CodeLens provider is advertised and returns only read-only Nova metadata commands.
 - Opened document receives diagnostics for `.env` and raw `.nova/evals` mentions.
 - Hover, completion, document symbols, workspace symbols, and read-only policy command return Nova metadata.
 - `nova.lsp.showSetupGuide` returns stdio-only VS Code/Neovim setup guidance and validation commands.

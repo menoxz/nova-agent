@@ -30,6 +30,7 @@ export function createCapabilities(): ServerCapabilities {
     textDocumentSync: TextDocumentSyncKind.Incremental,
     hoverProvider: true,
     completionProvider: { resolveProvider: false, triggerCharacters: ['n', 'N', ':', '/', '@'] },
+    codeLensProvider: { resolveProvider: false },
     documentSymbolProvider: true,
     workspaceSymbolProvider: true,
     executeCommandProvider: { commands: [...LSP_COMMANDS] },

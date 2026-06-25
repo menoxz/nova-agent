@@ -9,6 +9,7 @@ import type { InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { createCapabilities } from './capabilities.js';
+import { codeLensesFor } from './code_lens.js';
 import { completionItems } from './completion.js';
 import { runReadOnlyCommand } from './commands.js';
 import { computeDiagnostics } from './diagnostics.js';
@@ -62,6 +63,12 @@ connection.onCompletion(async () => completionItems(await getMetadata()));
 connection.onDocumentSymbol(async (params) => documentSymbols(params, documents.get(params.textDocument.uri), await getMetadata()));
 
 connection.onWorkspaceSymbol(async (params) => workspaceSymbols(params, await getMetadata()));
+
+connection.onCodeLens(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  return codeLensesFor(document, await getMetadata());
+});
 
 connection.onExecuteCommand(async (params) => runReadOnlyCommand(params, await getMetadata()));
 

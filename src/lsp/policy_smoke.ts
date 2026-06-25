@@ -7,6 +7,7 @@ import { capText, containsPrivateKeyMaterial, deniedReason, readSafeTextFile, re
 import { createCapabilities } from './capabilities.js';
 import { runReadOnlyCommand } from './commands.js';
 import { buildLspTelemetrySummary } from './telemetry.js';
+import { codeLensesFor } from './code_lens.js';
 
 type MinimalDocument = {
   uri: string;
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
   const capabilities = createCapabilities();
   assert(!('workspaceEdit' in capabilities), 'WorkspaceEdit must not be advertised');
   assert(!('codeActionProvider' in capabilities), 'code actions must not be advertised');
+  assert(Boolean(capabilities.codeLensProvider), 'read-only CodeLens provider should be advertised');
   const commands = capabilities.executeCommandProvider?.commands ?? [];
   assert(commands.includes('nova.lsp.showSetupGuide'), 'setup guide command missing from capabilities');
   assert(commands.every((command) => (LSP_COMMANDS as readonly string[]).includes(command)), 'capabilities include non-allowlisted LSP command');
@@ -98,6 +100,16 @@ async function main(): Promise<void> {
   assert(diagnosticText.includes('Sensitive .env paths'), '.env diagnostic missing');
   assert(diagnosticText.includes('Raw .nova traces/evals/reports are denied'), 'raw .nova diagnostic missing');
   assert(diagnosticText.includes('Secret-like content mention detected'), 'secret diagnostic missing');
+
+  const lensDoc: MinimalDocument = {
+    uri: 'file:///nova-lsp-codelens.md',
+    getText: () => ['# CodeLens', 'nova_mcp_capabilities', 'nova://mcp/transport-readiness', 'lsp-v1-1-source-derived-metadata'].join('\n'),
+  };
+  const lenses = codeLensesFor(lensDoc as never, metadata);
+  assert(lenses.length >= 3, 'read-only CodeLens should be produced for known metadata');
+  assert(lenses.every((lens) => (lens.data as { readOnly?: boolean } | undefined)?.readOnly === true), 'CodeLens data should be marked read-only');
+  assert(lenses.every((lens) => !/write|bash|shell/i.test(lens.command?.command ?? '')), 'CodeLens commands must not be write/shell');
+  assert(lenses.some((lens) => lens.command?.command === 'nova.lsp.showToolMetadata'), 'CodeLens should use read-only tool metadata command');
 
   const item = findMetadataAtText('nova.lsp.showSetupGuide', metadata);
   assert.equal(item?.id, 'command:nova.lsp.showSetupGuide', 'metadata lookup should find setup command');

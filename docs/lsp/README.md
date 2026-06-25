@@ -16,6 +16,7 @@ npm run eval:lsp
 
 - Read-only by default.
 - Provides Nova metadata intelligence for package scripts, known tools/resources/prompts, documentation, eval suites/scenarios, and security policy.
+- Provides read-only CodeLens hints for known Nova metadata.
 - No file writes, shell execution, `WorkspaceEdit`, or autonomous self-rewrite.
 - Raw `.nova/traces`, `.nova/evals`, `.nova/reports`, `.env`, `.git`, `node_modules`, private keys, and secret-like paths/content are denied.
 
@@ -46,9 +47,20 @@ V1.1 derives additional MCP tool/resource/prompt metadata from `src/mcp/server.t
 
 The extraction is read-only and metadata-only: it reads the checked-in source file through the LSP policy path, does not execute MCP registration code, and does not add `WorkspaceEdit`, write, shell, or code-action capabilities. Disabled entries such as `nova_write_file` remain metadata only and are still marked non-read-only.
 
+## Read-only CodeLens
+
+V1.1 advertises a CodeLens provider for known Nova metadata references. CodeLens results are metadata hints only and use the existing read-only commands:
+
+- `nova.lsp.showToolMetadata`
+- `nova.lsp.showRelatedDocs`
+- `nova.lsp.showEvalScenario`
+
+CodeLens does not provide edits, code actions, shell commands, writes, or `WorkspaceEdit`.
+
 ## Main files
 
 - `src/lsp/server.ts` — stdio LSP entrypoint.
+- `src/lsp/code_lens.ts` — read-only CodeLens metadata hints.
 - `src/lsp/metadata.ts` — safe metadata index.
 - `src/lsp/policy.ts` — allowlist, denylist, redaction, output caps.
 - `src/lsp/telemetry.ts` — sanitized aggregate telemetry summary builder.

@@ -1,5 +1,23 @@
 # Project Status
 
+## LSP V1.1 read-only CodeLens metadata surface — 2026-06-25
+
+Status: implemented locally (metadata hints only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added `src/lsp/code_lens.ts` with read-only CodeLens generation for known Nova metadata references.
+- LSP capabilities now advertise `codeLensProvider` with `resolveProvider: false`.
+- CodeLens commands are limited to existing read-only commands: `nova.lsp.showToolMetadata`, `nova.lsp.showRelatedDocs`, and `nova.lsp.showEvalScenario`.
+- CodeLens data is marked `readOnly: true` and does not provide edits/actions.
+- Reinforced `lsp:smoke`, `lsp:policy-smoke`, and `eval:lsp` coverage.
+- Updated LSP README, capabilities, smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:smoke`, `npm run lsp:policy-smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 source-derived metadata extraction — 2026-06-24
 
 Status: implemented locally (read-only source parsing only; no MCP execution; no write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.

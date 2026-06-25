@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     assert(initResult.serverInfo?.name === 'nova-agent-lsp', 'serverInfo name mismatch');
     assert(Boolean(initResult.capabilities?.hoverProvider), 'hoverProvider missing');
     assert(Boolean(initResult.capabilities?.completionProvider), 'completionProvider missing');
+    assert(Boolean(initResult.capabilities?.codeLensProvider), 'codeLensProvider missing');
     assert(Boolean(initResult.capabilities?.documentSymbolProvider), 'documentSymbolProvider missing');
     assert(Boolean(initResult.capabilities?.workspaceSymbolProvider), 'workspaceSymbolProvider missing');
     const commands = (initResult.capabilities?.executeCommandProvider as { commands?: string[] } | undefined)?.commands ?? [];
@@ -106,6 +107,12 @@ async function main(): Promise<void> {
 
     const docSymbols = await send('textDocument/documentSymbol', { textDocument: { uri } });
     assert(JSON.stringify(docSymbols.result).includes('nova_tool_catalog'), 'document symbols did not include opened doc metadata');
+
+    const codeLens = await send('textDocument/codeLens', { textDocument: { uri } });
+    const codeLensText = JSON.stringify(codeLens.result);
+    assert(codeLensText.includes('Nova:'), 'CodeLens did not include read-only metadata lens');
+    assert(codeLensText.includes('"readOnly":true'), 'CodeLens data should be marked read-only');
+    assert(!/writeFile|shell|bash/i.test(codeLensText), 'CodeLens exposed unsafe command text');
 
     const workspaceSymbols = await send('workspace/symbol', { query: 'lsp' });
     assert(JSON.stringify(workspaceSymbols.result).includes('lsp:smoke'), 'workspace symbols did not include LSP metadata');
