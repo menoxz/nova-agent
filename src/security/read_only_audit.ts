@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { isDangerousOrMutating, isPureReadOnly, readOnlySafetyMatrix, type SafetyMatrixEntry } from './read_only_matrix.js';
+import { analyzePackageScriptCoverage, isDangerousOrMutating, isPureReadOnly, readOnlySafetyMatrix, type SafetyMatrixEntry } from './read_only_matrix.js';
+import { readFileSync } from 'node:fs';
 
 const requiredCliIds = [
   'cli.help',
@@ -42,6 +43,11 @@ const requiredScriptIds = [
   'script.dev-start',
   'script.build-prepack',
   'script.smokes.safe',
+  'script.release-readiness',
+  'script.local-integration-smokes',
+  'script.mcp-bin-smoke-build-link',
+  'script.llm-live-smoke',
+  'script.autoexec-live-smoke',
   'script.eval-mock',
   'script.pack-dry-run',
   'script.publish-pack-live',
@@ -85,6 +91,13 @@ function assertRequiredCoverage(): void {
   }
 }
 
+function assertPackageScriptCoverage(): void {
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf-8')) as { scripts?: Record<string, string> };
+  const report = analyzePackageScriptCoverage(Object.keys(packageJson.scripts ?? {}));
+  assert.deepEqual(report.missingScripts, [], `package scripts missing security coverage: ${report.missingScripts.join(', ')}`);
+  assert.deepEqual(report.unknownMatrixIds, [], `package script coverage references unknown matrix ids: ${report.unknownMatrixIds.join(', ')}`);
+}
+
 function assertPureReadOnlyInvariant(entry: SafetyMatrixEntry): void {
   assert.equal(entry.orchestratorReadOnlyCompatible, true, `${entry.id}: pure read-only must be orchestrator-compatible`);
   assert.equal(entry.flags.filesystemWrites, 'none', `${entry.id}: pure read-only must not write filesystem`);
@@ -123,6 +136,9 @@ function assertKnownDangerousNotReadOnly(): void {
     'script.dev-start',
     'script.build-prepack',
     'script.eval-mock',
+    'script.mcp-bin-smoke-build-link',
+    'script.llm-live-smoke',
+    'script.autoexec-live-smoke',
     'script.publish-pack-live',
     'tool.write-file',
     'tool.bash',
@@ -137,11 +153,11 @@ function assertKnownDangerousNotReadOnly(): void {
 }
 
 function assertSafeRepresentativeEntries(): void {
-  for (const id of ['cli.help', 'cli.version', 'cli.providers.list', 'cli.eval.list', 'cli.heartbeat.status', 'script.typecheck', 'tool.git']) {
+  for (const id of ['cli.help', 'cli.version', 'cli.providers.list', 'cli.eval.list', 'cli.heartbeat.status', 'script.typecheck', 'script.release-readiness', 'tool.git']) {
     assertPureReadOnlyInvariant(entryById(id));
   }
 
-  for (const id of ['cli.batch.dry-run', 'cli.heartbeat.tick.dry-run', 'script.smokes.safe']) {
+  for (const id of ['cli.batch.dry-run', 'cli.heartbeat.tick.dry-run', 'script.smokes.safe', 'script.local-integration-smokes']) {
     const entry = entryById(id);
     assert.equal(entry.orchestratorReadOnlyCompatible, true, `${id}: offline smoke/dry-run should remain compatible`);
     assert.notEqual(entry.classification, 'pure-read-only', `${id}: metadata-writing dry-runs must not be pure-read-only`);
@@ -152,6 +168,7 @@ function assertSafeRepresentativeEntries(): void {
 
 function main(): void {
   assertRequiredCoverage();
+  assertPackageScriptCoverage();
   assertMatrixSemantics();
   assertKnownDangerousNotReadOnly();
   assertSafeRepresentativeEntries();

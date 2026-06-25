@@ -138,5 +138,6 @@
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel
   - [x] Sandbox d'exécution hardened (sous-processus isolé, capability-only, opt-in `NOVA_ENABLE_EXEC_SANDBOX`; ADR-002 Slice 3, `src/sandbox/**`) — câblage exécution déléguée différé (Slice 4)
+  - [x] Read-only Matrix V1.1: CLI local `nova security matrix|coverage|doctor`, couverture explicite de tous les scripts package, smoke/eval/check gates, live/provider/release/subprocess opt-in bloqués hors read-only
   - Validation des chemins de fichiers
   - Approbation utilisateur pour les actions destructrices

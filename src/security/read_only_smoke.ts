@@ -57,7 +57,7 @@ function smokePureReadOnlyInvariant(): void {
 }
 
 function smokeDryRunMetadataEntries(): void {
-  const dryRunIds = ['cli.batch.dry-run', 'cli.heartbeat.tick.dry-run', 'script.smokes.safe', 'script.check-fast'];
+  const dryRunIds = ['cli.batch.dry-run', 'cli.heartbeat.tick.dry-run', 'script.smokes.safe', 'script.check-fast', 'script.local-integration-smokes'];
   for (const id of dryRunIds) {
     const entry = must(id);
     assert.equal(entry.orchestratorReadOnlyCompatible, true, `${id}: dry-run/smoke should be compatible`);
@@ -77,6 +77,9 @@ function smokeDangerousEntriesBlocked(): void {
     'script.dev-start',
     'script.build-prepack',
     'script.eval-mock',
+    'script.mcp-bin-smoke-build-link',
+    'script.llm-live-smoke',
+    'script.autoexec-live-smoke',
     'script.publish-pack-live',
     'tool.write-file',
     'tool.bash',

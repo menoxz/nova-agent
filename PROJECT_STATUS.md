@@ -1,5 +1,23 @@
 # Project Status
 
+## Security read-only matrix V1.1 coverage diagnostics — 2026-06-25
+
+Status: implemented locally with metadata-only security matrix, package-script coverage, and doctor diagnostics; no LLM/tool invocation, network, secret reads, or file writes.
+
+### Delivered
+
+- Added `nova security matrix [--classification <kind>]` to inspect the local safety matrix.
+- Added `nova security coverage` to map every `package.json` script to an explicit matrix entry and fail closed on gaps.
+- Added `nova security doctor` for duplicate-id, package coverage, live/mutating compatibility, and pure-read-only invariant diagnostics.
+- Expanded matrix coverage for release readiness, MCP bin smoke, offline integration smokes, live LLM smoke, and autoexec live smoke classifications.
+- Wired security CLI help, CLI smoke, `security:smoke`, `eval:security`, and check gates.
+- Updated policy docs, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run cli:smoke`, `npm run security:smoke`, `npm run security:readonly-audit`, `npm run security:readonly-smoke`, and `npm run eval:security` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## Token Management V1.1 CLI estimator/doctor — 2026-06-25
 
 Status: implemented locally with deterministic token estimation, compaction, and pricing diagnostics exposed through local-only CLI commands; no LLM/tool invocation, network, write/shell, or secret reads.

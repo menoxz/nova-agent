@@ -47,6 +47,7 @@ async function main(): Promise<void> {
   assertOkHelp(['memory', '--help'], ['memory list', 'memory rag search', 'local-only']);
   assertOkHelp(['subagents', '--help'], ['subagents roles', 'subagents plan', 'metadata-only']);
   assertOkHelp(['tokens', '--help'], ['tokens estimate', 'tokens doctor', 'local-only']);
+  assertOkHelp(['security', '--help'], ['security matrix', 'security doctor', 'metadata-only']);
 
   const unknown = runNova(['stremaing']);
   assert.equal(unknown.status, 1, 'unknown command exits 1');
@@ -73,6 +74,12 @@ async function main(): Promise<void> {
   assert.equal(tokensDoctor.status, 0, 'tokens doctor exits 0 without LLM key');
   assert.match(tokensDoctor.stdout, /"invokesLlm": false/, 'tokens doctor reports local-only safety');
   assert.doesNotMatch(tokensDoctor.stderr + tokensDoctor.stdout, /LLM_API_KEY not set/, 'tokens doctor does not reach LLM key check');
+
+  const securityDoctor = runNova(['security', 'doctor']);
+  assert.equal(securityDoctor.status, 0, 'security doctor exits 0 without LLM key');
+  assert.match(securityDoctor.stdout, /"ok": true/, 'security doctor reports ok');
+  assert.match(securityDoctor.stdout, /"writesFiles": false/, 'security doctor reports metadata-only safety');
+  assert.doesNotMatch(securityDoctor.stderr + securityDoctor.stdout, /LLM_API_KEY not set/, 'security doctor does not reach LLM key check');
 
   console.log('cli:smoke passed');
 }

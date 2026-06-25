@@ -43,6 +43,13 @@ export interface PackageScriptCoverage {
   rationale: string;
 }
 
+export interface PackageScriptCoverageReport {
+  totalScripts: number;
+  coveredScripts: number;
+  missingScripts: string[];
+  unknownMatrixIds: string[];
+}
+
 const noRisk: SafetyFlags = {
   filesystemWrites: 'none',
   shell: false,
@@ -388,6 +395,66 @@ export const readOnlySafetyMatrix: readonly SafetyMatrixEntry[] = [
     rationale: 'Local package manifest inspection only when --dry-run and --ignore-scripts are both present.',
   }),
   entry({
+    id: 'script.release-readiness',
+    surface: 'package-script',
+    label: 'npm run release:readiness',
+    commandOrTool: 'node scripts/assert-release-readiness.mjs',
+    classification: 'pure-read-only',
+    riskLevel: 'low',
+    orchestratorReadOnlyCompatible: true,
+    flags: { ...noRisk, shell: true },
+    sourceRefs: ['scripts/assert-release-readiness.mjs', 'package.json'],
+    rationale: 'Runs npm pack --dry-run --ignore-scripts JSON manifest inspection and validates package entries without publishing, tagging, pushing, or reading secrets.',
+  }),
+  entry({
+    id: 'script.local-integration-smokes',
+    surface: 'package-script',
+    label: 'offline integration smoke scripts',
+    commandOrTool: 'npm run mcp:inspect | lsp:policy-smoke | agent:smoke | tools:smoke | bash:smoke | sandbox:smoke | autoexec:smoke | security:smoke',
+    classification: 'read-only-with-metadata-writes',
+    riskLevel: 'medium',
+    orchestratorReadOnlyCompatible: true,
+    flags: { ...noRisk, shell: true, filesystemWrites: 'metadata-only', createsAgent: true, registersOrExecutesTools: true, secretsEnvRisk: true },
+    sourceRefs: ['package.json', 'src/mcp/inspector_validate.ts', 'src/lsp/policy_smoke.ts', 'src/autoexec/smoke.ts', 'src/security/smoke.ts'],
+    rationale: 'Offline integration smokes may create temporary fixtures, local metadata, mock agents/tools, or stdio servers, but they do not invoke live providers, network transports, release commands, or mutating project operations.',
+  }),
+  entry({
+    id: 'script.mcp-bin-smoke-build-link',
+    surface: 'package-script',
+    label: 'npm run mcp:bin-smoke',
+    commandOrTool: 'tsx src/mcp/bin_smoke.ts',
+    classification: 'mutating',
+    riskLevel: 'medium',
+    orchestratorReadOnlyCompatible: false,
+    flags: { ...noRisk, shell: true, filesystemWrites: 'mutating' },
+    sourceRefs: ['src/mcp/bin_smoke.ts', 'bin/nova-mcp.js', 'package.json'],
+    rationale: 'Validates packaged MCP binary behavior, but runs npm build and npm link against a temporary install root; this is local validation, not a read-only surface.',
+  }),
+  entry({
+    id: 'script.llm-live-smoke',
+    surface: 'package-script',
+    label: 'npm run llm:live-smoke',
+    commandOrTool: 'tsx src/llm/live_smoke.ts',
+    classification: 'live-provider',
+    riskLevel: 'critical',
+    orchestratorReadOnlyCompatible: false,
+    flags: { ...noRisk, shell: true, provider: true, network: true, secretsEnvRisk: true },
+    sourceRefs: ['src/llm/live_smoke.ts', 'package.json'],
+    rationale: 'Performs one opt-in live provider call when explicitly authorized with NOVA_ENABLE_LIVE_LLM and LLM_API_KEY; never compatible with read-only orchestration.',
+  }),
+  entry({
+    id: 'script.autoexec-live-smoke',
+    surface: 'package-script',
+    label: 'npm run autoexec:live-smoke',
+    commandOrTool: 'tsx src/autoexec/smoke.ts --live',
+    classification: 'dangerous-blocked',
+    riskLevel: 'high',
+    orchestratorReadOnlyCompatible: false,
+    flags: { ...noRisk, shell: true, filesystemWrites: 'metadata-only', registersOrExecutesTools: true },
+    sourceRefs: ['src/autoexec/smoke.ts', 'src/sandbox/sandbox.ts', 'package.json'],
+    rationale: 'Opt-in live execution seam smoke can spawn a subprocess through the hardened sandbox; safe as explicit validation only, not read-only-compatible.',
+  }),
+  entry({
     id: 'script.publish-pack-live',
     surface: 'package-script',
     label: 'publish/pack/tag/push/PR external commands',
@@ -482,6 +549,7 @@ export const readOnlySafetyMatrix: readonly SafetyMatrixEntry[] = [
 export const packageScriptCoverage: readonly PackageScriptCoverage[] = [
   { script: 'build', matrixId: 'script.build-prepack', coverage: 'exact', rationale: 'tsc writes dist outputs.' },
   { script: 'prepack', matrixId: 'script.build-prepack', coverage: 'exact', rationale: 'prepack delegates to build.' },
+  { script: 'release:readiness', matrixId: 'script.release-readiness', coverage: 'exact', rationale: 'dry-run manifest inspection only; no publish/tag/release.' },
   { script: 'check:fast', matrixId: 'script.check-fast', coverage: 'exact', rationale: 'composite offline smoke validation with metadata writes.' },
   { script: 'test:targeted-v1', matrixId: 'script.check-fast', coverage: 'composite', rationale: 'same class as check:fast: typecheck plus offline smoke validations.' },
   { script: 'check', matrixId: 'script.check', coverage: 'exact', rationale: 'long composite validation including mock eval runners.' },
@@ -489,9 +557,16 @@ export const packageScriptCoverage: readonly PackageScriptCoverage[] = [
   { script: 'start', matrixId: 'script.dev-start', coverage: 'exact', rationale: 'starts interactive runtime path.' },
   { script: 'mcp:stdio', matrixId: 'tool.read-file-family', coverage: 'composite', rationale: 'registers default MCP read/search/git/doc/eval/trace read-only tools; write/bash tools remain absent by default.' },
   { script: 'mcp:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline MCP smoke starts a local stdio server and verifies read-only policy guards.' },
+  { script: 'mcp:inspect', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline Inspector-style stdio validation with temporary fixtures.' },
+  { script: 'mcp:bin-smoke', matrixId: 'script.mcp-bin-smoke-build-link', coverage: 'exact', rationale: 'binary smoke runs build/link checks and is local validation, not read-only.' },
   { script: 'lsp:stdio', matrixId: 'script.smokes.safe', coverage: 'composite', rationale: 'starts a local read-only LSP server surface with no workspace edit/shell command support.' },
   { script: 'lsp:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline LSP smoke validates read-only commands and denials.' },
+  { script: 'lsp:policy-smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline LSP policy/helper validation.' },
   { script: 'llm:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline LLM robustness smoke classifies synthetic errors/retries only.' },
+  { script: 'llm:live-smoke', matrixId: 'script.llm-live-smoke', coverage: 'blocked-category', rationale: 'explicit opt-in live provider call path.' },
+  { script: 'agent:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline agent smoke with mock model and local tools.' },
+  { script: 'tools:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline built-in tool smoke with synthetic fixtures.' },
+  { script: 'bash:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline bash-tool smoke over controlled local fixtures.' },
   { script: 'memory:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline memory smoke uses temporary local metadata fixtures.' },
   { script: 'context:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline context smoke builds mock context with temporary memory and read-only tool metadata.' },
   { script: 'tokens:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline token math smoke only.' },
@@ -506,6 +581,9 @@ export const packageScriptCoverage: readonly PackageScriptCoverage[] = [
   { script: 'cli:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline CLI smoke for safe command paths.' },
   { script: 'batch:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline batch dry-run smoke.' },
   { script: 'heartbeat:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline heartbeat planning smoke.' },
+  { script: 'sandbox:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline sandbox smoke with controlled local subprocess fixtures.' },
+  { script: 'autoexec:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline delegated-execution seam smoke; live path skipped by default.' },
+  { script: 'autoexec:live-smoke', matrixId: 'script.autoexec-live-smoke', coverage: 'blocked-category', rationale: 'explicit opt-in sandbox execution path.' },
   { script: 'tui:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline TUI smoke.' },
   { script: 'bin:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline package binary smoke.' },
   { script: 'providers:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline provider catalog smoke without live provider calls.' },
@@ -514,6 +592,7 @@ export const packageScriptCoverage: readonly PackageScriptCoverage[] = [
   { script: 'typecheck', matrixId: 'script.typecheck', coverage: 'exact', rationale: 'compiler no-emit check.' },
   { script: 'profiles:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline profile smoke.' },
   { script: 'policy:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline policy smoke.' },
+  { script: 'security:smoke', matrixId: 'script.local-integration-smokes', coverage: 'exact', rationale: 'offline security CLI/matrix coverage smoke.' },
   { script: 'security:readonly-audit', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline static matrix audit.' },
   { script: 'security:readonly-smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline static matrix smoke.' },
   { script: 'subagents:smoke', matrixId: 'script.smokes.safe', coverage: 'exact', rationale: 'offline subagent metadata smoke.' },
@@ -531,6 +610,7 @@ export const packageScriptCoverage: readonly PackageScriptCoverage[] = [
   { script: 'eval:memory', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
   { script: 'eval:context', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
   { script: 'eval:tokens', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
+  { script: 'eval:security', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock security eval suite.' },
   { script: 'eval:session', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
   { script: 'eval:approval', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
   { script: 'eval:run-replay', matrixId: 'script.eval-mock', coverage: 'exact', rationale: 'explicit mock eval suite.' },
@@ -571,4 +651,17 @@ export function isDangerousOrMutating(entryValue: SafetyMatrixEntry): boolean {
   return entryValue.classification === 'dangerous-blocked'
     || entryValue.classification === 'mutating'
     || entryValue.classification === 'live-provider';
+}
+
+export function analyzePackageScriptCoverage(packageScripts: string[]): PackageScriptCoverageReport {
+  const covered = new Set(packageScriptCoverage.map((item) => item.script));
+  const matrixIds = new Set(readOnlySafetyMatrix.map((item) => item.id));
+  const missingScripts = packageScripts.filter((script) => !covered.has(script)).sort();
+  const unknownMatrixIds = Array.from(new Set(packageScriptCoverage.map((item) => item.matrixId).filter((id) => !matrixIds.has(id)))).sort();
+  return {
+    totalScripts: packageScripts.length,
+    coveredScripts: packageScripts.length - missingScripts.length,
+    missingScripts,
+    unknownMatrixIds,
+  };
 }

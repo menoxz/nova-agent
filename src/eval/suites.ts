@@ -13,6 +13,7 @@ export const evalSuites = {
   memory: ['memory-v1-foundation'],
   context: ['context-builder-v1'],
   tokens: ['token-management-v1'],
+  security: ['security-readonly-matrix-v1-1'],
   session: ['session-run-manager-v1'],
   approval: ['approval-manager-v1'],
   'run-replay': ['run-replay-resume-v1'],

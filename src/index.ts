@@ -50,6 +50,7 @@ import { handleEvalCommand } from './eval/report_cli.js';
 import { handleMemoryCommand } from './memory/cli.js';
 import { handleSubagentsCommand } from './subagents/cli.js';
 import { handleTokensCommand } from './tokens/cli.js';
+import { handleSecurityCommand } from './security/cli.js';
 
 let dotenvLoaded = false;
 async function loadDotenvOnce(): Promise<void> {
@@ -701,6 +702,7 @@ async function main() {
   if (await handleProfilesCommand(rawArgs)) return;
   if (await handleSubagentsCommand(rawArgs)) return;
   if (await handleTokensCommand(rawArgs)) return;
+  if (await handleSecurityCommand(rawArgs)) return;
   if (await handleBatchCommand(undefined, rawArgs)) return;
   await loadDotenvOnce();
   const config = loadConfig();

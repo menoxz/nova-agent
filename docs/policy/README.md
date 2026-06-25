@@ -33,10 +33,17 @@ Provider live smoke readiness is an offline-only safety plan: `providers:readine
 Run:
 
 ```bash
+nova security matrix
+nova security coverage
+nova security doctor
+npm run security:smoke
 npm run policy:smoke
 npm run security:readonly-audit
 npm run security:readonly-smoke
+npm run eval:security
 npm run eval:policy
 ```
 
-The policy smoke verifies safe read allow, sensitive path/content denial, redaction, child-capability denial, and write/shell ask behavior. The security audit/smoke scripts verify that the matrix keeps live provider, daemon/autonomy, publish/tag/push/PR, raw artifact, shell, write, and mutating tool paths out of read-only classifications.
+The `nova security` commands are local metadata-only diagnostics: `matrix` prints the safety matrix, `coverage` maps every `package.json` script to a matrix entry, and `doctor` fails closed on missing script coverage, unknown matrix ids, duplicate ids, or live/mutating paths marked read-only compatible. They do not require `LLM_API_KEY`, invoke LLM/tools, use network, read secrets, or write files.
+
+The policy smoke verifies safe read allow, sensitive path/content denial, redaction, child-capability denial, and write/shell ask behavior. The security audit/smoke scripts verify that the matrix keeps live provider, daemon/autonomy, publish/tag/push/PR, raw artifact, shell, write, live-smoke, autoexec live-smoke, and mutating package/tool paths out of read-only classifications while every package script has explicit coverage.

@@ -1,10 +1,10 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents' | 'tokens';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents' | 'tokens' | 'security';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents', 'tokens'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents', 'tokens', 'security'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget', 'reason']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget', 'reason', 'classification']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
@@ -78,6 +78,7 @@ function globalHelp(): string {
       ['memory', 'Persistent local memory and RAG retrieval commands.'],
       ['subagents', 'Bounded sub-agent roles and metadata-only DAG planning.'],
       ['tokens', 'Local token estimation, cost and compaction diagnostics.'],
+      ['security', 'Read-only safety matrix, script coverage, and local diagnostics.'],
     ]),
     '',
     section('Main flags', [
@@ -440,6 +441,28 @@ function tokensHelp(): string {
   ].join('\n');
 }
 
+function securityHelp(): string {
+  return [
+    'Nova CLI help — security',
+    '',
+    section('Commands', [
+      ['nova security matrix', 'Print the local read-only safety matrix as JSON.'],
+      ['nova security matrix --classification <kind>', 'Filter entries by classification, e.g. live-provider.'],
+      ['nova security coverage', 'Verify every package script maps to a safety matrix entry.'],
+      ['nova security doctor', 'Run local matrix, coverage, duplicate-id and invariant diagnostics.'],
+    ]),
+    '',
+    section('Classifications', [
+      ['pure-read-only', 'No writes, provider, network, agent/tools, or secret/raw artifact exposure.'],
+      ['read-only-with-metadata-writes', 'Offline validation/dry-run surfaces that may write bounded local metadata.'],
+      ['read-only-sensitive', 'Read surfaces that require denylist/redaction/root guards.'],
+      ['mutating/live-provider/dangerous-blocked', 'Not compatible with read-only orchestration.'],
+    ]),
+    '',
+    'Security commands are metadata-only and local. They do not invoke LLM/tools, use network, read secrets, or write files.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -457,6 +480,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'memory': return memoryHelp();
     case 'subagents': return subagentsHelp();
     case 'tokens': return tokensHelp();
+    case 'security': return securityHelp();
     case 'global': return globalHelp();
   }
 }
