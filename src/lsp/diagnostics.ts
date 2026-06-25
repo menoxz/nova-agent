@@ -71,8 +71,10 @@ export function computeDiagnostics(document: TextDocument, metadata: NovaMetadat
   }
   for (const [label, ids] of labels) {
     if (ids.length > 1 && text.includes(label)) {
-      const idx = text.indexOf(label);
-      diagnostics.push({ range: rangeFromIndex(text, idx, label.length), severity: DiagnosticSeverity.Information, source: 'nova-lsp', message: `Duplicate Nova metadata label "${label}" appears in: ${ids.join(', ')}` });
+      for (const match of text.matchAll(new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))) {
+        if (typeof match.index !== 'number') continue;
+        diagnostics.push({ range: rangeFromIndex(text, match.index, label.length), severity: DiagnosticSeverity.Information, source: 'nova-lsp', message: `Duplicate Nova metadata label "${label}" appears in: ${ids.join(', ')}` });
+      }
     }
   }
 

@@ -10,7 +10,7 @@ Diagnostics are intentionally lightweight and safe:
 - Flag raw artifact mentions such as `.nova/traces/*`, `.nova/evals/*`, and `.nova/reports/*`.
 - Flag `.env` mentions when they look like exposed paths.
 - Error on private-key or secret-like content patterns when practical.
-- Inform on duplicate metadata labels discovered in the safe metadata index.
+- Inform on duplicate metadata labels discovered in the safe metadata index and point each diagnostic at the matched source/docs occurrence.
 
 Diagnostics do not read denied raw artifacts.
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { computeDiagnostics } from './diagnostics.js';
 import { buildMetadataIndex, findMetadataAtText, formatMetadataItem, LSP_COMMANDS } from './metadata.js';
+import type { NovaMetadataIndex } from './metadata.js';
 import { capText, containsPrivateKeyMaterial, deniedReason, readSafeTextFile, redactText, resolvePolicyPath, safeError } from './policy.js';
 import { createCapabilities } from './capabilities.js';
 import { runReadOnlyCommand } from './commands.js';
@@ -112,6 +113,20 @@ async function main(): Promise<void> {
   const lspScript = packageDiagnostics.find((diagnostic) => String(diagnostic.message).includes('Nova LSP script detected: lsp:policy-smoke'));
   assert(lspScript, 'LSP script detection diagnostic should be present');
   assert(lspScript?.range.start.line === 3, 'LSP script diagnostic should target the script key line');
+
+  const duplicateMetadataItems = [
+    ...metadata.items,
+    { id: 'test-duplicate:first', label: 'duplicate_nova_label', kind: 'doc' as const, detail: 'Synthetic duplicate label one.', readOnly: true },
+    { id: 'test-duplicate:second', label: 'duplicate_nova_label', kind: 'doc' as const, detail: 'Synthetic duplicate label two.', readOnly: true },
+  ];
+  const duplicateMetadata: NovaMetadataIndex = { ...metadata, items: duplicateMetadataItems, byId: new Map(duplicateMetadataItems.map((item) => [item.id, item])) };
+  const duplicateDoc: MinimalDocument = {
+    uri: 'file:///docs/duplicate.md',
+    getText: () => ['duplicate_nova_label', 'safe text', 'duplicate_nova_label'].join('\n'),
+  };
+  const duplicateDiagnostics = computeDiagnostics(duplicateDoc as never, duplicateMetadata).filter((diagnostic) => String(diagnostic.message).includes('Duplicate Nova metadata label "duplicate_nova_label"'));
+  assert.equal(duplicateDiagnostics.length, 2, 'duplicate metadata diagnostics should target every occurrence');
+  assert.deepEqual(duplicateDiagnostics.map((diagnostic) => diagnostic.range.start.line), [0, 2], 'duplicate metadata diagnostics should target precise document lines');
 
   const lensDoc: MinimalDocument = {
     uri: 'file:///nova-lsp-codelens.md',

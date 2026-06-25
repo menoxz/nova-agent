@@ -1,5 +1,21 @@
 # Project Status
 
+## LSP V1.1 precise duplicate metadata diagnostics — 2026-06-25
+
+Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Duplicate Nova metadata label diagnostics now target every occurrence in source/docs text instead of only the first match.
+- Added policy-smoke assertions with synthetic duplicate metadata and multi-line document content.
+- Expanded `eval:lsp` with `lsp-v1-1-precise-duplicate-metadata-diagnostics`.
+- Updated LSP diagnostics/smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 precise package diagnostics — 2026-06-25
 
 Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.

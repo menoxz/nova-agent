@@ -22,6 +22,8 @@ Status: first read-only CodeLens slice implemented. The LSP advertises CodeLens 
 
 Status: precise package diagnostics slice implemented. Missing expected script diagnostics now target the `scripts` object, discovered `lsp:*` scripts produce informational diagnostics on the script key, and policy smoke/eval coverage validates the ranges without adding mutating capabilities.
 
+Status: precise duplicate metadata diagnostics slice implemented. Duplicate Nova metadata label diagnostics now target every occurrence in source/docs text, with policy smoke/eval coverage and no mutating capabilities.
+
 Still out of scope:
 
 - Write commands.
