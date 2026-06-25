@@ -20,15 +20,46 @@ function pushMatchDiagnostics(out: Diagnostic[], text: string, regex: RegExp, me
   }
 }
 
+function rangeForPackageScript(text: string, script: string): Range | undefined {
+  const escaped = script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`"${escaped}"\\s*:`).exec(text);
+  if (typeof match?.index !== 'number') return undefined;
+  return rangeFromIndex(text, match.index + 1, script.length);
+}
+
+function rangeForPackageScriptsObject(text: string): Range {
+  const match = /"scripts"\s*:\s*\{/m.exec(text);
+  if (typeof match?.index === 'number') return rangeFromIndex(text, match.index + 1, 'scripts'.length);
+  return Range.create(0, 0, 0, 1);
+}
+
+function packageScriptsFromText(text: string): string[] | undefined {
+  try {
+    const parsed = JSON.parse(text) as { scripts?: unknown };
+    if (!parsed.scripts || typeof parsed.scripts !== 'object' || Array.isArray(parsed.scripts)) return undefined;
+    return Object.keys(parsed.scripts as Record<string, unknown>);
+  } catch {
+    return undefined;
+  }
+}
+
 export function computeDiagnostics(document: TextDocument, metadata: NovaMetadataIndex): Diagnostic[] {
   const text = document.getText();
   const diagnostics: Diagnostic[] = [];
 
   if (document.uri.endsWith('/package.json') || document.uri.endsWith('\\package.json')) {
+    const packageScripts = packageScriptsFromText(text) ?? metadata.packageScripts;
     for (const script of EXPECTED_SCRIPTS) {
-      if (!metadata.packageScripts.includes(script)) {
-        diagnostics.push({ range: Range.create(0, 0, 0, 1), severity: DiagnosticSeverity.Warning, source: 'nova-lsp', message: `Missing expected Nova script: ${script}` });
+      if (!packageScripts.includes(script)) {
+        diagnostics.push({ range: rangeForPackageScriptsObject(text), severity: DiagnosticSeverity.Warning, source: 'nova-lsp', message: `Missing expected Nova script: ${script}` });
       }
+    }
+
+    for (const script of packageScripts) {
+      if (!/^lsp:/.test(script)) continue;
+      if (EXPECTED_SCRIPTS.includes(script as (typeof EXPECTED_SCRIPTS)[number])) continue;
+      const range = rangeForPackageScript(text, script) ?? rangeForPackageScriptsObject(text);
+      diagnostics.push({ range, severity: DiagnosticSeverity.Information, source: 'nova-lsp', message: `Nova LSP script detected: ${script}` });
     }
   }
 

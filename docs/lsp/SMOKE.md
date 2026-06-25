@@ -11,6 +11,7 @@ Verified checks:
 - No write/shell commands and no `WorkspaceEdit` are advertised.
 - CodeLens provider is advertised and returns only read-only Nova metadata commands.
 - Opened document receives diagnostics for `.env` and raw `.nova/evals` mentions.
+- Package diagnostics target the `scripts` object for missing expected scripts and individual `lsp:*` keys for LSP script metadata.
 - Hover, completion, document symbols, workspace symbols, and read-only policy command return Nova metadata.
 - `nova.lsp.showSetupGuide` returns stdio-only VS Code/Neovim setup guidance and validation commands.
 - `nova.lsp.showTelemetrySummary` returns aggregate metadata only and omits document content, raw diagnostics, URIs, root paths, and secrets.

@@ -1,5 +1,22 @@
 # Project Status
 
+## LSP V1.1 precise package diagnostics — 2026-06-25
+
+Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Missing expected `package.json` script diagnostics now target the `scripts` object when present instead of the file start.
+- Discovered `lsp:*` package scripts produce informational diagnostics on the exact script key.
+- Added policy-smoke assertions for diagnostic ranges on synthetic package.json content.
+- Expanded `eval:lsp` with `lsp-v1-1-precise-package-diagnostics`.
+- Updated LSP diagnostics/smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 read-only CodeLens metadata surface — 2026-06-25
 
 Status: implemented locally (metadata hints only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.

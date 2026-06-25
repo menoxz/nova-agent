@@ -101,6 +101,18 @@ async function main(): Promise<void> {
   assert(diagnosticText.includes('Raw .nova traces/evals/reports are denied'), 'raw .nova diagnostic missing');
   assert(diagnosticText.includes('Secret-like content mention detected'), 'secret diagnostic missing');
 
+  const packageDoc: MinimalDocument = {
+    uri: 'file:///package.json',
+    getText: () => JSON.stringify({ scripts: { 'lsp:stdio': 'tsx src/lsp/server.ts --stdio', 'lsp:policy-smoke': 'tsx src/lsp/policy_smoke.ts' } }, null, 2),
+  };
+  const packageDiagnostics = computeDiagnostics(packageDoc as never, metadata);
+  const missingScript = packageDiagnostics.find((diagnostic) => String(diagnostic.message).includes('Missing expected Nova script: eval:lsp'));
+  assert(missingScript, 'missing expected script diagnostic should be present');
+  assert(missingScript?.range.start.line === 1, 'missing script diagnostic should target scripts object line');
+  const lspScript = packageDiagnostics.find((diagnostic) => String(diagnostic.message).includes('Nova LSP script detected: lsp:policy-smoke'));
+  assert(lspScript, 'LSP script detection diagnostic should be present');
+  assert(lspScript?.range.start.line === 3, 'LSP script diagnostic should target the script key line');
+
   const lensDoc: MinimalDocument = {
     uri: 'file:///nova-lsp-codelens.md',
     getText: () => ['# CodeLens', 'nova_mcp_capabilities', 'nova://mcp/transport-readiness', 'lsp-v1-1-source-derived-metadata'].join('\n'),

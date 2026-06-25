@@ -20,6 +20,8 @@ Status: richer metadata extraction implemented for MCP source registrations. The
 
 Status: first read-only CodeLens slice implemented. The LSP advertises CodeLens metadata hints for known Nova references, using only `nova.lsp.showToolMetadata`, `nova.lsp.showRelatedDocs`, and `nova.lsp.showEvalScenario`; no edits, code actions, write commands, shell commands, or `WorkspaceEdit` are added.
 
+Status: precise package diagnostics slice implemented. Missing expected script diagnostics now target the `scripts` object, discovered `lsp:*` scripts produce informational diagnostics on the script key, and policy smoke/eval coverage validates the ranges without adding mutating capabilities.
+
 Still out of scope:
 
 - Write commands.

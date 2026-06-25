@@ -123,7 +123,8 @@
   - [x] V1.1: résumé télémétrie sanitizé metadata-only (`nova.lsp.showTelemetrySummary`)
   - [x] V1.1: extraction metadata plus riche depuis les registrations MCP source
   - [x] V1.1: CodeLens metadata read-only sans actions ni edits
-  - [ ] V1.1 future: diagnostics de range plus précis
+  - [x] V1.1: diagnostics package.json plus précis pour scripts Nova/LSP
+  - [ ] V1.1 future: diagnostics de range source/docs plus précis
 
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel
