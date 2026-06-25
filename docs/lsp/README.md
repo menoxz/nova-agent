@@ -17,6 +17,7 @@ npm run eval:lsp
 - Read-only by default.
 - Provides Nova metadata intelligence for package scripts, known tools/resources/prompts, documentation, eval suites/scenarios, and security policy.
 - Provides read-only CodeLens hints for known Nova metadata.
+- Provides sanitized aggregate telemetry and diagnostics summary commands.
 - No file writes, shell execution, `WorkspaceEdit`, or autonomous self-rewrite.
 - Raw `.nova/traces`, `.nova/evals`, `.nova/reports`, `.env`, `.git`, `node_modules`, private keys, and secret-like paths/content are denied.
 
@@ -41,6 +42,18 @@ The read-only command `nova.lsp.showTelemetrySummary` returns aggregate metadata
 
 It explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`. It does not expose document text, raw diagnostics, opened document URIs, configured root paths, or secret-like content.
 
+## Sanitized diagnostics summary
+
+The read-only command `nova.lsp.showDiagnosticsSummary` returns aggregate diagnostics/index health metadata only:
+
+- total metadata items and package script counts;
+- expected package script coverage and missing expected script names;
+- duplicate metadata label count;
+- non-read-only item count;
+- validation commands for `lsp:policy-smoke`, `lsp:smoke`, and `eval:lsp`.
+
+It explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`. It does not expose document text, raw diagnostics arrays, opened document URIs, configured root paths, or secret-like content.
+
 ## Source-derived metadata
 
 V1.1 derives additional MCP tool/resource/prompt metadata from `src/mcp/server.ts` registrations. These entries are tagged `source-derived` and supplement the curated baseline constants, reducing drift between the LSP metadata index and the MCP server surface.
@@ -64,5 +77,6 @@ CodeLens does not provide edits, code actions, shell commands, writes, or `Works
 - `src/lsp/metadata.ts` — safe metadata index.
 - `src/lsp/policy.ts` — allowlist, denylist, redaction, output caps.
 - `src/lsp/telemetry.ts` — sanitized aggregate telemetry summary builder.
+- `src/lsp/diagnostics_summary.ts` — sanitized aggregate diagnostics/index health summary builder.
 - `src/lsp/diagnostics.ts` — diagnostics for missing scripts and sensitive artifact mentions.
 - `src/lsp/smoke.ts` — protocol smoke test.

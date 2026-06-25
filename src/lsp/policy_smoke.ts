@@ -9,6 +9,7 @@ import { createCapabilities } from './capabilities.js';
 import { runReadOnlyCommand } from './commands.js';
 import { buildLspTelemetrySummary } from './telemetry.js';
 import { codeLensesFor } from './code_lens.js';
+import { buildLspDiagnosticsSummary } from './diagnostics_summary.js';
 
 type MinimalDocument = {
   uri: string;
@@ -20,8 +21,10 @@ async function main(): Promise<void> {
   assert(metadata.items.length > 0, 'metadata index should not be empty');
   assert(metadata.byId.has('command:nova.lsp.showSetupGuide'), 'setup command metadata missing');
   assert(metadata.byId.has('command:nova.lsp.showTelemetrySummary'), 'telemetry command metadata missing');
+  assert(metadata.byId.has('command:nova.lsp.showDiagnosticsSummary'), 'diagnostics summary command metadata missing');
   assert(metadata.byId.has('policy:lsp-v1-1-client-setup'), 'client setup policy metadata missing');
   assert(metadata.byId.has('policy:lsp-v1-1-telemetry-summary'), 'telemetry summary policy metadata missing');
+  assert(metadata.byId.has('policy:lsp-v1-1-diagnostics-summary'), 'diagnostics summary policy metadata missing');
   assert(metadata.byId.has('mcp-tool:nova_mcp_capabilities'), 'source-derived MCP tool metadata missing');
   assert(metadata.byId.has('mcp-resource:nova://mcp/transport-readiness'), 'source-derived MCP resource metadata missing');
   assert(metadata.byId.has('mcp-prompt:nova_mcp_client_setup'), 'source-derived MCP prompt metadata missing');
@@ -65,6 +68,22 @@ async function main(): Promise<void> {
   assert.equal(telemetryCommand.ok, true, 'telemetry command should succeed');
   assert.equal(telemetryCommand.readOnly, true, 'telemetry command should be read-only');
   assert.equal(telemetryCommand.summary?.contentPolicy.documentContentIncluded, false, 'telemetry command must omit document content');
+
+  const diagnosticsDirect = buildLspDiagnosticsSummary(metadata, '2026-01-01T00:00:00.000Z');
+  assert.equal(diagnosticsDirect.contentPolicy.documentContentIncluded, false, 'diagnostics summary must omit document content');
+  assert.equal(diagnosticsDirect.contentPolicy.rawDiagnosticsIncluded, false, 'diagnostics summary must omit raw diagnostics');
+  assert.equal(diagnosticsDirect.contentPolicy.uriIncluded, false, 'diagnostics summary must omit URIs');
+  assert.equal(diagnosticsDirect.contentPolicy.rootPathsIncluded, false, 'diagnostics summary must omit root paths');
+  assert.equal(diagnosticsDirect.contentPolicy.secretsIncluded, false, 'diagnostics summary must omit secrets');
+  assert.equal(diagnosticsDirect.policy.workspaceEdit, false, 'diagnostics summary should preserve no WorkspaceEdit posture');
+  assert.deepEqual(diagnosticsDirect.metadata.missingExpectedScripts, [], 'diagnostics summary should report no missing expected scripts');
+  assert(diagnosticsDirect.validation.includes('npm run lsp:policy-smoke'), 'diagnostics summary missing policy smoke validation');
+
+  const diagnosticsCommand = runReadOnlyCommand({ command: 'nova.lsp.showDiagnosticsSummary', arguments: [] }, metadata) as { ok?: boolean; readOnly?: boolean; summary?: typeof diagnosticsDirect };
+  assert.equal(diagnosticsCommand.ok, true, 'diagnostics summary command should succeed');
+  assert.equal(diagnosticsCommand.readOnly, true, 'diagnostics summary command should be read-only');
+  assert.equal(diagnosticsCommand.summary?.kind, 'lsp_diagnostics_summary', 'diagnostics summary command should return expected kind');
+  assert.equal(diagnosticsCommand.summary?.contentPolicy.rawDiagnosticsIncluded, false, 'diagnostics command must omit raw diagnostics');
 
   const unknown = runReadOnlyCommand({ command: 'nova.lsp.writeFile', arguments: ['unsafe'] }, metadata) as { ok?: boolean; error?: string };
   assert.equal(unknown.ok, false, 'write-like commands should be denied');

@@ -1,5 +1,23 @@
 # Project Status
 
+## LSP V1.1 sanitized diagnostics summary — 2026-06-25
+
+Status: implemented locally (aggregate metadata only; no document content, raw diagnostics, URIs, root paths, secrets, write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Added `src/lsp/diagnostics_summary.ts` with `buildLspDiagnosticsSummary()`.
+- Added read-only command `nova.lsp.showDiagnosticsSummary` to expose aggregate diagnostics/index health metadata.
+- Summary reports metadata item count, package script/expected script posture, missing expected scripts, duplicate label count, non-read-only item count, read-only stdio policy, and validation commands.
+- Summary explicitly reports `documentContentIncluded: false`, `rawDiagnosticsIncluded: false`, `uriIncluded: false`, `rootPathsIncluded: false`, and `secretsIncluded: false`.
+- Reinforced `lsp:smoke`, `lsp:policy-smoke`, and `eval:lsp` coverage.
+- Updated LSP README, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## Security read-only matrix V1.1 coverage diagnostics — 2026-06-25
 
 Status: implemented locally with metadata-only security matrix, package-script coverage, and doctor diagnostics; no LLM/tool invocation, network, secret reads, or file writes.

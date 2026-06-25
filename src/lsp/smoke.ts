@@ -138,6 +138,16 @@ async function main(): Promise<void> {
     assert(telemetryText.includes('"secretsIncluded":false'), 'telemetry summary must omit secrets');
     assert(telemetryText.includes('lsp:policy-smoke'), 'telemetry summary should include policy-smoke validation');
 
+    const diagnosticsSummaryResult = await send('workspace/executeCommand', { command: 'nova.lsp.showDiagnosticsSummary', arguments: [] });
+    const diagnosticsSummaryText = JSON.stringify(diagnosticsSummaryResult.result);
+    assert(diagnosticsSummaryText.includes('lsp_diagnostics_summary'), 'diagnostics summary missing kind');
+    assert(diagnosticsSummaryText.includes('missingExpectedScripts'), 'diagnostics summary missing package script posture');
+    assert(diagnosticsSummaryText.includes('"rawDiagnosticsIncluded":false'), 'diagnostics summary must omit raw diagnostics');
+    assert(diagnosticsSummaryText.includes('"documentContentIncluded":false'), 'diagnostics summary must omit document content');
+    assert(diagnosticsSummaryText.includes('"uriIncluded":false') && diagnosticsSummaryText.includes('"rootPathsIncluded":false'), 'diagnostics summary must omit URIs/root paths');
+    assert(diagnosticsSummaryText.includes('"secretsIncluded":false'), 'diagnostics summary must omit secrets');
+    assert(diagnosticsSummaryText.includes('lsp:policy-smoke'), 'diagnostics summary should include policy-smoke validation');
+
     for (const deniedCommand of ['nova.lsp.writeFile', 'nova.lsp.shell', 'nova.lsp.unknown']) {
       const deniedResult = await send('workspace/executeCommand', { command: deniedCommand, arguments: ['echo unsafe'] });
       const denial = deniedResult.result as CommandDenial;

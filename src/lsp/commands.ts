@@ -5,6 +5,7 @@ import { capText, DENIED_MESSAGE } from './policy.js';
 import { formatMetadataItem, LSP_COMMANDS } from './metadata.js';
 import type { NovaMetadataIndex } from './metadata.js';
 import { buildLspTelemetrySummary } from './telemetry.js';
+import { buildLspDiagnosticsSummary } from './diagnostics_summary.js';
 
 function argString(params: ExecuteCommandParams, fallback = ''): string {
   const first = params.arguments?.[0];
@@ -75,6 +76,10 @@ export function runReadOnlyCommand(params: ExecuteCommandParams, metadata: NovaM
 
   if (params.command === 'nova.lsp.showTelemetrySummary') {
     return { ok: true, readOnly: true, summary: buildLspTelemetrySummary(metadata) };
+  }
+
+  if (params.command === 'nova.lsp.showDiagnosticsSummary') {
+    return { ok: true, readOnly: true, summary: buildLspDiagnosticsSummary(metadata) };
   }
 
   return { ok: false, error: 'Unsupported Nova LSP command.' };

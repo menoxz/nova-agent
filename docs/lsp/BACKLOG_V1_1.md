@@ -26,6 +26,8 @@ Status: precise duplicate metadata diagnostics slice implemented. Duplicate Nova
 
 Status: structural Markdown denied-link diagnostics slice implemented. Markdown local link targets are inspected with the shared denylist, denied targets such as `.env` and raw `.nova/evals` paths are flagged on the target range, HTTP links and anchors stay outside local denylist scope, and no mutating capabilities are added.
 
+Status: sanitized diagnostics summary slice implemented. The read-only `nova.lsp.showDiagnosticsSummary` command exposes aggregate diagnostics/index health metadata only: package script coverage posture, duplicate label count, non-read-only item count, read-only stdio/no-WorkspaceEdit policy, and validation commands. It omits document content, raw diagnostics, URIs, root paths, and secrets.
+
 Still out of scope:
 
 - Write commands.

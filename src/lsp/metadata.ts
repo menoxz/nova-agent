@@ -24,6 +24,10 @@ export type NovaMetadataIndex = {
   generatedAt: string;
   packageScripts: string[];
   evalSuites: string[];
+  expectedScripts: string[];
+  missingExpectedScripts: string[];
+  duplicateLabels: Array<{ label: string; ids: string[] }>;
+  nonReadOnlyItems: Array<{ id: string; label: string; kind: MetadataKind }>;
 };
 
 export const LSP_COMMANDS = [
@@ -33,6 +37,7 @@ export const LSP_COMMANDS = [
   'nova.lsp.showEvalScenario',
   'nova.lsp.showSetupGuide',
   'nova.lsp.showTelemetrySummary',
+  'nova.lsp.showDiagnosticsSummary',
 ] as const;
 
 export const EXPECTED_SCRIPTS = ['lsp:stdio', 'lsp:smoke', 'eval:lsp', 'mcp:stdio', 'mcp:smoke', 'eval:mcp', 'eval:smoke', 'eval:core', 'typecheck'] as const;
@@ -138,7 +143,17 @@ const POLICY_ITEMS: NovaMetadataItem[] = [
   { id: 'policy:denylist', label: 'Nova LSP denylist', kind: 'policy', detail: 'Denies .env, .git, node_modules, raw .nova traces/evals/reports, private keys, and secret-like paths/content.', readOnly: true },
   { id: 'policy:lsp-v1-1-client-setup', label: 'Nova LSP V1.1 client setup policy', kind: 'policy', detail: 'Client setup guidance is metadata-only and keeps stdio, read-only commands, and no WorkspaceEdit as defaults.', documentation: 'VS Code and Neovim examples must start npm run lsp:stdio or node dist/lsp/server.js over stdio only; they must not grant shell/write commands.', readOnly: true },
   { id: 'policy:lsp-v1-1-telemetry-summary', label: 'Nova LSP V1.1 telemetry summary policy', kind: 'policy', detail: 'Telemetry summaries are aggregate metadata only and omit document content, raw diagnostics, URIs, root paths, and secrets.', documentation: 'Use nova.lsp.showTelemetrySummary for safe counts and policy posture; do not expose open-document text or raw sensitive artifacts.', readOnly: true },
+  { id: 'policy:lsp-v1-1-diagnostics-summary', label: 'Nova LSP V1.1 diagnostics summary policy', kind: 'policy', detail: 'Diagnostics summaries expose aggregate metadata/index posture only and omit document content, URIs, root paths, raw diagnostics, and secrets.', documentation: 'Use nova.lsp.showDiagnosticsSummary for safe health counts and missing expected package scripts without exposing open-document contents.', readOnly: true },
 ];
+
+function duplicateLabelSummary(items: NovaMetadataItem[]): Array<{ label: string; ids: string[] }> {
+  const labels = new Map<string, string[]>();
+  for (const item of items) labels.set(item.label, [...(labels.get(item.label) ?? []), item.id]);
+  return Array.from(labels.entries())
+    .filter(([, ids]) => ids.length > 1)
+    .map(([label, ids]) => ({ label, ids: ids.sort() }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 
 async function loadPackageScripts(): Promise<NovaMetadataItem[]> {
   const text = await readSafeTextFile('package.json');
@@ -209,7 +224,18 @@ export async function buildMetadataIndex(): Promise<NovaMetadataIndex> {
   const commands = LSP_COMMANDS.map((command) => ({ id: `command:${command}`, label: command, kind: 'command' as const, detail: 'LSP V1 read-only executeCommand provider command.', readOnly: true }));
   const items = [...scripts, ...BUILTIN_TOOLS, ...RESOURCE_ITEMS, ...PROMPT_ITEMS, ...sourceDerivedMcp, ...docs, ...evalItems(), ...POLICY_ITEMS, ...commands];
   const byId = new Map(items.map((item) => [item.id, item]));
-  return { items, byId, generatedAt: new Date().toISOString(), packageScripts: scripts.map((script) => script.id.slice('script:'.length)), evalSuites: listSuites().map((suite) => suite.name) };
+  const packageScripts = scripts.map((script) => script.id.slice('script:'.length));
+  return {
+    items,
+    byId,
+    generatedAt: new Date().toISOString(),
+    packageScripts,
+    evalSuites: listSuites().map((suite) => suite.name),
+    expectedScripts: [...EXPECTED_SCRIPTS],
+    missingExpectedScripts: EXPECTED_SCRIPTS.filter((script) => !packageScripts.includes(script)),
+    duplicateLabels: duplicateLabelSummary(items),
+    nonReadOnlyItems: items.filter((item) => !item.readOnly).map(({ id, label, kind }) => ({ id, label, kind })),
+  };
 }
 
 export function findMetadataAtText(text: string, index: NovaMetadataIndex): NovaMetadataItem | undefined {
