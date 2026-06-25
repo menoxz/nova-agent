@@ -1,6 +1,6 @@
 # Provider Live Smoke Readiness Plan V1
 
-This plan prepares Nova for a future provider live smoke while keeping the current work local, offline, metadata-only, and mock-only. It does **not** authorize or implement any live provider/LLM call.
+This plan prepares Nova for a provider live smoke while keeping default work local, offline, metadata-only, and mock-only. A real live smoke remains gated by explicit operator authorization plus environment preconditions.
 
 ## Safety boundaries
 
@@ -8,7 +8,7 @@ This plan prepares Nova for a future provider live smoke while keeping the curre
 - Do not read or edit `.env`, secrets, credentials, prompts, raw `.nova/traces`, raw `.nova/evals`, or raw `.nova/reports`.
 - Use only static provider metadata, synthetic adapter/error fixtures, sanitized docs, and mock evals.
 - `providers doctor` may report `LLM_API_KEY` presence or absence only; it must never print a key value.
-- Future live smoke remains blocked until an operator gives explicit per-run authorization after all offline gates pass.
+- Live smoke remains blocked unless an operator gives explicit per-run authorization **and** `NOVA_ENABLE_LIVE_LLM=1|true` plus `LLM_API_KEY` are present in the process environment.
 
 ## Inventory to verify offline
 
@@ -95,6 +95,23 @@ A future live smoke is still out of scope unless all criteria below are met in a
 5. The run has an abort threshold for auth errors, rate limits, endpoint mismatch, network errors, unexpected tool calls, or secret exposure.
 6. The evidence path is sanitized and excludes raw prompts, raw traces, raw eval reports, and secret-bearing logs.
 
+## Current gated live-smoke command
+
+```bash
+npm run llm:live-smoke
+```
+
+Safety contract:
+
+- refuses with exit `0` unless both `NOVA_ENABLE_LIVE_LLM=1|true` and `LLM_API_KEY` are present;
+- performs exactly one `generateText()` request when gates are present;
+- tools are omitted/disabled, no `stopWhen`, max `64` output tokens, `temperature=0`, `maxRetries=0`;
+- expected sentinel is `NOVA_LIVE_OK`;
+- output is sanitized: adapter, provider/model constants, HTTP status class, sentinel boolean, usage counts, finish reason;
+- failures are classified by kind/status class and never print raw provider bodies or credential values.
+
+Most recent gate check: the command skipped cleanly because the process environment had no live opt-in flag and no API key. To run a real smoke, set the two environment variables in your shell without logging or documenting the key value, then rerun the command.
+
 ## Failure modes and abort criteria
 
 - Abort if a command reads `.env`, prints a secret, opens raw `.nova/traces`, raw `.nova/evals`, or raw `.nova/reports`, or requests credentials.
@@ -106,8 +123,7 @@ A future live smoke is still out of scope unless all criteria below are met in a
 
 ## Explicit out of scope
 
-- No actual live smoke implementation.
-- No live provider/LLM/network call.
+- No ungated live provider/LLM/network call.
 - No `.env`, secrets, credentials, prompts, raw `.nova/traces`, raw `.nova/evals`, or raw `.nova/reports` reads/edits.
 - No tools live, daemon, autonomy, publish, tag, push, or PR.
 - No major provider/LLM architecture refactor.

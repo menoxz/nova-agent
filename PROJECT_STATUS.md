@@ -1,5 +1,23 @@
 # Project Status
 
+## Live LLM smoke gate check — 2026-06-25
+
+Status: live provider call not executed because the required opt-in environment was absent; gate refusal was clean and secret-free.
+
+### Evidence
+
+- Prerequisite presence check only printed booleans: `hasKey=false`, `liveFlag=false`, `providerEnvSet=false`, `modelEnvSet=false`.
+- `npm run llm:live-smoke` exited 0 with `llm:live-smoke skipped — NOVA_ENABLE_LIVE_LLM is not set to 1|true (live calls are opt-in only)`.
+- No key value, `.env`, raw provider body, raw `.nova` artifact, tool call, write/shell, daemon/autonomy, publish, tag, release, PR, or public network mutation was exposed or enabled.
+
+### Exact operator instructions to run a real live smoke
+
+1. Provide the credential only through the process environment; do not paste it into chat, docs, logs, shell history, or repo files.
+2. Set `NOVA_ENABLE_LIVE_LLM=1` (or `true`) and `LLM_API_KEY` in the same shell process.
+3. Run `npm run llm:live-smoke` from the repository.
+4. Expected safe success evidence: `result: SUCCESS — transport HTTP 2xx`, `NOVA_LIVE_OK-returned=true`, token usage counts, `finishReason`, and `llm:live-smoke passed`.
+5. The smoke is one request, tools disabled, max 64 output tokens, temperature 0, maxRetries 0; failures are sanitized by kind/status class only.
+
 ## User install rehearsal and live-smoke gate check — 2026-06-25
 
 Status: validated locally with an isolated temp-directory tarball install; temp artifacts cleaned; live provider smoke skipped safely because required opt-in env/credential were not present.
