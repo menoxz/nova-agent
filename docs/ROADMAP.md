@@ -90,6 +90,7 @@
 - [ ] **Configuration avancée**
   - Fichier de config YAML/JSON
   - [x] Agent Profiles V1 foundation (`src/profiles`, built-ins, runtime resolution, smoke/eval)
+  - [x] Agent Profiles V1.1 CLI catalogue/doctor metadata-only (`nova profiles list/show/doctor`)
   - [ ] Future product/env profiles (dev, prod, test) layered on top of Agent Profiles
 
 ## 🚀 Itération 4 — Production

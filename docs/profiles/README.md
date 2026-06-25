@@ -11,8 +11,21 @@ Use a profile with either:
 ```bash
 NOVA_PROFILE=nova.security npm run dev
 npx tsx src/index.ts --profile nova.builder "Inspect this repository"
+npx tsx src/index.ts profiles list
+npx tsx src/index.ts profiles show nova.security
+npx tsx src/index.ts profiles doctor
 npm run eval:profiles
 ```
+
+## CLI catalogue / doctor
+
+Profiles V1.1 exposes a metadata-only CLI surface:
+
+- `nova profiles list` lists built-in profile metadata only (id, version, name, objective, tags, source, hash, policy profile, runtime mode, compatible roles).
+- `nova profiles show <id>` shows one sanitized metadata record.
+- `nova profiles doctor [id]` validates all built-ins or one profile for schema validity, policy profile resolution, secret-like material, deny-list precedence, and absence of default `write_file`/`bash`/`shell`/`exec` effective tools.
+
+These commands do not invoke the LLM, execute tools, read `.env`, print secrets, or mutate profile files.
 
 ## Module layout
 
@@ -28,3 +41,4 @@ The foundation lives in `src/profiles/`: types, Zod schema, built-in defaults, c
 - Import/export helpers resolve relative paths inside the custom profiles root (or a supplied `rootDir`) and reject traversal or absolute paths outside that root.
 - Policy profiles remain authoritative for execution; write/shell/high-risk actions require approval semantics.
 - Secret-like profile keys/values are rejected by validation/import/custom loading.
+- Profile catalogue/doctor commands are read-only metadata operations and keep risky capabilities visible as diagnostics only.

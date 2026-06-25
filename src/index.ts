@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { LLMConfig, AgentConfig, StepDisplay } from './types.js';
 import { resolveConfigProfile } from './profiles/index.js';
+import { handleProfilesCommand } from './profiles/cli.js';
 import { ApprovalManager } from './approval/index.js';
 import { ConversationStore, CurrentSessionStore, RunReplayManager, RunResumeManager, SessionStore } from './session/index.js';
 import { explainProjectConfig, initProjectConfig, readProjectConfig, sanitizeConfigForDisplay, sanitizeProjectLoadResultForDisplay } from './config/index.js';
@@ -696,6 +697,7 @@ async function main() {
   if (await handleEvalCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
   if (await handleProvidersCommand(rawArgs)) return;
+  if (await handleProfilesCommand(rawArgs)) return;
   if (await handleSubagentsCommand(rawArgs)) return;
   if (await handleBatchCommand(undefined, rawArgs)) return;
   await loadDotenvOnce();

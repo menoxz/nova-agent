@@ -11,3 +11,4 @@ export * from './migrations.js';
 export * from './import_export.js';
 export * from './audit.js';
 export * from './security.js';
+export * from './doctor.js';

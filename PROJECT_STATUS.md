@@ -1,5 +1,24 @@
 # Project Status
 
+## Agent Profiles V1.1 CLI catalogue/doctor — 2026-06-25
+
+Status: implemented locally with metadata-only profile listing, lookup, and diagnostics; no LLM/tool invocation, secret reads, write/shell capability, or profile mutation.
+
+### Delivered
+
+- Added `nova profiles list` for sanitized built-in profile catalogue metadata.
+- Added `nova profiles show <id>` for a single sanitized metadata record.
+- Added `nova profiles doctor [id]` for schema/policy/safety diagnostics across all built-ins or one profile.
+- Doctor checks secret-like material, default write/shell effective tools, deny-list precedence, policy profile id, and compatible roles without printing secrets.
+- Wired profiles CLI help, smoke coverage, `profiles:smoke`, `eval:profiles`, and check gates.
+- Updated profiles docs, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run cli:smoke`, `npm run profiles:smoke`, and `npm run eval:profiles` exit 0.
+- CLI smoke verified `nova profiles list`, `nova profiles show nova.security`, and `nova profiles doctor` without requiring `LLM_API_KEY`.
+- `npm run build && npm run check` exits 0.
+
 ## Sub-agent Orchestration V1.1 CLI planning — 2026-06-25
 
 Status: implemented locally with metadata-only role inventory and DAG planning CLI; no worker execution, LLM/tool invocation, write/shell/MCP grant, or recursive delegation.

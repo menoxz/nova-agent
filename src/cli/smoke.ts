@@ -37,6 +37,7 @@ async function main(): Promise<void> {
   assertOkHelp(['help'], ['Topics', 'streaming', 'conversations']);
   assertOkHelp(['streaming', '--help'], ['streaming', 'streaming replay <logId>', '--thinking']);
   assertOkHelp(['providers', '--help'], ['providers list', 'providers doctor', 'Fallback is opt-in']);
+  assertOkHelp(['profiles', '--help'], ['profiles list', 'profiles doctor', 'metadata-only']);
   assertOkHelp(['config', '--help'], ['config show', 'Precedence', 'never secrets']);
   assertOkHelp(['sessions', '--help'], ['sessions list', 'sessions current']);
   assertOkHelp(['runs', '--help'], ['runs replay', 'resume-current']);
@@ -61,6 +62,11 @@ async function main(): Promise<void> {
   assert.equal(providerDoctor.status, 0, 'providers doctor exits 0 without LLM key');
   assert.match(providerDoctor.stdout, /"status": "missing"/, 'providers doctor reports missing key without value');
   assert.doesNotMatch(providerDoctor.stderr + providerDoctor.stdout, /LLM_API_KEY not set/, 'providers doctor does not reach LLM key check');
+
+  const profilesDoctor = runNova(['profiles', 'doctor']);
+  assert.equal(profilesDoctor.status, 0, 'profiles doctor exits 0 without LLM key');
+  assert.match(profilesDoctor.stdout, /"ok": true/, 'profiles doctor reports ok');
+  assert.doesNotMatch(profilesDoctor.stderr + profilesDoctor.stdout, /LLM_API_KEY not set/, 'profiles doctor does not reach LLM key check');
 
   console.log('cli:smoke passed');
 }

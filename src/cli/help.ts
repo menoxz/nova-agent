@@ -1,8 +1,8 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents'];
 
 const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget']);
 const knownBooleanFlags = new Set([
@@ -67,6 +67,7 @@ function globalHelp(): string {
       ['tui', 'Terminal UI prototype for event-log replay.'],
       ['streaming', 'Live output, event logs, replay.'],
       ['providers', 'Provider/model profiles and safe diagnostics.'],
+      ['profiles', 'Agent profile catalogue and safe validation diagnostics.'],
       ['config', 'Project config show/init/validate/explain.'],
       ['sessions', 'List/show/current/use local sessions.'],
       ['runs', 'List/show/replay/report/resume runs.'],
@@ -238,6 +239,26 @@ function providersHelp(): string {
   ].join('\n');
 }
 
+function profilesHelp(): string {
+  return [
+    'Nova CLI help — profiles',
+    '',
+    section('Commands', [
+      ['nova profiles list', 'List built-in agent profiles as sanitized metadata.'],
+      ['nova profiles show <id>', 'Show one sanitized profile metadata record.'],
+      ['nova profiles doctor [id]', 'Validate all profiles or one profile for schema, policy and safe tool posture.'],
+    ]),
+    '',
+    section('Safety checks', [
+      ['schema/policy', 'Profile schema validates and referenced policy profile exists.'],
+      ['secrets', 'Secret-like material is detected and reported without printing values.'],
+      ['tools', 'Effective tools must not include write_file or bash/shell/exec by default.'],
+    ]),
+    '',
+    'Profiles commands are metadata-only and do not invoke LLM/tools or read secrets.',
+  ].join('\n');
+}
+
 function sessionsHelp(): string {
   return [
     'Nova CLI help — sessions',
@@ -403,6 +424,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'tui': return tuiHelp();
     case 'streaming': return streamingHelp();
     case 'providers': return providersHelp();
+    case 'profiles': return profilesHelp();
     case 'config': return configHelp();
     case 'sessions': return sessionsHelp();
     case 'runs': return runsHelp();

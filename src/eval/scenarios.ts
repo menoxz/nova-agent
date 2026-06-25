@@ -340,9 +340,9 @@ export const defaultScenarios: EvalScenario[] = [
   {
     id: 'profiles-v1-foundation',
     name: 'Agent Profiles V1 foundation',
-    description: 'Agent Profiles should validate built-ins, reject secrets, preserve policy safety, expose trace/eval attribution, and keep tool deny precedence.',
+    description: 'Agent Profiles should validate built-ins, expose metadata-only catalogue/doctor CLI diagnostics, reject secrets, preserve policy safety, expose trace/eval attribution, and keep tool deny precedence.',
     tags: ['profiles', 'safety', 'runtime'],
-    prompt: 'Verify Nova Agent Profiles V1: built-ins validate, stable hashes exist, secret-like profile material is rejected, unknown policy profile fails, tool deny wins, subagent role compatibility exists, AgentConfig resolves with profile metadata, and trace/eval metadata carries the profile. Do not modify files.',
+    prompt: 'Verify Nova Agent Profiles V1/V1.1: built-ins validate, profiles list/show/doctor CLI surfaces are metadata-only and work without LLM/tools/secrets, stable hashes exist, secret-like profile material is rejected/detected, unknown policy profile fails, tool deny wins, subagent role compatibility exists, AgentConfig resolves with profile metadata, and trace/eval metadata carries the profile. Do not modify files.',
     expectedAnyTools: ['profiles:smoke', 'read_file', 'grep'],
     forbiddenTools: ['write_file', 'bash'],
     maxToolCalls: 8,
@@ -350,7 +350,7 @@ export const defaultScenarios: EvalScenario[] = [
     requiredAnswerIncludes: ['Profiles', 'validate', 'metadata'],
     mock: {
       tools: ['profiles:smoke'],
-      finalAnswer: 'Profiles V1 validates all built-ins, produces stable hashes, rejects secret-like material, fails unknown policy profiles, applies tool deny precedence, maps subagent compatibility, resolves AgentConfig with profile metadata, and includes profile metadata in trace/eval reports.',
+      finalAnswer: 'Profiles V1/V1.1 validates all built-ins, exposes metadata-only profiles list/show/doctor CLI diagnostics without LLM/tools/secrets, produces stable hashes, rejects/detects secret-like material, fails unknown policy profiles, applies tool deny precedence, maps subagent compatibility, resolves AgentConfig with profile metadata, and includes profile metadata in trace/eval reports.',
     },
   },
   {
