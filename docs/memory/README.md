@@ -1,8 +1,8 @@
-# Nova Memory/Knowledge V1
+# Nova Memory/Knowledge with Local RAG
 
-Memory/Knowledge V1 turns Nova's current in-memory conversation buffer into a local-first, policy-gated knowledge system. It is designed from real Nova usage: profiles, subagents, policy decisions, trace/eval evidence, tool behavior, and durable project knowledge should help future runs without creating uncontrolled global memory or storing sensitive artifacts.
+Memory/Knowledge turns Nova's current in-memory conversation buffer into a local-first, policy-gated knowledge system with deterministic local RAG retrieval. It is designed from real Nova usage: profiles, subagents, policy decisions, trace/eval evidence, tool behavior, and durable project knowledge should help future runs without creating uncontrolled global memory or storing sensitive artifacts.
 
-V1 is implemented in `src/memory/` as a local JSON baseline. It remains local-first and policy-gated; vector/remote memory is intentionally out of scope for V1.
+The module is implemented in `src/memory/` as local JSON persistence plus a rebuildable `_rag_index.json` using dependency-free BM25-like chunk scoring. It remains local-first and policy-gated; remote/vector databases are not required for the final local RAG behavior.
 
 ## Goals
 
@@ -17,7 +17,7 @@ V1 is implemented in `src/memory/` as a local JSON baseline. It remains local-fi
 - No uncontrolled global memory shared across unrelated projects.
 - No raw `.nova/traces`, `.nova/evals`, `.nova/reports`, `.env`, private keys, tool dumps, or unreviewed prompts stored as memory items.
 - No automatic self-modification or silent prompt edits based on memories.
-- No vector database dependency in V1; V1 must work with local JSON files and deterministic indexing first.
+- No remote vector database dependency; local deterministic RAG must work from JSON files and rebuildable indexes first.
 - No remote sync by default.
 
 ## Memory types
@@ -74,7 +74,16 @@ V1 starts with curated local collections, all under `.nova/memory/collections/` 
 - `imports_quarantine`: imported memories pending validation, redaction, and approval.
 - `archive`: inactive memories retained for audit or historical rationale.
 
-## V1 acceptance summary
+## Local RAG behavior
+
+- `items/` JSON files remain the source of truth.
+- `_index.json` stores safe metadata for lifecycle/scope/filtering.
+- `_rag_index.json` stores sanitized chunks, term frequencies, document frequencies, and an integrity hash.
+- Retrieval first applies policy/scope/collection/security filters, then blends metadata ranking with local RAG chunk hits.
+- RAG snippets are injected only inside the existing untrusted memory wrapper.
+- The CLI exposes `nova memory add|list|show|search|retrieve|rag status|rag rebuild|rag search|doctor` without invoking the LLM.
+
+## Acceptance summary
 
 Memory/Knowledge V1 is acceptable only when:
 
@@ -82,4 +91,5 @@ Memory/Knowledge V1 is acceptable only when:
 2. Writes follow propose -> validate -> secret scan -> raw artifact reject -> redact -> duplicate/hash -> policy gate -> approval -> persist -> audit.
 3. Retrieval wraps all persisted memory as untrusted context and obeys profile/policy/token budgets.
 4. Persistence supports schema versioning, migrations, stable fingerprints, atomic writes, and index rebuild.
-5. Smoke/eval coverage proves secrets/raw artifacts are refused and useful scoped memories are retrieved.
+5. Local RAG search ranks relevant chunks without external services or dependencies.
+6. Smoke/eval coverage proves secrets/raw artifacts are refused and useful scoped memories are retrieved.

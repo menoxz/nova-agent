@@ -1,10 +1,10 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory'];
 
-const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at']);
+const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget']);
 const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
@@ -74,6 +74,7 @@ function globalHelp(): string {
       ['conversations', 'Show/summary/compact stored conversations.'],
       ['heartbeat', 'Safe disabled-by-default planning ticks for autonomous-task metadata.'],
       ['eval', 'Read-only local eval report list/summary/compare commands.'],
+      ['memory', 'Persistent local memory and RAG retrieval commands.'],
     ]),
     '',
     section('Main flags', [
@@ -355,6 +356,27 @@ function evalHelp(): string {
   ].join('\n');
 }
 
+function memoryHelp(): string {
+  return [
+    'Nova CLI help — memory',
+    '',
+    section('Commands', [
+      ['nova memory list', 'List memory index metadata and collections.'],
+      ['nova memory show <id>', 'Show one memory item with large body omitted.'],
+      ['nova memory add --title <t> --summary <s>', 'Persist a sanitized memory through policy/redaction/duplicate gates.'],
+      ['nova memory search <query>', 'Retrieve ranked memory cards with local RAG scoring.'],
+      ['nova memory retrieve <query>', 'Print the untrusted memory context block for a query.'],
+      ['nova memory rag status', 'Show local RAG index metadata.'],
+      ['nova memory rag rebuild', 'Rebuild the local deterministic RAG index.'],
+      ['nova memory rag search <query>', 'Search local memory chunks with deterministic BM25-like scoring.'],
+      ['nova memory rebuild-index', 'Rebuild the metadata index from item files.'],
+      ['nova memory doctor', 'Validate item hashes and rebuild indexes safely.'],
+    ]),
+    '',
+    'Memory commands are local-only. They reject secrets/raw .nova/.env artifacts, apply policy gates, and never invoke the LLM.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -368,6 +390,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'conversations': return conversationsHelp();
     case 'heartbeat': return heartbeatHelp();
     case 'eval': return evalHelp();
+    case 'memory': return memoryHelp();
     case 'global': return globalHelp();
   }
 }

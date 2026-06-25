@@ -1,11 +1,11 @@
-# Memory/Knowledge V1.1 Backlog
+# Memory/Knowledge Backlog
 
 V1.1 should build on a complete, secure V1 baseline. Do not start these items until scoped persistence, retrieval, lifecycle, security, and eval acceptance are implemented and passing.
 
 ## Retrieval improvements
 
-- Optional local embeddings/vector index for large repositories, behind feature flag and with deterministic JSON fallback.
-- Hybrid ranking that blends BM25/keyword, metadata, and embeddings.
+- Optional embeddings/vector index for very large repositories, behind feature flag and with deterministic local RAG fallback.
+- Hybrid ranking that blends local BM25/keyword, metadata, and optional embeddings.
 - Conflict clustering and side-by-side surfacing of competing decisions.
 - Better source-aware freshness checks from git/docs changes.
 

@@ -46,6 +46,7 @@ import type { TuiReplayMode } from './tui/index.js';
 import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime, listProviderDirectory, getProviderDirectoryEntry, providerDirectorySummary } from './providers/index.js';
 import { handleHeartbeatCommand } from './heartbeat/index.js';
 import { handleEvalCommand } from './eval/report_cli.js';
+import { handleMemoryCommand } from './memory/cli.js';
 
 let dotenvLoaded = false;
 async function loadDotenvOnce(): Promise<void> {
@@ -698,6 +699,7 @@ async function main() {
   await loadDotenvOnce();
   const config = loadConfig();
   if (await handleTuiCommand(config, rawArgs)) return;
+  if (await handleMemoryCommand(rawArgs, config.memory)) return;
   if (await handleRuntimeCommand(config, rawArgs)) return;
   if (await handleBatchCommand(config, rawArgs)) return;
   if (shouldTreatAsUnknownCommand(rawArgs)) {

@@ -43,6 +43,7 @@ async function main(): Promise<void> {
   assertOkHelp(['approvals', '--help'], ['approvals list', 'approve <approvalId>']);
   assertOkHelp(['conversations', '--help'], ['conversations show', 'without LLM']);
   assertOkHelp(['eval', '--help'], ['eval reports', 'eval list', 'eval compare', 'report.json']);
+  assertOkHelp(['memory', '--help'], ['memory list', 'memory rag search', 'local-only']);
 
   const unknown = runNova(['stremaing']);
   assert.equal(unknown.status, 1, 'unknown command exits 1');

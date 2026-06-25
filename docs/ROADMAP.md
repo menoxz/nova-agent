@@ -55,14 +55,16 @@
 - [x] **Quality Gate V1** — scripts `npm run check:fast` et `npm run check`, smokes clés, eval release/quality et runbook de validation locale sans clé LLM réelle
 - [x] **Provider Profiles / Fallback contrôlé V1** — profils provider/model explicites, `nova providers list/show/doctor`, diagnostic sans secrets et fallback opt-in non silencieux (`docs/provider-profiles.md`, `src/providers`)
 - [x] **Heartbeat / Autonomous Tasks V1 safe slice** — CLI/config/store/report/tick `--dry-run`, désactivé par défaut, rapports metadata-only sous `.nova/heartbeat`, lock anti-overlap, aucune exécution autonome/daemon/LLM/tools (`docs/heartbeat.md`, `src/heartbeat`)
-- [ ] **Mémoire persistante**
+- [x] **Mémoire persistante + RAG local**
   - [x] Plan Memory/Knowledge V1 complet documenté (`docs/memory/`)
   - [x] Persistance locale sécurisée sous `.nova/memory` avec index rebuildable
   - [x] Scopes project/workspace/profile/session/user/subagent/capability sans mémoire globale incontrôlée
   - [x] Retrieval policy-gated avec wrapper de contexte non fiable et budgets tokens
   - [x] Write pipeline: propose, validate, secret scan, raw artifact reject, redact, dedupe/hash, approval, persist, audit
-  - [x] Smoke/eval Memory V1
-  - [ ] Option future: base vectorielle/RAG après baseline JSON déterministe
+  - [x] Index RAG local déterministe `_rag_index.json`, recherche BM25-like et snippets sûrs sans dépendance externe
+  - [x] CLI mémoire: add/list/show/search/retrieve/rag status/rag rebuild/rag search/doctor sans LLM
+  - [x] Smoke/eval Memory avec écriture, lecture, recherche RAG, redaction, denylist et contexte
+  - [ ] Option future: embeddings/vector DB uniquement si besoin de très gros corpus
 - [x] **Mode streaming** — `streamText()` pour affichage progressif sûr en temps réel
 
 - [x] **Mode streaming**

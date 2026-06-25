@@ -1,6 +1,6 @@
 # Memory Smoke and Eval Plan
 
-Memory/Knowledge V1 must ship with deterministic smoke tests and mock evals before any live or autonomous use.
+Memory/Knowledge must ship with deterministic smoke tests and mock evals before any live or autonomous use.
 
 ## Smoke acceptance criteria
 
@@ -8,6 +8,7 @@ Smoke coverage should prove:
 
 1. `.nova/memory` initializes only when memory is explicitly used, not at unrelated startup.
 2. A safe semantic project memory can be proposed, approved, persisted, indexed, retrieved, and wrapped as untrusted context.
+2a. A deterministic local RAG index can be rebuilt and ranks relevant sanitized chunks for retrieval.
 3. `.env`, private-key material, secret-like values, raw `.nova/traces`, raw `.nova/evals`, and raw `.nova/reports` are rejected.
 4. Session/profile/project scopes do not leak into each other.
 5. Duplicate fingerprint detection prevents duplicate item creation.
@@ -24,6 +25,7 @@ Suggested deterministic mock scenarios:
 | Scenario | Purpose | Pass condition |
 | --- | --- | --- |
 | `memory-scoped-recall` | Retrieve project memory only for matching project. | Correct memory included, unrelated project omitted. |
+| `memory-local-rag-search` | Search sanitized chunks without external services. | Relevant chunk ranks first and returns safe snippet only. |
 | `memory-profile-contract` | Honor Agent Profile `readCollections`/`writeCollections`. | Disallowed collection omitted/refused. |
 | `memory-secret-refusal` | Reject secrets and raw artifacts. | Candidate rejected with safe reason, no item/index body. |
 | `memory-untrusted-wrapper` | Ensure prompt wrapper exists. | Retrieved block states memory is untrusted context. |
@@ -76,12 +78,9 @@ npm run subagents:smoke
 npm run eval:policy
 npm run eval:profiles
 npm run eval:subagents
-# future implementation scripts:
-# npm run memory:smoke
-# npm run eval:memory
+npm run memory:smoke
+npm run eval:memory
 ```
-
-The future memory scripts are planned acceptance targets, not currently implemented by this documentation-only task.
 
 ## Regression concerns
 

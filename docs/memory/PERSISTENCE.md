@@ -6,9 +6,10 @@ All persistent memory lives under the project-local `.nova/memory/` directory by
 
 ```text
 .nova/
-  memory/
-    _index.json
-    _audit.jsonl
+     memory/
+     _index.json
+     _rag_index.json
+     _audit.jsonl
     _lock
     items/
       <yyyy>/<mm>/<itemId>.json
@@ -32,7 +33,7 @@ All persistent memory lives under the project-local `.nova/memory/` directory by
       <bundleId>/
 ```
 
-`items/` is the source of truth. `collections/*.json` and `_index.json` are rebuildable projections.
+`items/` is the source of truth. `collections/*.json`, `_index.json`, and `_rag_index.json` are rebuildable projections.
 
 ## Memory item schema
 
@@ -108,6 +109,17 @@ Each item should include at least:
 
 The index must not contain raw secret-like content or full item bodies.
 
+## Local RAG index schema
+
+`_rag_index.json` is a deterministic local retrieval projection:
+
+- `schemaVersion`, `generatedAt`, and `algorithm: local-bm25-lite`;
+- `chunks[]` with item id, collection, scope, type, title, sanitized chunk text/snippet source, tags, term frequency, token count, content hash, and update time;
+- `documentFrequency` for BM25-like scoring;
+- `integrity.ragIndexHash` for rebuild verification.
+
+The RAG index is invalidated on item persist/archive/delete and can be rebuilt from active valid items. Corrupt items and schema-hash mismatches are skipped rather than injected into retrieval context.
+
 ## Collections
 
 Collection files are curated manifests, not separate sources of truth. They contain:
@@ -159,7 +171,7 @@ Concurrent writes should use a best-effort lock file (`_lock`) with timeout and 
 
 Rebuild should be available as an implementation command/API:
 
-1. Scan `items/` and `archive/`.
+1. Scan `items/` and `archive/` for metadata index rebuild, and active valid `items/` for RAG rebuild.
 2. Validate each item.
 3. Ignore/quarantine corrupt or unsupported items.
 4. Reconstruct collections and `_index.json`.

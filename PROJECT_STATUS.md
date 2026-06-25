@@ -1,5 +1,24 @@
 # Project Status
 
+## Memory/Knowledge local RAG persistence — 2026-06-25
+
+Status: implemented locally with persistent JSON memory, deterministic local RAG index/search, CLI operations, policy/redaction guards, and targeted/full validation passing locally.
+
+### Delivered
+
+- Added rebuildable `_rag_index.json` with `local-bm25-lite` chunk scoring and integrity hash.
+- Retrieval now blends metadata ranking with local RAG hits and injects snippets only inside the untrusted memory wrapper.
+- RAG index rebuild skips corrupt/hash-mismatched items and is invalidated on persist/archive/delete.
+- Added `nova memory` CLI: `add`, `list`, `show`, `search`, `retrieve`, `rag status`, `rag rebuild`, `rag search`, `rebuild-index`, and `doctor`.
+- Reinforced memory smoke/eval/context coverage for persistence, RAG search, redaction, denylist, scope gates, CLI path, and context retrieval.
+- Wired memory/context smokes and evals into local check gates so CI validates the module.
+- Updated memory docs, roadmap, changelog, eval scenario, CLI help, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run memory:smoke`, `npm run context:smoke`, `npm run eval:memory`, and `npm run eval:context` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 structural Markdown denied-link diagnostics — 2026-06-25
 
 Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.

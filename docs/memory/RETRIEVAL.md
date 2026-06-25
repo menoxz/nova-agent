@@ -37,9 +37,9 @@ Candidates must pass all filters before ranking:
 6. not expired, deleted, quarantined, corrupt, or unsupported schema;
 7. not from denied raw artifacts or import quarantine.
 
-## Ranking
+## Ranking and local RAG
 
-V1 ranking is deterministic metadata/text ranking, not vector search:
+Retrieval is deterministic and local. It blends metadata/text ranking with a rebuildable BM25-like RAG index, without external embeddings or vector database dependencies:
 
 ```text
 score = keywordMatch
@@ -51,6 +51,7 @@ score = keywordMatch
       + confidence
       + recency
       + verificationBoost
+      + localRagChunkScore
       - stalenessPenalty
       - conflictPenalty
       - securityPenalty
@@ -73,7 +74,7 @@ Retrieval is packed into a bounded context budget:
 - include source/scope/confidence metadata in compact form;
 - reserve budget for current task and repository evidence.
 
-If too many memories match, select diverse top items across type/scope/collection instead of repeating near-duplicates.
+If too many memories match, select diverse top items across type/scope/collection instead of repeating near-duplicates. RAG snippets are appended to selected card summaries as evidence and remain inside the untrusted context wrapper.
 
 ## Stale handling
 
@@ -134,6 +135,7 @@ The retriever returns:
 - omitted counts by reason (`budget`, `stale`, `policy`, `scope`, `duplicate`, `security`);
 - policy decision metadata;
 - index version/hash;
+- optional local RAG snippet evidence;
 - optional conflict warnings.
 
 It must not return raw item files or raw `.nova` artifacts.

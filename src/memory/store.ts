@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MEMORY_SCHEMA_HASH, assertValidMemoryItem, parseMemoryItem } from './schema.js';
 import { appendMemoryAudit } from './audit.js';
-import { archivePath, canonicalJson, ensureMemoryLayout, indexPath, itemPath, memoryPath, memoryRoot, migrationsPath, schemaPath, sha256, writeJsonAtomic } from './paths.js';
+import { archivePath, canonicalJson, ensureMemoryLayout, indexPath, itemPath, memoryPath, memoryRoot, migrationsPath, ragIndexPath, schemaPath, sha256, writeJsonAtomic } from './paths.js';
 import { MEMORY_SCHEMA_VERSION, type MemoryDoctorReport, type MemoryIndex, type MemoryIndexEntry, type MemoryItem, type MemoryItemType, type MemoryRuntimeConfig } from './types.js';
 
 export class MemoryStore {
@@ -45,6 +45,7 @@ export class MemoryStore {
     nextItems.push(entry);
     await this.writeIndex(buildIndex(nextItems));
     await this.writeCollectionManifest(valid.collection, nextItems.filter((candidate) => candidate.collection === valid.collection));
+    await this.invalidateRagIndex();
   }
 
   async getItem(id: string): Promise<MemoryItem | undefined> {
@@ -82,6 +83,7 @@ export class MemoryStore {
     const index = await this.readIndex();
     await this.writeIndex(buildIndex(index.items.filter((entry) => entry.id !== id)));
     await appendMemoryAudit(this.root, { action: 'archive', itemId: id, fingerprint: item.integrity.fingerprint, collection: item.collection, scopeKind: item.scope.kind, reason });
+    await this.invalidateRagIndex();
     return true;
   }
 
@@ -92,6 +94,7 @@ export class MemoryStore {
     await rm(itemPath(this.root, entry.type, id), { force: true });
     await this.writeIndex(buildIndex(index.items.filter((item) => item.id !== id)));
     await appendMemoryAudit(this.root, { action: 'delete', itemId: id, fingerprint: entry.fingerprint, collection: entry.collection, scopeKind: entry.scope.kind, reason });
+    await this.invalidateRagIndex();
     return true;
   }
 
@@ -101,6 +104,7 @@ export class MemoryStore {
     const entries = items.map(indexEntry);
     const index = buildIndex(entries);
     await this.writeIndex(index);
+    await this.invalidateRagIndex();
     await appendMemoryAudit(this.root, { action: 'rebuild-index', counts: { indexed: entries.length } });
     return this.readIndexRaw();
   }
@@ -133,6 +137,10 @@ export class MemoryStore {
 
   private async writeCollectionManifest(collection: string, entries: MemoryIndexEntry[]): Promise<void> {
     await writeJsonAtomic(memoryPath(this.root, 'collections', `${collection}.json`), { schemaVersion: MEMORY_SCHEMA_VERSION, id: collection, itemIds: entries.map((entry) => entry.id), updatedAt: new Date().toISOString() });
+  }
+
+  private async invalidateRagIndex(): Promise<void> {
+    await rm(ragIndexPath(this.root), { force: true }).catch(() => undefined);
   }
 }
 

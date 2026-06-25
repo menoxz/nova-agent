@@ -191,6 +191,40 @@ export interface MemoryIndex {
   integrity: { itemCount: number; indexHash: string };
 }
 
+export interface MemoryRagChunk {
+  id: string;
+  itemId: string;
+  collection: string;
+  scope: MemoryScope;
+  type: MemoryItemType;
+  title: string;
+  text: string;
+  tags: string[];
+  tokenCount: number;
+  termFrequency: Record<string, number>;
+  contentHash: string;
+  updatedAt: string;
+}
+
+export interface MemoryRagIndex {
+  schemaVersion: MemorySchemaVersion;
+  generatedAt: string;
+  algorithm: 'local-bm25-lite';
+  chunkCount: number;
+  documentFrequency: Record<string, number>;
+  chunks: MemoryRagChunk[];
+  integrity: { ragIndexHash: string };
+}
+
+export interface MemoryRagHit {
+  itemId: string;
+  chunkId: string;
+  score: number;
+  title: string;
+  snippet: string;
+  matchedTerms: string[];
+}
+
 export interface MemoryAuditEvent {
   schemaVersion: MemorySchemaVersion;
   id: string;

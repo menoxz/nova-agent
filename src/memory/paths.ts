@@ -19,6 +19,7 @@ export function memoryPath(root: string, ...parts: string[]): string {
 }
 
 export const indexPath = (root: string) => memoryPath(root, '_index.json');
+export const ragIndexPath = (root: string) => memoryPath(root, '_rag_index.json');
 export const schemaPath = (root: string) => memoryPath(root, '_schema.json');
 export const migrationsPath = (root: string) => memoryPath(root, '_migrations.json');
 export const auditPath = (root: string) => memoryPath(root, 'audit.jsonl');

@@ -1,7 +1,8 @@
 import { appendMemoryAudit } from './audit.js';
+import { searchMemoryRag } from './indexer.js';
 import { collectionsForRead, evaluateMemoryPolicy, isCollectionExplicitlyAllowedForRead, isSensitiveMemoryCollection, memoryEnabled } from './policy.js';
 import { MemoryStore } from './store.js';
-import type { MemoryCard, MemoryIndexEntry, MemoryQueryContext, MemoryRetrievalResult, MemoryRuntimeConfig, MemoryScopeKind } from './types.js';
+import type { MemoryCard, MemoryIndexEntry, MemoryQueryContext, MemoryRetrievalResult, MemoryRuntimeConfig, MemoryRagHit, MemoryScopeKind } from './types.js';
 
 const DEFAULT_TOKEN_BUDGET = 900;
 
@@ -27,7 +28,9 @@ export async function retrieveMemory(ctx: MemoryQueryContext): Promise<MemoryRet
   }
 
   const queryTerms = terms(ctx.query);
-  const cards = packBudget(candidates.map((entry) => toCard(entry, score(entry, ctx, queryTerms))).sort((a, b) => b.score - a.score), ctx.tokenBudget ?? DEFAULT_TOKEN_BUDGET, omitted);
+  const ragHits = await searchMemoryRag(ctx.query, ctx, { limit: Math.max(8, candidates.length), allowedItemIds: candidates.map((entry) => entry.id) }).catch(() => []);
+  const ragByItem = new Map(ragHits.map((hit) => [hit.itemId, hit]));
+  const cards = packBudget(candidates.map((entry) => toCard(entry, score(entry, ctx, queryTerms, ragByItem.get(entry.id)), ragByItem.get(entry.id))).sort((a, b) => b.score - a.score), ctx.tokenBudget ?? DEFAULT_TOKEN_BUDGET, omitted);
   const contextBlock = formatMemoryContext(cards);
   const summary = { retrievedIds: cards.map((card) => card.id), retrievedCount: cards.length, retrievedChars: contextBlock.length };
   await appendMemoryAudit(store.root, { action: 'retrieve', actorId: ctx.actor?.actorId, profileId: ctx.profile?.id, decision: decision.decision, counts: { returned: cards.length, omitted: Object.values(omitted).reduce((a, b) => a + b, 0) } });
@@ -69,7 +72,7 @@ function scopeCompatible(kind: MemoryScopeKind, ctx: MemoryQueryContext): boolea
   return kind === 'session' || kind === (ctx.defaultScope ?? 'project');
 }
 
-function score(entry: MemoryIndexEntry, ctx: MemoryQueryContext, queryTerms: Set<string>): number {
+function score(entry: MemoryIndexEntry, ctx: MemoryQueryContext, queryTerms: Set<string>, ragHit?: MemoryRagHit): number {
   const haystack = terms(`${entry.title} ${entry.summaryPreview} ${entry.tags.join(' ')}`);
   let value = 0;
   for (const term of queryTerms) if (haystack.has(term)) value += entry.tags.includes(term) ? 4 : 2;
@@ -84,11 +87,13 @@ function score(entry: MemoryIndexEntry, ctx: MemoryQueryContext, queryTerms: Set
   value += Math.max(0, 1 - ageDays / 180);
   if (entry.staleAfter && Date.parse(entry.staleAfter) < Date.now()) value -= 2;
   if (entry.injectionRisk === 'medium') value -= 1.5;
+  if (ragHit) value += ragHit.score * 1.5;
   return Number(value.toFixed(4));
 }
 
-function toCard(entry: MemoryIndexEntry, scoreValue: number): MemoryCard {
-  return { id: entry.id, type: entry.type, collection: entry.collection, scope: entry.scope, title: entry.title, summary: entry.summaryPreview, tags: entry.tags, confidence: entry.confidence, importance: entry.importance, stale: Boolean(entry.staleAfter && Date.parse(entry.staleAfter) < Date.now()), source: entry.sourceKind, score: scoreValue };
+function toCard(entry: MemoryIndexEntry, scoreValue: number, ragHit?: MemoryRagHit): MemoryCard {
+  const summary = ragHit?.snippet ? `${entry.summaryPreview}\nRAG: ${ragHit.snippet}`.slice(0, 600) : entry.summaryPreview;
+  return { id: entry.id, type: entry.type, collection: entry.collection, scope: entry.scope, title: entry.title, summary, tags: entry.tags, confidence: entry.confidence, importance: entry.importance, stale: Boolean(entry.staleAfter && Date.parse(entry.staleAfter) < Date.now()), source: entry.sourceKind, score: scoreValue };
 }
 
 function packBudget(cards: MemoryCard[], budget: number, omitted: Record<string, number>): MemoryCard[] {

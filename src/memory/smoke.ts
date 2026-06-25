@@ -6,8 +6,10 @@ import assert from 'node:assert/strict';
 import { MemoryStore } from './store.js';
 import { archiveExpiredMemory, rebuildMemoryIndex } from './lifecycle.js';
 import { exportMemoryBundle, importMemoryBundle } from './import_export.js';
+import { rebuildMemoryRagIndex, searchMemoryRag } from './indexer.js';
 import { retrieveMemory } from './retrieval.js';
 import { writeMemory } from './writer.js';
+import { handleMemoryCommand } from './cli.js';
 import type { MemoryProposal, MemoryRuntimeConfig } from './types.js';
 
 const baseConfig = (root: string): MemoryRuntimeConfig => ({
@@ -48,6 +50,14 @@ async function main(): Promise<void> {
     const scoped = await retrieveMemory({ ...config, query: 'local JSON memory architecture', requestedScopes: ['project'] });
     assert.equal(scoped.cards.length, 1, 'scoped retrieval finds memory');
     assert.match(scoped.contextBlock, /retrieved_memory_untrusted/, 'untrusted wrapper present');
+
+    const ragIndex = await rebuildMemoryRagIndex(config);
+    assert.ok(ragIndex.chunkCount >= 1, 'RAG index contains chunks');
+    const ragHits = await searchMemoryRag('scoped sanitized JSON persistence architecture', config);
+    assert.equal(ragHits[0]?.itemId, safe.item?.id, 'RAG search ranks relevant memory first');
+    const ragRetrieval = await retrieveMemory({ ...config, query: 'scoped sanitized JSON persistence architecture', requestedScopes: ['project'] });
+    assert.match(ragRetrieval.contextBlock, /RAG:/, 'retrieval includes local RAG snippet evidence');
+
     const deniedScope = await retrieveMemory({ ...config, query: 'local JSON', requestedScopes: ['user'] });
     assert.equal(deniedScope.cards.length, 0, 'out-of-scope retrieval denied');
 
@@ -91,6 +101,10 @@ async function main(): Promise<void> {
       const doctor = await new MemoryStore(config).doctor();
       assert.ok(doctor.corrupt >= 1, 'hash mismatch detected');
     }
+
+    await handleMemoryCommand(['memory', 'add', '--title', 'CLI memory', '--summary', 'CLI memory add persists through the same safe write pipeline.', '--tags', 'cli,memory'], config);
+    await handleMemoryCommand(['memory', 'rag', 'rebuild'], config);
+    await handleMemoryCommand(['memory', 'rag', 'search', 'CLI', 'safe', 'write'], config);
 
     console.log('memory:smoke passed');
   } finally {
