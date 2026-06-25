@@ -70,6 +70,12 @@ V1.1 advertises a CodeLens provider for known Nova metadata references. CodeLens
 
 CodeLens does not provide edits, code actions, shell commands, writes, or `WorkspaceEdit`.
 
+## Markdown denied-link diagnostics
+
+`src/lsp/diagnostics.ts` computes read-only Markdown diagnostics for denied local link targets. V1.1 inspects both inline links and reference definitions, so unsafe targets such as `[raw](../.nova/evals/report.json)` and `[raw]: ../.nova/reports/report.json` are flagged consistently on the target range.
+
+HTTP links and same-document anchors stay outside the local denylist scope. Diagnostics do not provide code actions, quick fixes, edits, shell commands, or workspace mutations.
+
 ## Main files
 
 - `src/lsp/server.ts` — stdio LSP entrypoint.

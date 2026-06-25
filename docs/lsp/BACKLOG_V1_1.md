@@ -28,6 +28,8 @@ Status: structural Markdown denied-link diagnostics slice implemented. Markdown 
 
 Status: sanitized diagnostics summary slice implemented. The read-only `nova.lsp.showDiagnosticsSummary` command exposes aggregate diagnostics/index health metadata only: package script coverage posture, duplicate label count, non-read-only item count, read-only stdio/no-WorkspaceEdit policy, and validation commands. It omits document content, raw diagnostics, URIs, root paths, and secrets.
 
+Status: Markdown reference-link diagnostics slice implemented. Markdown denied-link diagnostics now inspect both inline links and reference definitions, target denied local reference targets on the target range, ignore HTTP links and anchors, and add no mutating capabilities.
+
 Still out of scope:
 
 - Write commands.

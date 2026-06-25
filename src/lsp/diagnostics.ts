@@ -44,16 +44,35 @@ function packageScriptsFromText(text: string): string[] | undefined {
   }
 }
 
+function normalizeMarkdownTarget(raw: string | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('<')) {
+    const end = trimmed.indexOf('>');
+    return end > 1 ? trimmed.slice(1, end).trim() : undefined;
+  }
+  return trimmed.split(/\s+/)[0]?.trim();
+}
+
+function pushDeniedMarkdownTarget(out: Diagnostic[], text: string, matchIndex: number | undefined, matchedText: string, rawTarget: string | undefined): void {
+  const target = normalizeMarkdownTarget(rawTarget);
+  if (!target || /^https?:\/\//i.test(target) || target.startsWith('#')) return;
+  const reason = deniedReason(target);
+  if (!reason || typeof matchIndex !== 'number') return;
+  const targetOffset = matchedText.indexOf(target);
+  if (targetOffset < 0) return;
+  out.push({ range: rangeFromIndex(text, matchIndex + targetOffset, target.length), severity: DiagnosticSeverity.Warning, source: 'nova-lsp', message: `Denied Markdown link target: ${reason}` });
+}
+
 function pushMarkdownDeniedLinkDiagnostics(out: Diagnostic[], text: string): void {
   const markdownLinkPattern = /\[[^\]\r\n]+\]\(([^)\r\n]+)\)/g;
   for (const match of text.matchAll(markdownLinkPattern)) {
-    const target = match[1]?.trim();
-    if (!target || /^https?:\/\//i.test(target) || target.startsWith('#')) continue;
-    const reason = deniedReason(target);
-    if (!reason || typeof match.index !== 'number') continue;
-    const targetOffset = match[0].indexOf(target);
-    if (targetOffset < 0) continue;
-    out.push({ range: rangeFromIndex(text, match.index + targetOffset, target.length), severity: DiagnosticSeverity.Warning, source: 'nova-lsp', message: `Denied Markdown link target: ${reason}` });
+    pushDeniedMarkdownTarget(out, text, match.index, match[0], match[1]);
+  }
+
+  const referenceDefinitionPattern = /^[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*(\S[^\r\n]*)$/gm;
+  for (const match of text.matchAll(referenceDefinitionPattern)) {
+    pushDeniedMarkdownTarget(out, text, match.index, match[0], match[1]);
   }
 }
 

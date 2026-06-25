@@ -1,5 +1,22 @@
 # Project Status
 
+## LSP V1.1 Markdown reference-link diagnostics — 2026-06-25
+
+Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Markdown diagnostics now inspect reference link definitions such as `[raw]: ../.nova/reports/report.json` in addition to inline links.
+- Denied local reference targets are flagged on the unsafe target range.
+- HTTP links and same-document anchors stay outside local denylist scope.
+- Added policy-smoke assertions and expanded `eval:lsp` with `lsp-v1-1-markdown-reference-link-diagnostics`.
+- Updated LSP README, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 sanitized diagnostics summary — 2026-06-25
 
 Status: implemented locally (aggregate metadata only; no document content, raw diagnostics, URIs, root paths, secrets, write/shell/WorkspaceEdit/code-action capability); targeted and full validation passing locally.

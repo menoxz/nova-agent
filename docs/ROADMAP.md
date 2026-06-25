@@ -134,6 +134,7 @@
   - [x] V1.1: diagnostics duplicate metadata plus précis pour source/docs
   - [x] V1.1: diagnostics Markdown structurels pour liens locaux refusés
   - [x] V1.1: résumé diagnostics/index sanitizé metadata-only (`nova.lsp.showDiagnosticsSummary`)
+  - [x] V1.1: diagnostics Markdown pour définitions de liens référencés refusées
   - [ ] V1.1 future: diagnostics source/docs structurels additionnels
 
 - [ ] **Sécurité**

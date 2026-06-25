@@ -149,11 +149,11 @@ async function main(): Promise<void> {
 
   const markdownDoc: MinimalDocument = {
     uri: 'file:///docs/unsafe.md',
-    getText: () => ['# Unsafe links', 'Do not link [raw eval](../.nova/evals/raw/report.json) or [env](.env.local).', 'External [docs](https://example.com) stay out of local denylist scope.'].join('\n'),
+    getText: () => ['# Unsafe links', 'Do not link [raw eval](../.nova/evals/raw/report.json) or [env](.env.local).', 'Reference links [raw][raw-eval] are also checked.', '[raw-eval]: ../.nova/reports/raw/report.json "raw report"', 'External [docs](https://example.com) stay out of local denylist scope.'].join('\n'),
   };
   const markdownDiagnostics = computeDiagnostics(markdownDoc as never, metadata).filter((diagnostic) => String(diagnostic.message).includes('Denied Markdown link target'));
-  assert.equal(markdownDiagnostics.length, 2, 'denied markdown link diagnostics should target unsafe local links only');
-  assert.deepEqual(markdownDiagnostics.map((diagnostic) => diagnostic.range.start.line), [1, 1], 'denied markdown link diagnostics should point at link target line');
+  assert.equal(markdownDiagnostics.length, 3, 'denied markdown link diagnostics should target inline and reference unsafe local links only');
+  assert.deepEqual(markdownDiagnostics.map((diagnostic) => diagnostic.range.start.line), [1, 1, 3], 'denied markdown link diagnostics should point at link target lines');
   assert(markdownDiagnostics.every((diagnostic) => diagnostic.range.start.character > 0), 'denied markdown link diagnostics should target the link target, not the whole document');
 
   const lensDoc: MinimalDocument = {
