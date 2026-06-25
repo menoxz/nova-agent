@@ -1,4 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { analyzePackageScriptCoverage } from '../security/read_only_matrix.js';
 
@@ -64,8 +66,16 @@ interface PackageJson {
   scripts?: Record<string, string>;
 }
 
-function readPackageJson(): PackageJson {
-  return JSON.parse(readFileSync('package.json', 'utf-8')) as PackageJson;
+function packageRoot(): string {
+  return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+}
+
+function packagePath(root: string, path: string): string {
+  return join(root, ...path.split('/'));
+}
+
+function readPackageJson(root: string): PackageJson {
+  return JSON.parse(readFileSync(packagePath(root, 'package.json'), 'utf-8')) as PackageJson;
 }
 
 function packageFileIncludes(files: string[], path: string): boolean {
@@ -77,7 +87,8 @@ function check(id: string, status: ProductionReadinessStatus, impact: Production
 }
 
 export function buildProductionReadinessReport(): ProductionReadinessReport {
-  const packageJson = readPackageJson();
+  const root = packageRoot();
+  const packageJson = readPackageJson(root);
   const scripts = packageJson.scripts ?? {};
   const files = packageJson.files ?? [];
   const bins = packageJson.bin ?? {};
@@ -116,18 +127,18 @@ export function buildProductionReadinessReport(): ProductionReadinessReport {
     ),
     check(
       'cli-bin-entrypoint',
-      bins.nova === './bin/nova.js' && existsSync('bin/nova.js') ? 'ready' : 'blocked',
+      bins.nova === './bin/nova.js' && existsSync(packagePath(root, 'bin/nova.js')) ? 'ready' : 'blocked',
       'critical',
       'Installable CLI bin entrypoint is declared and present.',
-      [`bin.nova=${bins.nova ?? '<missing>'}`, `bin/nova.js present=${existsSync('bin/nova.js')}`],
+      [`bin.nova=${bins.nova ?? '<missing>'}`, `bin/nova.js present=${existsSync(packagePath(root, 'bin/nova.js'))}`],
       'Restore bin.nova to ./bin/nova.js and keep the wrapper present.',
     ),
     check(
       'mcp-stdio-bin-entrypoint',
-      bins['nova-mcp'] === './bin/nova-mcp.js' && existsSync('bin/nova-mcp.js') ? 'ready' : 'blocked',
+      bins['nova-mcp'] === './bin/nova-mcp.js' && existsSync(packagePath(root, 'bin/nova-mcp.js')) ? 'ready' : 'blocked',
       'high',
       'Packaged MCP stdio bin entrypoint is declared and present; no HTTP transport is implied.',
-      [`bin.nova-mcp=${bins['nova-mcp'] ?? '<missing>'}`, `bin/nova-mcp.js present=${existsSync('bin/nova-mcp.js')}`],
+      [`bin.nova-mcp=${bins['nova-mcp'] ?? '<missing>'}`, `bin/nova-mcp.js present=${existsSync(packagePath(root, 'bin/nova-mcp.js'))}`],
       'Restore bin.nova-mcp to ./bin/nova-mcp.js and keep stdio-only wrapper behavior.',
     ),
     check(
@@ -172,18 +183,18 @@ export function buildProductionReadinessReport(): ProductionReadinessReport {
     ),
     check(
       'release-manifest-gate',
-      scripts['release:readiness'] === 'node scripts/assert-release-readiness.mjs' && existsSync('scripts/assert-release-readiness.mjs') ? 'ready' : 'blocked',
+      scripts['release:readiness'] === 'node scripts/assert-release-readiness.mjs' && existsSync(packagePath(root, 'scripts/assert-release-readiness.mjs')) ? 'ready' : 'blocked',
       'critical',
       'Release readiness gate exists as a dry-run manifest check and does not publish/tag/release.',
-      [`script=${scripts['release:readiness'] ?? '<missing>'}`, `script file present=${existsSync('scripts/assert-release-readiness.mjs')}`],
+      [`script=${scripts['release:readiness'] ?? '<missing>'}`, `script file present=${existsSync(packagePath(root, 'scripts/assert-release-readiness.mjs'))}`],
       'Restore release:readiness to the local dry-run manifest checker.',
     ),
     check(
       'dist-build-candidate',
-      existsSync('dist/index.js') ? 'ready' : 'warning',
+      existsSync(packagePath(root, 'dist/index.js')) ? 'ready' : 'warning',
       'medium',
       'Built package candidate needs dist/index.js; source checkout can rebuild it with npm run build.',
-      [`dist/index.js present=${existsSync('dist/index.js')}`],
+      [`dist/index.js present=${existsSync(packagePath(root, 'dist/index.js'))}`],
       'Run npm run build before a release-candidate manifest check or install rehearsal.',
     ),
     check(
@@ -252,9 +263,9 @@ export function buildProductionReadinessReport(): ProductionReadinessReport {
     checks,
     priorityBlockers: [...activeBlockers, ...warnings].sort((a, b) => impactRank(a.impact) - impactRank(b.impact)),
     installableNow: {
-      repoDevCli: bins.nova === './bin/nova.js' && existsSync('bin/nova.js'),
-      builtBinCandidate: bins.nova === './bin/nova.js' && existsSync('bin/nova.js') && existsSync('dist/index.js'),
-      mcpStdioCandidate: bins['nova-mcp'] === './bin/nova-mcp.js' && existsSync('bin/nova-mcp.js'),
+      repoDevCli: bins.nova === './bin/nova.js' && existsSync(packagePath(root, 'bin/nova.js')),
+      builtBinCandidate: bins.nova === './bin/nova.js' && existsSync(packagePath(root, 'bin/nova.js')) && existsSync(packagePath(root, 'dist/index.js')),
+      mcpStdioCandidate: bins['nova-mcp'] === './bin/nova-mcp.js' && existsSync(packagePath(root, 'bin/nova-mcp.js')),
       npmPublishReady: false,
     },
     explicitOutOfScope: intentionalPolicyBlockers.map((item) => item.summary),

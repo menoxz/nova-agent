@@ -84,6 +84,26 @@ nova-mcp --version
 
 En développement, le wrapper fonctionne même si `dist/` est absent grâce au fallback `tsx`. Pour vérifier le chemin installé/buildé, exécuter `npm run build` avant `npm link`.
 
+### Rehearsal tarball isolé validé
+
+Un rehearsal réaliste peut installer un tarball local dans un dossier consommateur temporaire hors dépôt, exécuter les commandes utilisateur clés, puis supprimer tout l'arbre temporaire. La dernière validation locale a prouvé :
+
+```bash
+npm run build
+npm pack --json --pack-destination <temp>
+npm init -y
+npm install <temp>/lux-tech-nova-agent-0.1.0.tgz --no-audit --no-fund
+npx nova --help
+npx nova --version
+npx nova production readiness
+npx nova-mcp --version
+# cleanup: suppression du dossier temporaire contenant consumer + tarball
+```
+
+Preuves observées : version `0.1.0`, tarball `lux-tech-nova-agent-0.1.0.tgz`, `408` entrées packagées, `production readiness` avec `ready=true`, `blockedCount=0`, `criticalBlockedCount=0`, et cleanup confirmé (`tempRemoved=true`). Les warnings npm de dépendances dépréciées proviennent de dépendances transitives d'installation et ne bloquent pas l'exécution des commandes utilisateur vérifiées.
+
+Le smoke live provider reste séparé : `npm run llm:live-smoke` se refuse proprement sans `NOVA_ENABLE_LIVE_LLM=1|true` et `LLM_API_KEY` dans l'environnement. Ne jamais copier ni afficher la valeur de la clé dans les preuves.
+
 ## Scripts packaging
 
 ```bash

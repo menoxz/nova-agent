@@ -1,5 +1,23 @@
 # Project Status
 
+## User install rehearsal and live-smoke gate check — 2026-06-25
+
+Status: validated locally with an isolated temp-directory tarball install; temp artifacts cleaned; live provider smoke skipped safely because required opt-in env/credential were not present.
+
+### Evidence
+
+- Built the project with `npm run build` and created local tarball `lux-tech-nova-agent-0.1.0.tgz` in a temp folder outside the repository.
+- Installed the tarball into an isolated temporary consumer with `npm install <tarball> --no-audit --no-fund`.
+- Verified installed user commands: `npx nova --help`, `npx nova --version`, `npx nova production readiness`, and `npx nova-mcp --version`.
+- `nova production readiness` reported `ready=true`, `blockedCount=0`, `criticalBlockedCount=0`, and version `0.1.0`.
+- Cleaned the temporary consumer and tarball directory; cleanup reported `tempRemoved=true`.
+- Checked live-smoke gate with `npm run llm:live-smoke`; it skipped without secrets because `NOVA_ENABLE_LIVE_LLM` and `LLM_API_KEY` were not present in the process environment.
+
+### Limits
+
+- No public `npm publish`, git tag, GitHub release, or PR was performed.
+- No secret value, `.env`, raw `.nova` artifact, daemon/autonomy, or write-shell live path was exposed or enabled.
+
 ## Production / Install Readiness V1 — 2026-06-25
 
 Status: implemented locally with offline/static install diagnostics; no provider calls, secret/env reads, raw `.nova` reads, tools, network, daemon/autonomy, publish, tag, release, or PR action.

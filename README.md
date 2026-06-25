@@ -6,6 +6,18 @@ This repository is the source package for the `nova` command. The V1 release har
 
 ## Quick start
 
+From an installed package or local package rehearsal:
+
+```bash
+nova --help
+nova --version
+nova production readiness
+nova providers list
+nova providers doctor
+```
+
+These commands should work without `LLM_API_KEY`. `nova production readiness` is the recommended first install check; it reports active install blockers separately from intentionally blocked publish/live/autonomy gates.
+
 From the repository:
 
 ```bash
@@ -33,6 +45,8 @@ node bin/nova.js --help
 node bin/nova.js --version
 node bin/nova.js production readiness
 ```
+
+Validated install-rehearsal evidence for this tree: a tarball install into an isolated temp consumer ran `npx nova --help`, `npx nova --version`, `npx nova production readiness`, and `npx nova-mcp --version`, then removed the temp consumer/tarball successfully. Live provider smoke was skipped because `NOVA_ENABLE_LIVE_LLM` and `LLM_API_KEY` were not present in the process environment.
 
 ## Safe / read-only CLI paths
 

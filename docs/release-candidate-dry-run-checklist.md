@@ -197,6 +197,14 @@ Copy this template into the task report or release notes.
 - Side effects observed:
 - Cleanup completed:
 
+Validated example evidence for the temp-dir tarball path:
+
+- Method: temp-dir tarball install under an isolated directory outside the repository.
+- Commands: `npm run build`, `npm pack --json --pack-destination <temp>`, `npm init -y`, `npm install <tarball> --no-audit --no-fund`, `npx nova --help`, `npx nova --version`, `npx nova production readiness`, `npx nova-mcp --version`.
+- Observed: package version `0.1.0`, tarball `lux-tech-nova-agent-0.1.0.tgz`, package entries `408`, production readiness `ready=true`, no active blockers.
+- Cleanup: temporary consumer and tarball directory removed (`tempRemoved=true`).
+- Live provider: skipped unless `NOVA_ENABLE_LIVE_LLM=1|true` and `LLM_API_KEY` are already present in the process environment; never print credential values.
+
 ### Status
 
 - Result: pass / partial / blocked
