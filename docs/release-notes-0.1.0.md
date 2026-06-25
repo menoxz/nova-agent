@@ -5,7 +5,7 @@ Nova Agent v0.1.0 is the first tagged-worthy release: a local, safety-first auto
 ## Highlights
 
 - **Durable local runtime** with session/run metadata, replay/resume foundations, approvals, and conversation persistence.
-- **Streaming UX + read-only replay** across the CLI and a TUI prototype (`nova tui replay`, `nova tui latest`) backed by redacted event logs.
+- **Streaming UX + TUI Premium Command Center OpenTUI** across the CLI and `nova tui`: mouse/keyboard shell, clickable sidebar, scrollbox, prompt input/focus, dashboard panels, interactive agent prompt, sessions/runs, config, providers/profiles, approvals, diagnostics, and replay backed by redacted event logs.
 - **Provider profiles, catalogue, and directory** with read-only inspection (`nova providers list/show/doctor`) and no secret output or hidden provider switching.
 - **Batch mode** for sequential prompt files with JSON/Markdown reports and CI-friendly output.
 - **Local eval reporting and SLO dashboard** (`nova eval list/report/summary/compare`) over local artifacts, in mock/replay modes.
@@ -14,7 +14,7 @@ Nova Agent v0.1.0 is the first tagged-worthy release: a local, safety-first auto
 ## Added (summary)
 
 - Runtime, LLM robustness, and streaming (live rendering, redacted event logs, replay).
-- CLI help/UX without an API key, and a read-only TUI replay prototype.
+- CLI help/UX without an API key, and a safe TUI Premium OpenTUI Command Center with non-interactive dashboard fallback.
 - Provider profiles, an expanded model catalogue, a metadata directory, and live-smoke readiness (offline/static).
 - Batch mode with JSON/Markdown/CI reports and execution controls (`--continue-on-error`, `--dry-run`, `--limit`, `--only`, `--from`).
 - Eval trace + read-only reporting and an SLO dashboard.
@@ -38,7 +38,7 @@ Nova Agent v0.1.0 is the first tagged-worthy release: a local, safety-first auto
 
 - **Provider live smoke is offline/static by design** — readiness checks do not make live network calls in this baseline.
 - **Heartbeat is dry-run/planning only** — there is no background daemon, and dangerous autonomous actions are blocked.
-- **TUI is a read-only replay prototype** — it renders snapshots from existing event logs rather than a live interactive interface.
+- **TUI live prompts still require explicit env credentials** — the TUI never asks for or prints API keys; live prompt runs require `LLM_API_KEY` already present in the environment.
 - **Eval runs in mock/replay modes** — local eval suites do not call live providers and have no secret or raw-trace access.
 
 ## Install & usage

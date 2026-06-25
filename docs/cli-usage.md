@@ -92,16 +92,24 @@ nova production --help
 | `--ci` | En batch, active une sortie stable `BATCH_*` pour automation et des exit codes stricts. |
 | `--continue-on-error` | En batch, continue après une erreur d'item. |
 
-## TUI Prototype V0
+## TUI Premium Command Center
 
 ```bash
+nova tui
+nova tui dashboard
+nova tui --clack
+nova tui --opentui-slice
 nova streaming logs
 nova tui replay <logId>
 nova tui latest --compact
 nova tui replay <logId> --verbose
 ```
 
-`nova tui replay <logId>` et `nova tui latest` relisent les event logs streaming existants et affichent une snapshot terminale sûre : statut, timeline, metrics/tokens, tools, reasoning collapsed, final answer ou erreur. Ces commandes sont read-only et ne nécessitent pas `LLM_API_KEY`.
+`nova tui` ouvre un Command Center premium OpenTUI dans un TTY compatible : shell souris/clavier, sidebar cliquable, scrollbox, input prompt focusable, dashboard, prompt agent avec streaming live, sessions/runs, configuration sûre, providers/profiles, logs/replay, diagnostics/readiness et safety approvals. `nova tui dashboard` fournit le même aperçu en mode non-interactif/scriptable avec panneaux, hotkeys et états lisibles. `--clack` force le fallback legacy et `--opentui-slice` ouvre la vertical slice de validation runtime.
+
+`nova tui replay <logId>` et `nova tui latest` restent compatibles : ils relisent les event logs streaming existants et affichent une snapshot terminale sûre : statut, timeline, metrics/tokens, tools, reasoning collapsed, final answer ou erreur.
+
+Sécurité : le TUI ne demande ni n'affiche jamais de clé API, raw `.nova` ou raw tool inputs. Les prompts live nécessitent `LLM_API_KEY` déjà présent dans l'environnement. Les write/shell/autonomy restent désactivés par défaut.
 
 ## Commandes runtime sûres
 

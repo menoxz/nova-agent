@@ -51,6 +51,11 @@ async function main(): Promise<void> {
     assert.equal(linkedVersion.status, 0, `linked nova --version exits 0: ${linkedVersion.stderr}`);
     assert.equal((linkedVersion.stdout ?? '').trim(), `@lux-tech/nova-agent ${packageJson.version}`, 'linked nova prints package version');
     assert.doesNotMatch((linkedVersion.stderr ?? '') + (linkedVersion.stdout ?? ''), /LLM_API_KEY not set/, 'linked nova version does not require LLM key');
+    const linkedSecurityDoctor = run('nova', ['security', 'doctor'], root, process.platform === 'win32');
+    assert.equal(linkedSecurityDoctor.status, 0, `linked nova security doctor exits 0 from consumer cwd: ${linkedSecurityDoctor.stderr}`);
+    assert.match(linkedSecurityDoctor.stdout ?? '', /"ok": true/, 'linked nova security doctor checks Nova package scripts, not consumer package scripts');
+    assert.match(linkedSecurityDoctor.stdout ?? '', /"coveredScripts": 89/, 'linked nova security doctor reports Nova script coverage');
+    assert.doesNotMatch((linkedSecurityDoctor.stderr ?? '') + (linkedSecurityDoctor.stdout ?? ''), /LLM_API_KEY not set/, 'linked security doctor does not require LLM key');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

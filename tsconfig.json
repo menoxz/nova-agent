@@ -9,6 +9,9 @@
     "outDir": "dist",
     "rootDir": "src",
     "declaration": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true

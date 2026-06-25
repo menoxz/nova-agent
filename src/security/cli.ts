@@ -1,6 +1,16 @@
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { analyzePackageScriptCoverage, isDangerousOrMutating, isPureReadOnly, packageScriptCoverage, readOnlySafetyMatrix } from './read_only_matrix.js';
+
+function packageRoot(): string {
+  return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+}
+
+function readNovaPackageJson(): { scripts?: Record<string, string> } {
+  return JSON.parse(readFileSync(join(packageRoot(), 'package.json'), 'utf-8')) as { scripts?: Record<string, string> };
+}
 
 export async function handleSecurityCommand(args: string[]): Promise<boolean> {
   const [area, action, ...rest] = args;
@@ -16,7 +26,7 @@ export async function handleSecurityCommand(args: string[]): Promise<boolean> {
   }
 
   if (action === 'coverage') {
-    const packageJson = JSON.parse(readFileSync('package.json', 'utf-8')) as { scripts?: Record<string, string> };
+    const packageJson = readNovaPackageJson();
     const packageScripts = Object.keys(packageJson.scripts ?? {}).sort();
     const report = analyzePackageScriptCoverage(packageScripts);
     const rows = packageScriptCoverage.map((coverage) => ({ ...coverage, scriptCommand: packageJson.scripts?.[coverage.script] ?? null }));
@@ -27,7 +37,7 @@ export async function handleSecurityCommand(args: string[]): Promise<boolean> {
   }
 
   if (action === 'doctor') {
-    const packageJson = JSON.parse(readFileSync('package.json', 'utf-8')) as { scripts?: Record<string, string> };
+    const packageJson = readNovaPackageJson();
     const coverage = analyzePackageScriptCoverage(Object.keys(packageJson.scripts ?? {}));
     const duplicateIds = readOnlySafetyMatrix
       .map((entry) => entry.id)

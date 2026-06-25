@@ -42,7 +42,7 @@ import { cliHelpTopics, helpTopicFromArgs, renderHelp, renderUnknownCommand, sho
 import { renderNovaVersion } from './cli/version.js';
 import { dryRunBatch, loadBatchItems, runBatch } from './batch/index.js';
 import type { BatchItem, BatchItemReport, BatchRunOptions } from './batch/index.js';
-import { TuiReplayRenderer } from './tui/index.js';
+import { renderTuiDashboardSnapshot, runInteractiveTui, TuiReplayRenderer, buildTuiDashboardSnapshot } from './tui/index.js';
 import type { TuiReplayMode } from './tui/index.js';
 import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProviderRuntime, listProviderDirectory, getProviderDirectoryEntry, providerDirectorySummary } from './providers/index.js';
 import { handleHeartbeatCommand } from './heartbeat/index.js';
@@ -70,6 +70,10 @@ function getArg(name: string): string | undefined {
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
+}
+
+function isTtyInteractive(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
 function boolValue(value: string | undefined, fallback: boolean | undefined): boolean | undefined {
@@ -617,10 +621,58 @@ async function handleTuiCommand(config: AgentConfig, args: string[]): Promise<bo
     console.log(new TuiReplayRenderer().render(events, { title: `Nova TUI latest · ${latest.logId}`, mode }));
     return true;
   }
+  if (action === 'dashboard' || action === 'status' || hasFlag('dashboard') || hasFlag('status')) {
+    console.log(renderTuiDashboardSnapshot(await buildTuiDashboardSnapshot(config)));
+    return true;
+  }
+  if (action === undefined || action === 'open' || action === 'start' || action === '--no-interactive') {
+    if (!isTtyInteractive() || hasFlag('no-interactive')) {
+      console.log(renderTuiDashboardSnapshot(await buildTuiDashboardSnapshot(config)));
+      console.log('');
+      console.log(chalk.gray('Non-interactive terminal detected. Run `nova tui` in a TTY for the full OpenTUI Command Center, or use `nova tui dashboard` for this snapshot.'));
+      return true;
+    }
+    const tuiContext = {
+      config,
+      runPrompt: async (prompt: string, options: { eventLog: boolean }) => {
+        const tuiConfig: AgentConfig = {
+          ...config,
+          streaming: {
+            ...config.streaming,
+            enabled: true,
+            eventLog: { ...config.streaming?.eventLog, enabled: options.eventLog || config.streaming?.eventLog?.enabled === true },
+          },
+          session: { ...config.session, enabled: true, autoCreate: true, conversation: { ...config.session?.conversation, enabled: true } },
+        };
+        const renderer = new StreamingCliRenderer(streamingConfigForCli(tuiConfig));
+        let summary: import('./streaming/types.js').AgentRunSummary | undefined;
+        const tools = setupTools();
+        const agent = new NovaAgent(tuiConfig, tools);
+        await agent.run(prompt, { streaming: true, onEvent: renderer.handle, onFinish: (value) => { summary = value; } });
+        return summary;
+      },
+    };
+    const openTui = await maybeLoadOpenTuiRuntime();
+    if (openTui.canRun && !hasFlag('clack')) await openTui.runOpenTui(tuiContext, { verticalSlice: hasFlag('opentui-slice') });
+    else {
+      if (!openTui.canRun) console.log(chalk.yellow('OpenTUI interactive runtime requires Bun/native FFI here; falling back to the Clack Command Center.'));
+      await runInteractiveTui(tuiContext);
+    }
+    return true;
+  }
   if (action === 'replay') return missingArgument('nova tui replay <logId> [--compact|--verbose|--mode compact|normal|verbose]', 'tui');
   console.error(chalk.red(renderUnknownCommand(args, 'tui')));
   process.exitCode = 1;
   return true;
+}
+
+async function maybeLoadOpenTuiRuntime(): Promise<
+  | { canRun: false }
+  | { canRun: true; runOpenTui: typeof import('./tui/opentui_app.js').runOpenTui }
+> {
+  if (process.versions.bun === undefined) return { canRun: false };
+  const module = await import('./tui/opentui_app.js');
+  return module.canRunOpenTuiRuntime() ? { canRun: true, runOpenTui: module.runOpenTui } : { canRun: false };
 }
 
 function parseTuiMode(): TuiReplayMode {

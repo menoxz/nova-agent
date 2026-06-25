@@ -9,7 +9,7 @@ const knownBooleanFlags = new Set([
   'help', 'h',
   'version', 'v',
   'stream', 'no-stream', 'stream-compact', 'stream-verbose', 'no-stream-metrics', 'no-stream-tools',
-  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose', 'json', 'markdown', 'stdout',
+  'event-log', 'continue-on-error', 'dry-run', 'ci', 'compact', 'verbose', 'json', 'markdown', 'stdout', 'clack', 'opentui-slice',
 ]);
 
 function section(title: string, rows: Array<[string, string]>): string {
@@ -64,7 +64,7 @@ function globalHelp(): string {
     '',
     section('Topics', [
       ['batch', 'Sequential non-interactive prompt files with JSON/Markdown reports.'],
-      ['tui', 'Terminal UI prototype for event-log replay.'],
+      ['tui', 'Interactive Command Center for agent runs, sessions, config, diagnostics and replay.'],
       ['streaming', 'Live output, event logs, replay.'],
       ['providers', 'Provider/model profiles and safe diagnostics.'],
       ['profiles', 'Agent profile catalogue and safe validation diagnostics.'],
@@ -119,6 +119,9 @@ function tuiHelp(): string {
     'Nova CLI help — tui',
     '',
     section('Commands', [
+      ['nova tui', 'Open the interactive Command Center with OpenTUI mouse/keyboard support when running in a TTY.'],
+      ['nova tui dashboard', 'Print a non-interactive premium Command Center snapshot.'],
+      ['nova tui status', 'Alias for dashboard snapshot.'],
       ['nova tui replay <logId>', 'Render a terminal UI snapshot from a saved streaming event log.'],
       ['nova tui latest', 'Replay the most recently updated event log.'],
       ['nova streaming logs', 'List available log IDs.'],
@@ -128,9 +131,23 @@ function tuiHelp(): string {
       ['--compact', 'Header + final/error only.'],
       ['--verbose', 'Fuller timeline and longer previews.'],
       ['--mode compact|normal|verbose', 'Explicit render mode.'],
+      ['--no-interactive', 'Force dashboard snapshot instead of opening interactive mode.'],
+      ['--clack', 'Force the legacy Clack fallback shell.'],
+      ['--opentui-slice', 'Open the OpenTUI vertical-slice layout for runtime validation.'],
     ]),
     '',
-    'TUI V0.1 is read-only and reuses existing RuntimeStreamingEvent JSONL logs. It does not start a daemon, web dashboard, scheduler, or new persistence layer.',
+    section('Command Center areas', [
+      ['OpenTUI shell', 'Mouse clicks, scrollbox, prompt focus, keyboard hotkeys and readable panel states.'],
+      ['Run agent prompt', 'Live streaming output, sessions enabled, optional redacted event log.'],
+      ['Sessions & runs', 'Create/select current session and inspect local run metadata.'],
+      ['Configuration', 'Initialize/validate safe .nova/config.json without storing secrets.'],
+      ['Providers/profiles', 'Browse provider/model and agent profiles, run doctor diagnostics.'],
+      ['Logs/replay', 'Replay redacted streaming JSONL logs with the existing renderer.'],
+      ['Safety approvals', 'List and decide local approval metadata without exposing raw tool inputs.'],
+      ['Diagnostics', 'Production readiness and safety guardrails.'],
+    ]),
+    '',
+    'Safety: the TUI never asks for or prints API keys. Live provider calls require LLM_API_KEY already present in the environment. Write/shell/autonomy remain disabled unless explicitly enabled outside the TUI.',
   ].join('\n');
 }
 

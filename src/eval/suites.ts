@@ -26,7 +26,7 @@ export const evalSuites = {
   cli: ['cli-help-command-ux-v1'],
   batch: ['batch-mode-v1'],
   heartbeat: ['heartbeat-autonomous-tasks-v1-safe-slice'],
-  tui: ['tui-prototype-v0'],
+  tui: ['tui-command-center-v1'],
   release: ['release-versioning-v1'],
   quality: ['quality-gate-v1'],
   providers: ['provider-profiles-v1'],

@@ -97,7 +97,7 @@ First tagged-worthy release of Nova Agent: a local, safety-first autonomous agen
   - TUI-ready streaming event layer and redacted JSONL event logs under `.nova/streaming/events`, exposed through read-only `nova streaming logs/show/replay`.
 - **CLI & TUI**
   - CLI help and command UX available without `LLM_API_KEY`, with documented flags and educational unknown/missing-command errors.
-  - Read-only TUI prototype: `nova tui replay <logId>` and `nova tui latest` with compact/normal/verbose replay snapshots from existing event logs.
+  - TUI Premium Command Center OpenTUI: `nova tui` mouse/keyboard shell with clickable sidebar, scrollbox, prompt focus/input, agent prompts with streaming, sessions/runs, safe config, providers/profiles, safety approvals, diagnostics/readiness, plus `nova tui dashboard` for non-interactive snapshots and compatible replay/latest event-log views.
 - **Providers**
   - Safe provider/model profiles with read-only `nova providers list/show/doctor`, API-key presence diagnostics (no secret output), and explicit opt-in fallback metadata.
   - Expanded built-in provider/model catalogue and a metadata-only provider directory with supported/planned/gateway/custom classification.
