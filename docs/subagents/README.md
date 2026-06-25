@@ -23,6 +23,22 @@ Nova subagents are **bounded delegated workers**, not autonomous agents. V1 exis
 ## Commands
 
 ```bash
+npx tsx src/index.ts subagents roles
+npx tsx src/index.ts subagents plan tasks.json
 npm run subagents:smoke
 npm run eval:subagents
+```
+
+`nova subagents roles` and `nova subagents plan <tasks.json>` are **metadata-only** operator surfaces. They do not spawn workers, invoke the LLM, call tools, grant write/shell/MCP, or enable recursive delegation. The planner validates the DAG, independent producer verification gates, and read-only/non-overlapping parallelizable batches, then prints a redacted JSON report.
+
+Minimal plan input:
+
+```json
+{
+  "tasks": [
+    { "id": "research", "role": "researcher", "kind": "research", "prompt": "Find evidence", "scope": ["src"] },
+    { "id": "build", "role": "builder", "kind": "produce", "prompt": "Plan implementation", "dependsOn": ["research"], "scope": ["src"] },
+    { "id": "verify-build", "role": "qa", "kind": "verify", "prompt": "Verify plan", "dependsOn": ["build"], "producerTaskId": "build" }
+  ]
+}
 ```

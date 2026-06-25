@@ -47,6 +47,7 @@ import { providerDoctor, listProviderProfiles, getProviderProfile, resolveProvid
 import { handleHeartbeatCommand } from './heartbeat/index.js';
 import { handleEvalCommand } from './eval/report_cli.js';
 import { handleMemoryCommand } from './memory/cli.js';
+import { handleSubagentsCommand } from './subagents/cli.js';
 
 let dotenvLoaded = false;
 async function loadDotenvOnce(): Promise<void> {
@@ -695,6 +696,7 @@ async function main() {
   if (await handleEvalCommand(rawArgs)) return;
   if (await handleConfigCommand(rawArgs)) return;
   if (await handleProvidersCommand(rawArgs)) return;
+  if (await handleSubagentsCommand(rawArgs)) return;
   if (await handleBatchCommand(undefined, rawArgs)) return;
   await loadDotenvOnce();
   const config = loadConfig();

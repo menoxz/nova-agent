@@ -1,5 +1,23 @@
 # Project Status
 
+## Sub-agent Orchestration V1.1 CLI planning — 2026-06-25
+
+Status: implemented locally with metadata-only role inventory and DAG planning CLI; no worker execution, LLM/tool invocation, write/shell/MCP grant, or recursive delegation.
+
+### Delivered
+
+- Added `nova subagents roles` to list bounded roles, safety values, default profiles, and default grants.
+- Added `nova subagents plan <tasks.json>` to parse task specs, validate DAG/cycles, independent producer verification gates, and read-only/non-overlapping parallelizable batches.
+- Added redacted metadata-only plan reports with explicit safety booleans.
+- Wired subagents CLI help, smoke coverage, and check gates.
+- Updated subagents docs, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run cli:smoke`, `npm run subagents:smoke`, and `npm run eval:subagents` exit 0.
+- CLI smoke verified `nova subagents roles` and `nova subagents plan <tasks.json>` without requiring `LLM_API_KEY`.
+- `npm run build && npm run check` exits 0.
+
 ## Memory/Knowledge local RAG persistence — 2026-06-25
 
 Status: implemented locally with persistent JSON memory, deterministic local RAG index/search, CLI operations, policy/redaction guards, and targeted/full validation passing locally.

@@ -9,6 +9,7 @@ import { createBudgetState, assertBudgetAvailable, recordBudgetUsage } from './b
 import { buildScopedContext } from './context.js';
 import { assertProducerCannotSelfVerify } from './contracts.js';
 import { deriveEffectiveGrant } from './delegation.js';
+import { parseSubagentTasks, planSubagentTasks } from './planner.js';
 import { listSubagentRoles } from './registry.js';
 import { createTaskGraph, parallelizableBatch, topologicalBatches } from './task_graph.js';
 import type { AuthorityGrant } from './types.js';
@@ -101,6 +102,15 @@ async function main(): Promise<void> {
   const batches = topologicalBatches(graph);
   assert(batches.length === 2 && batches[0]?.length === 2 && batches[1]?.[0]?.id === 'fan-in', 'DAG should support fan-out/fan-in readiness');
   assert(parallelizableBatch(batches[0] ?? []).length === 2, 'independent read-only scopes should parallelize');
+
+  const planned = planSubagentTasks(parseSubagentTasks({ tasks: [
+    { id: 'research', role: 'researcher', kind: 'research', prompt: 'Find evidence token=synthetic_token_value_12345', scope: ['src/a.ts'] },
+    { id: 'build-ok', role: 'builder', kind: 'produce', prompt: 'Plan implementation', scope: ['src/a.ts'], dependsOn: ['research'] },
+    { id: 'verify-build-ok', role: 'qa', kind: 'verify', prompt: 'Verify implementation plan', dependsOn: ['build-ok'], producerTaskId: 'build-ok' },
+  ] }));
+  assert(planned.mode === 'metadata-only-plan' && planned.safety.invokesLlm === false && planned.safety.invokesTools === false, 'planner must be metadata-only');
+  assert(planned.batches.length === 3 && planned.batches[0]?.parallelizableTaskIds.includes('research'), 'planner should expose topological batches');
+  assert(!JSON.stringify(planned).includes('synthetic_token_value_12345'), 'planner prompt previews must be redacted');
 
   denied = false;
   try {

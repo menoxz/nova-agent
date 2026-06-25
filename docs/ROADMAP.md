@@ -97,6 +97,9 @@
 - [ ] **Multi-agent**
   - Orchestrateur qui délègue à des agents spécialisés
   - Communication inter-agents
+  - [x] V1 foundation: rôles bornés, grants read-only par défaut, DAG, contexte redacted, budgets, smoke/eval
+  - [x] V1.1 CLI planning metadata-only: `nova subagents roles`, `nova subagents plan <tasks.json>`, validation DAG/gates/batches sans LLM/tools
+  - [ ] Future: exécution déléguée réelle uniquement avec approvals explicites, sandbox et séparation producteur/vérificateur
 
 - [ ] **MCP (Model Context Protocol)**
   - [x] Serveur MCP stdio V1 read-only (`src/mcp/server.ts`)

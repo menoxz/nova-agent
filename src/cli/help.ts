@@ -1,8 +1,8 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents'];
 
 const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget']);
 const knownBooleanFlags = new Set([
@@ -75,6 +75,7 @@ function globalHelp(): string {
       ['heartbeat', 'Safe disabled-by-default planning ticks for autonomous-task metadata.'],
       ['eval', 'Read-only local eval report list/summary/compare commands.'],
       ['memory', 'Persistent local memory and RAG retrieval commands.'],
+      ['subagents', 'Bounded sub-agent roles and metadata-only DAG planning.'],
     ]),
     '',
     section('Main flags', [
@@ -377,6 +378,25 @@ function memoryHelp(): string {
   ].join('\n');
 }
 
+function subagentsHelp(): string {
+  return [
+    'Nova CLI help — subagents',
+    '',
+    section('Commands', [
+      ['nova subagents roles', 'List bounded sub-agent roles, values, profiles and default grants.'],
+      ['nova subagents plan <tasks.json>', 'Validate a task DAG and print metadata-only batches; no workers run.'],
+    ]),
+    '',
+    section('Input format', [
+      ['tasks array', '[{ "id": "research", "role": "researcher", "kind": "research", "prompt": "..." }]'],
+      ['verification', 'Producer roles builder/docs/refactor require a dependent reviewer/qa/security gate.'],
+      ['parallelism', 'Only independent read-only, non-overlapping scopes are marked parallelizable.'],
+    ]),
+    '',
+    'Subagents CLI V1.1 is metadata-only: it does not spawn workers, invoke LLM/tools, grant write/shell/MCP, or allow recursive delegation.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -391,6 +411,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'heartbeat': return heartbeatHelp();
     case 'eval': return evalHelp();
     case 'memory': return memoryHelp();
+    case 'subagents': return subagentsHelp();
     case 'global': return globalHelp();
   }
 }

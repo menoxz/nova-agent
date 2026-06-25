@@ -4,6 +4,7 @@ export * from './registry.js';
 export * from './contracts.js';
 export * from './delegation.js';
 export * from './task_graph.js';
+export * from './planner.js';
 export * from './reporter.js';
 export * from './budget.js';
 export * from './context.js';
