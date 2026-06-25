@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   assertOkHelp(['subagents', '--help'], ['subagents roles', 'subagents plan', 'metadata-only']);
   assertOkHelp(['tokens', '--help'], ['tokens estimate', 'tokens doctor', 'local-only']);
   assertOkHelp(['security', '--help'], ['security matrix', 'security doctor', 'metadata-only']);
+  assertOkHelp(['production', '--help'], ['production readiness', 'install/readiness', 'offline/static']);
 
   const unknown = runNova(['stremaing']);
   assert.equal(unknown.status, 1, 'unknown command exits 1');
@@ -80,6 +81,12 @@ async function main(): Promise<void> {
   assert.match(securityDoctor.stdout, /"ok": true/, 'security doctor reports ok');
   assert.match(securityDoctor.stdout, /"writesFiles": false/, 'security doctor reports metadata-only safety');
   assert.doesNotMatch(securityDoctor.stderr + securityDoctor.stdout, /LLM_API_KEY not set/, 'security doctor does not reach LLM key check');
+
+  const productionDoctor = runNova(['production', 'readiness']);
+  assert.equal(productionDoctor.status, 0, 'production readiness exits 0 without LLM key when no active blockers remain');
+  assert.match(productionDoctor.stdout, /"name": "production-install-readiness-v1"/, 'production readiness reports schema name');
+  assert.match(productionDoctor.stdout, /"npmPublishReady": false/, 'production readiness keeps npm publish out of scope');
+  assert.doesNotMatch(productionDoctor.stderr + productionDoctor.stdout, /LLM_API_KEY not set/, 'production readiness does not reach LLM key check');
 
   console.log('cli:smoke passed');
 }

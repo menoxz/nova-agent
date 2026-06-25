@@ -31,6 +31,7 @@ nova help streaming
 nova batch --help
 nova tui --help
 nova providers doctor
+nova production readiness
 nova config validate
 nova heartbeat --help
 nova heartbeat tick --dry-run
@@ -68,6 +69,7 @@ nova approvals --help
 nova conversations --help
 nova heartbeat --help
 nova eval --help
+nova production --help
 ```
 
 ## Flags principaux
@@ -114,6 +116,8 @@ Les commandes suivantes lisent ou modifient uniquement de la metadata locale ; e
 `nova heartbeat validate/status/tasks/tick --dry-run/report latest` est planning-only : aucun `LLM_API_KEY`, aucun agent/tool, aucun daemon et aucun démarrage automatique.
 
 `nova eval list/report/summary/compare/dashboard/slo` relit uniquement les rapports structurés `.nova/evals/*/report.json`. Ces commandes ne lisent pas `.env`, `report.md`, raw `.nova/traces`, prompts bruts ou secrets; elles n'instancient pas `NovaAgent`, ne configurent aucun tool et ne nécessitent pas `LLM_API_KEY`.
+
+`nova production readiness` et `nova production doctor` produisent un diagnostic offline/static d'installation et de production : version `0.1.0`, bins `nova`/`nova-mcp`, `main`, docs packagées, scripts `check`/`release:readiness`, couverture security matrix, surface package slim et priorisation des bloqueurs actifs. Ils ne lisent pas `.env`, secrets ou raw `.nova`, n'appellent aucun provider, n'exécutent aucun tool, ne publient rien et ne démarrent aucun daemon.
 
 ### Batch
 
@@ -182,6 +186,17 @@ nova providers doctor
 nova --provider-profile openmodel-deepseek-v4-flash providers doctor
 ```
 
+### Production readiness
+
+```bash
+nova production readiness
+nova production doctor
+npm run production:smoke
+npm run eval:production
+```
+
+Le champ `readiness.ready` indique si aucun bloqueur actif d'installation n'est détecté. Les gates volontairement bloqués (`npm publish`, tag/release/PR, live provider, daemon/autonomie) restent listés dans `explicitOutOfScope` et ne rendent pas le diagnostic installable négatif.
+
 ### Sessions / runs / conversations
 
 ```bash
@@ -226,6 +241,8 @@ npm run eval:slo-smoke
 npm run eval:heartbeat
 npm run eval:release
 npm run eval:quality
+npm run production:smoke
+npm run eval:production
 npm run eval:cli
 npm run eval:report
 npm run eval:slo

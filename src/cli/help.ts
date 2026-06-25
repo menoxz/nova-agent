@@ -1,8 +1,8 @@
 import { readNovaPackageInfo } from './version.js';
 
-export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents' | 'tokens' | 'security';
+export type CliHelpTopic = 'global' | 'batch' | 'tui' | 'streaming' | 'providers' | 'profiles' | 'config' | 'sessions' | 'runs' | 'approvals' | 'conversations' | 'heartbeat' | 'eval' | 'memory' | 'subagents' | 'tokens' | 'security' | 'production';
 
-export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents', 'tokens', 'security'];
+export const cliHelpTopics: CliHelpTopic[] = ['batch', 'tui', 'streaming', 'providers', 'profiles', 'config', 'sessions', 'runs', 'approvals', 'conversations', 'heartbeat', 'eval', 'memory', 'subagents', 'tokens', 'security', 'production'];
 
 const knownFlagsWithValues = new Set(['profile', 'provider-profile', 'provider-fallback', 'stream-mode', 'thinking', 'report', 'report-md', 'limit', 'only', 'from', 'mode', 'out', 'md', 'now', 'horizon', 'max', 'target', 'every', 'at', 'title', 'summary', 'body', 'tags', 'collection', 'type', 'scope', 'project', 'confidence', 'importance', 'budget', 'reason', 'classification']);
 const knownBooleanFlags = new Set([
@@ -79,6 +79,7 @@ function globalHelp(): string {
       ['subagents', 'Bounded sub-agent roles and metadata-only DAG planning.'],
       ['tokens', 'Local token estimation, cost and compaction diagnostics.'],
       ['security', 'Read-only safety matrix, script coverage, and local diagnostics.'],
+      ['production', 'Offline production/install readiness diagnostics and blockers.'],
     ]),
     '',
     section('Main flags', [
@@ -463,6 +464,26 @@ function securityHelp(): string {
   ].join('\n');
 }
 
+function productionHelp(): string {
+  return [
+    'Nova CLI help — production',
+    '',
+    section('Commands', [
+      ['nova production readiness', 'Print offline install/readiness checks as JSON.'],
+      ['nova production doctor', 'Alias for production readiness.'],
+    ]),
+    '',
+    section('Checks', [
+      ['package/bin', 'Validates main, nova and nova-mcp entrypoints.'],
+      ['docs/files', 'Confirms shipped install/operator docs and slim package surface.'],
+      ['gates', 'Confirms release:readiness, check scripts and script safety coverage.'],
+      ['blockers', 'Separates active install blockers from intentional no-publish/live/autonomy gates.'],
+    ]),
+    '',
+    'Production readiness is offline/static: no LLM_API_KEY, provider call, network, publish, tag, daemon, raw .nova read, or secret read.',
+  ].join('\n');
+}
+
 export function renderHelp(topic: CliHelpTopic = 'global'): string {
   switch (topic) {
     case 'batch': return batchHelp();
@@ -481,6 +502,7 @@ export function renderHelp(topic: CliHelpTopic = 'global'): string {
     case 'subagents': return subagentsHelp();
     case 'tokens': return tokensHelp();
     case 'security': return securityHelp();
+    case 'production': return productionHelp();
     case 'global': return globalHelp();
   }
 }

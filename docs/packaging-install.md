@@ -29,6 +29,7 @@ Le wrapper binaire est `bin/nova.js` :
 ```bash
 node bin/nova.js --help
 node bin/nova.js --version
+node bin/nova.js production readiness
 node bin/nova.js tui --help
 ```
 
@@ -89,10 +90,13 @@ En développement, le wrapper fonctionne même si `dist/` est absent grâce au f
 npm run build             # compile TypeScript vers dist/
 npm run bin:smoke         # vérifie node bin/nova.js + npm link + aide/version sans clé LLM
 npm run mcp:bin-smoke     # vérifie node bin/nova-mcp.js + handshake MCP stdio buildé + npm link
+npm run production:smoke  # vérifie le diagnostic install/production sans provider, secret, publish ou daemon
 npm run release:readiness # vérifie le manifeste npm dry-run sans scripts
 ```
 
 `node bin/nova.js --version` et `nova --version` utilisent la version de `package.json`. Ces chemins sont des commandes metadata-only : ils ne nécessitent pas `LLM_API_KEY` et ne déclenchent ni agent, ni LLM, ni tools.
+
+`node bin/nova.js production readiness` et `nova production doctor` produisent le diagnostic Production / Install Readiness V1 : version attendue `0.1.0`, bins `nova`/`nova-mcp`, `main`, docs packagées, scripts de validation, couverture security matrix, surface package slim, état du build `dist/`, et séparation entre bloqueurs d'installation actifs et gates volontairement bloqués (`npm publish`, tag/release/PR, live provider, daemon/autonomie).
 
 `node bin/nova-mcp.js --version` et `nova-mcp --version` utilisent aussi la version de `package.json`. Le démarrage sans argument ouvre un serveur MCP stdio local uniquement.
 
@@ -126,3 +130,4 @@ Ne pas utiliser `npm pack` normal pour un dry-run pure read-only : `prepack` ex�
 - pas de pipeline CI/CD release ;
 - pas de packaging natif executable ;
 - pas de changement provider/model.
+- le diagnostic production ne remplace pas une publication ni un install rehearsal mutatif (`npm link`/tarball) sans autorisation explicite.

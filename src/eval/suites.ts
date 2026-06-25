@@ -14,6 +14,7 @@ export const evalSuites = {
   context: ['context-builder-v1'],
   tokens: ['token-management-v1'],
   security: ['security-readonly-matrix-v1-1'],
+  production: ['production-install-readiness-v1'],
   session: ['session-run-manager-v1'],
   approval: ['approval-manager-v1'],
   'run-replay': ['run-replay-resume-v1'],

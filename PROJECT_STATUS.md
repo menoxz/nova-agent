@@ -1,5 +1,20 @@
 # Project Status
 
+## Production / Install Readiness V1 — 2026-06-25
+
+Status: implemented locally with offline/static install diagnostics; no provider calls, secret/env reads, raw `.nova` reads, tools, network, daemon/autonomy, publish, tag, release, or PR action.
+
+### Delivered
+
+- Added `nova production readiness` and `nova production doctor` for a JSON production/install readiness report.
+- Report validates package version `0.1.0`, `bin.nova`, `bin.nova-mcp`, package `main`, required validation scripts, security matrix package-script coverage, shipped install/operator docs, slim package surface, release-readiness gate, and build candidate status.
+- Report separates active install blockers from intentionally blocked gates: npm publish/tag/release/PR, live provider/LLM/network smoke, and daemon/autonomy/write-shell live paths.
+- Wired `production:smoke`, `eval:production`, CLI help/smoke, security matrix coverage, check gates, docs, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run production:smoke`, `npm run cli:smoke`, `npm run security:smoke`, and `npm run eval:production` exit 0.
+
 ## LSP V1.1 Markdown reference-link diagnostics — 2026-06-25
 
 Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.

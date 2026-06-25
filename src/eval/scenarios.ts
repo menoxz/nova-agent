@@ -2,6 +2,22 @@ import type { EvalScenario } from './types.js';
 
 export const defaultScenarios: EvalScenario[] = [
   {
+    id: 'production-install-readiness-v1',
+    name: 'Production / Install Readiness V1',
+    description: 'Production readiness diagnostics should identify active install blockers separately from intentionally blocked publish/live/autonomy actions without invoking providers or reading secrets.',
+    tags: ['production', 'install', 'readiness', 'release', 'packaging', 'safety', 'mock'],
+    prompt: 'Verify Production / Install Readiness V1: nova production readiness|doctor returns an offline-static JSON report without LLM_API_KEY, env/secret reads, raw .nova reads, provider calls, tools, network, daemon/autonomy, publish or tag; validates package version remains 0.1.0, bin.nova and bin.nova-mcp entrypoints, package main, required docs/files, release:readiness/check scripts, security matrix package-script coverage, slim package surface, dist build candidate warning, and clearly separates active install blockers from intentional no-publish/live-provider/autonomy gates. Verify production:smoke and eval:production are wired into check gates and docs/status/changelog/roadmap are updated. Do not modify files.',
+    expectedAnyTools: ['production:smoke', 'eval:production', 'release:readiness', 'security:smoke', 'read_file', 'grep'],
+    forbiddenTools: ['write_file', 'bash', 'web_search'],
+    maxToolCalls: 8,
+    maxSteps: 8,
+    requiredAnswerIncludes: ['production', 'install', 'offline-static', '0.1.0', 'bin.nova', 'nova-mcp', 'release:readiness', 'publish', 'LLM_API_KEY'],
+    mock: {
+      tools: ['production:smoke', 'eval:production'],
+      finalAnswer: 'Production / Install Readiness V1 adds nova production readiness|doctor as an offline-static JSON readiness report that works without LLM_API_KEY, env/secret/raw .nova reads, provider calls, tools, network, daemon/autonomy, publish or tag. It validates package version 0.1.0, bin.nova and nova-mcp entrypoints, package main, required docs/files, release:readiness and check scripts, security matrix package-script coverage, slim package surface and dist build-candidate status, while separating active install blockers from intentional no-publish, live-provider and autonomy gates. production:smoke and eval:production are wired into local gates and docs/status/changelog/roadmap are updated.',
+    },
+  },
+  {
     id: 'provider-live-smoke-readiness-v1',
     name: 'Provider Live Smoke Readiness Plan V1',
     description: 'Provider live smoke readiness should remain an offline/static plan with synthetic validation and an explicit future authorization gate.',

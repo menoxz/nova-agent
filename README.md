@@ -14,6 +14,7 @@ node --import tsx src/index.ts --help
 node --import tsx src/index.ts --version
 node --import tsx src/index.ts providers list
 node --import tsx src/index.ts config explain
+node --import tsx src/index.ts production readiness
 ```
 
 To run a real prompt, configure a provider and API key first:
@@ -30,6 +31,7 @@ The package binary can be exercised locally after a build, or through the develo
 npm run build
 node bin/nova.js --help
 node bin/nova.js --version
+node bin/nova.js production readiness
 ```
 
 ## Safe / read-only CLI paths
@@ -52,9 +54,12 @@ node --import tsx src/index.ts batch prompts.json --dry-run
 node --import tsx src/index.ts heartbeat --help
 node --import tsx src/index.ts heartbeat tick --dry-run
 node --import tsx src/index.ts eval list
+node --import tsx src/index.ts production readiness
 ```
 
 `providers doctor` is a diagnostic command: it reports selected provider/base URL/model/API-key presence without making live provider calls or printing secret values.
+
+`production readiness` / `production doctor` is an offline production/install diagnostic: it checks package version, `nova`/`nova-mcp` bins, shipped docs, release-readiness gates, package-script safety coverage, slim package surface, and active install blockers. It deliberately keeps npm publish, tags/releases/PRs, live provider calls, daemon/autonomy, raw `.nova` reads, and secret reads out of scope.
 
 `batch <file>` without `--dry-run` executes prompts and requires a configured LLM API key. `batch <file> --dry-run` only validates input/filters and writes reports when requested.
 
@@ -97,6 +102,7 @@ npm run config:smoke
 npm run providers:smoke
 npm run providers:readiness-smoke
 npm run batch:smoke
+npm run production:smoke
 npm run security:readonly-audit
 npm run security:readonly-smoke
 npm run check:fast

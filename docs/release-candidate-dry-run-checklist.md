@@ -38,6 +38,7 @@ These commands are the preferred release-candidate dry-run baseline:
 ```bash
 npm pkg get files scripts.prepack scripts.build scripts.check scripts.check:fast
 npm run release:readiness
+npm run production:smoke
 npm pack --dry-run --ignore-scripts
 ```
 
@@ -161,6 +162,10 @@ Copy this template into the task report or release notes.
 - Unexpected files: none / list
 
 - Command: `npm run release:readiness`
+- Exit code:
+- Notes:
+
+- Command: `npm run production:smoke`
 - Exit code:
 - Notes:
 
