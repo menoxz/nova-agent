@@ -1,14 +1,42 @@
 # Project Status
 
+## Release Candidate freeze evidence — 2026-06-25
+
+Status: RC freeze validated locally without public npm publish, git tag, GitHub release, or PR. API key used for the live smoke was revoked by the operator after the test and is not stored or printed in project artifacts.
+
+### Frozen candidate
+
+- Version: `0.1.0`.
+- Branch/commit before freeze docs: `main` at `3e96061`.
+- Package manifest: `bin.nova=./bin/nova.js`, `bin.nova-mcp=./bin/nova-mcp.js`, `main=dist/index.js`, selected docs included, sensitive/source-only paths excluded by readiness gate.
+- `npm pack --dry-run --ignore-scripts` reported `lux-tech-nova-agent-0.1.0.tgz`, package size `368.2 kB`, unpacked size `1.5 MB`, total files `408`.
+
+### Evidence included in RC freeze
+
+- Install rehearsal: isolated temp consumer installed the local tarball and ran `npx nova --help`, `npx nova --version`, `npx nova production readiness`, and `npx nova-mcp --version`; cleanup reported `tempRemoved=true`.
+- Production readiness: `npm run production:smoke` passed with `ready=true`, `blockers=0`, `warnings=0`.
+- Release manifest: `npm run release:readiness` passed with `408` package entries and all required entries present.
+- Live LLM smoke: operator-run `npm run llm:live-smoke` succeeded against `openmodel` / `deepseek-v4-flash` via `https://api.openmodel.ai/v1`, adapter `anthropic-messages`; HTTP `2xx`, `NOVA_LIVE_OK-returned=true`, usage `input=18 output=35 total=53`, `finishReason=stop`, tools disabled, retries `0`.
+- Prior CI: install/readiness commit `d8261b1` passed GitHub CI `28163948844`; live-gate docs commit `3e96061` passed GitHub CI `28164394213`.
+
+### Explicit non-actions
+
+- No `npm publish`.
+- No git tag.
+- No GitHub release.
+- No PR creation.
+- No `.env`, credential, secret value, raw `.nova` artifact, daemon/autonomy, or write-shell live path was read, exposed, or enabled during the freeze.
+
 ## Live LLM smoke gate check — 2026-06-25
 
-Status: live provider call not executed because the required opt-in environment was absent; gate refusal was clean and secret-free.
+Status: initial live provider call was skipped because the required opt-in environment was absent; a later operator-run live smoke succeeded after the operator supplied env credentials locally and revoked the key after use.
 
 ### Evidence
 
 - Prerequisite presence check only printed booleans: `hasKey=false`, `liveFlag=false`, `providerEnvSet=false`, `modelEnvSet=false`.
 - `npm run llm:live-smoke` exited 0 with `llm:live-smoke skipped — NOVA_ENABLE_LIVE_LLM is not set to 1|true (live calls are opt-in only)`.
 - No key value, `.env`, raw provider body, raw `.nova` artifact, tool call, write/shell, daemon/autonomy, publish, tag, release, PR, or public network mutation was exposed or enabled.
+- Later operator-run success evidence: transport HTTP `2xx`, `NOVA_LIVE_OK-returned=true`, usage `input=18 output=35 total=53`, `finishReason=stop`, tools disabled, retries `0`.
 
 ### Exact operator instructions to run a real live smoke
 

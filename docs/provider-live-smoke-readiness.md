@@ -110,7 +110,7 @@ Safety contract:
 - output is sanitized: adapter, provider/model constants, HTTP status class, sentinel boolean, usage counts, finish reason;
 - failures are classified by kind/status class and never print raw provider bodies or credential values.
 
-Most recent gate check: the command skipped cleanly because the process environment had no live opt-in flag and no API key. To run a real smoke, set the two environment variables in your shell without logging or documenting the key value, then rerun the command.
+Most recent gate evidence: after an initial clean skip with no live opt-in env, the operator ran the gated command locally with env credentials. The live smoke passed with HTTP `2xx`, `NOVA_LIVE_OK-returned=true`, usage `input=18 output=35 total=53`, `finishReason=stop`, tools disabled, retries `0`. The credential value is not recorded and the operator reported revoking the exposed test key after the run.
 
 ## Failure modes and abort criteria
 

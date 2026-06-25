@@ -1,6 +1,6 @@
 # Release Candidate Dry-Run Checklist V1
 
-Use this checklist to collect release-candidate evidence without publishing, tagging, pushing, opening PRs, calling live providers, starting autonomy, or inspecting sensitive local artifacts.
+Use this checklist to collect release-candidate evidence without publishing, tagging, pushing, opening PRs, starting autonomy, or inspecting sensitive local artifacts. Live provider evidence may be attached only when it was separately authorized, sanitized, and executed with explicit opt-in gates.
 
 ## Scope
 
@@ -9,11 +9,12 @@ Allowed scope for this dry-run:
 - inspect package metadata, scripts, selected documentation, and generated package manifests;
 - run local quality gates that are documented as offline/read-only or mock-only;
 - verify release preconditions from repository state and package contents.
+- attach separately authorized live-smoke evidence when the output is sanitized and contains no credential values.
 
 Explicitly out of scope unless separately authorized for a different task:
 
 - no `npm publish`, git tag, git push, or PR creation;
-- no provider/LLM live calls and no commands requiring real API keys;
+- no provider/LLM live calls and no commands requiring real API keys unless separately authorized for this candidate with explicit opt-in gates and secret-safe evidence;
 - no daemon, scheduler, heartbeat autonomy, or autonomous task execution;
 - no reading or editing `.env`, secrets, credentials, prompts, raw `.nova/traces`, raw `.nova/evals`, or raw `.nova/reports`.
 
@@ -204,6 +205,24 @@ Validated example evidence for the temp-dir tarball path:
 - Observed: package version `0.1.0`, tarball `lux-tech-nova-agent-0.1.0.tgz`, package entries `408`, production readiness `ready=true`, no active blockers.
 - Cleanup: temporary consumer and tarball directory removed (`tempRemoved=true`).
 - Live provider: skipped unless `NOVA_ENABLE_LIVE_LLM=1|true` and `LLM_API_KEY` are already present in the process environment; never print credential values.
+
+### Live provider smoke, if separately authorized
+
+- Method: `npm run llm:live-smoke` with `NOVA_ENABLE_LIVE_LLM=1|true` and `LLM_API_KEY` supplied by the operator through the process environment only.
+- Safety contract: one request, tools disabled, max `64` output tokens, `temperature=0`, `maxRetries=0`, expected sentinel `NOVA_LIVE_OK`, sanitized errors by kind/status class only.
+- Validated evidence for this RC: OpenModel `deepseek-v4-flash`, endpoint class `https://api.openmodel.ai/v1`, adapter `anthropic-messages`, HTTP `2xx`, `NOVA_LIVE_OK-returned=true`, usage `input=18 output=35 total=53`, `finishReason=stop`, `llm:live-smoke passed`.
+- Credential handling: no key value is recorded; operator reported the exposed test key was revoked after the run.
+
+## RC freeze evidence — 2026-06-25
+
+- Candidate version: `0.1.0`.
+- Branch/commit at freeze start: `main` / `3e96061`.
+- Scope confirmation: no `npm publish`, no git tag, no GitHub release, no PR; no `.env`, secrets, raw `.nova` artifacts, daemon/autonomy, or write-shell live path used.
+- Manifest/package: `npm run release:readiness` passed with `408` package entries; `npm pack --dry-run --ignore-scripts` reported `lux-tech-nova-agent-0.1.0.tgz`, package size `368.2 kB`, unpacked size `1.5 MB`, total files `408`.
+- Install rehearsal: temp-dir tarball install succeeded and cleanup reported `tempRemoved=true`.
+- Production readiness: `npm run production:smoke` passed with `ready=true`, `blockers=0`, `warnings=0`.
+- Live smoke: separately authorized `npm run llm:live-smoke` passed with HTTP `2xx`, sentinel returned, usage `53` total tokens, tools disabled, retries `0`; credential value not stored and key revoked after use.
+- CI evidence before freeze: `d8261b1` CI `28163948844` success; `3e96061` CI `28164394213` success.
 
 ### Status
 
