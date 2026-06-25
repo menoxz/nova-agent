@@ -125,7 +125,8 @@
   - [x] V1.1: CodeLens metadata read-only sans actions ni edits
   - [x] V1.1: diagnostics package.json plus précis pour scripts Nova/LSP
   - [x] V1.1: diagnostics duplicate metadata plus précis pour source/docs
-  - [ ] V1.1 future: diagnostics source/docs structurels plus précis
+  - [x] V1.1: diagnostics Markdown structurels pour liens locaux refusés
+  - [ ] V1.1 future: diagnostics source/docs structurels additionnels
 
 - [ ] **Sécurité**
   - [x] Policy/Permissions V1 shared core: profils, règles déterministes, path/redaction/output helpers, audit metadata-only, ToolRegistry hook optionnel

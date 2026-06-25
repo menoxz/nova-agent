@@ -11,6 +11,7 @@ Diagnostics are intentionally lightweight and safe:
 - Flag `.env` mentions when they look like exposed paths.
 - Error on private-key or secret-like content patterns when practical.
 - Inform on duplicate metadata labels discovered in the safe metadata index and point each diagnostic at the matched source/docs occurrence.
+- Warn on denied local Markdown link targets and point the diagnostic at the link target. HTTP links and same-document anchors stay outside local denylist scope.
 
 Diagnostics do not read denied raw artifacts.
 

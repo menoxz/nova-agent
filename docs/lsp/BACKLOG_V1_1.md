@@ -24,6 +24,8 @@ Status: precise package diagnostics slice implemented. Missing expected script d
 
 Status: precise duplicate metadata diagnostics slice implemented. Duplicate Nova metadata label diagnostics now target every occurrence in source/docs text, with policy smoke/eval coverage and no mutating capabilities.
 
+Status: structural Markdown denied-link diagnostics slice implemented. Markdown local link targets are inspected with the shared denylist, denied targets such as `.env` and raw `.nova/evals` paths are flagged on the target range, HTTP links and anchors stay outside local denylist scope, and no mutating capabilities are added.
+
 Still out of scope:
 
 - Write commands.

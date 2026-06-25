@@ -128,6 +128,15 @@ async function main(): Promise<void> {
   assert.equal(duplicateDiagnostics.length, 2, 'duplicate metadata diagnostics should target every occurrence');
   assert.deepEqual(duplicateDiagnostics.map((diagnostic) => diagnostic.range.start.line), [0, 2], 'duplicate metadata diagnostics should target precise document lines');
 
+  const markdownDoc: MinimalDocument = {
+    uri: 'file:///docs/unsafe.md',
+    getText: () => ['# Unsafe links', 'Do not link [raw eval](../.nova/evals/raw/report.json) or [env](.env.local).', 'External [docs](https://example.com) stay out of local denylist scope.'].join('\n'),
+  };
+  const markdownDiagnostics = computeDiagnostics(markdownDoc as never, metadata).filter((diagnostic) => String(diagnostic.message).includes('Denied Markdown link target'));
+  assert.equal(markdownDiagnostics.length, 2, 'denied markdown link diagnostics should target unsafe local links only');
+  assert.deepEqual(markdownDiagnostics.map((diagnostic) => diagnostic.range.start.line), [1, 1], 'denied markdown link diagnostics should point at link target line');
+  assert(markdownDiagnostics.every((diagnostic) => diagnostic.range.start.character > 0), 'denied markdown link diagnostics should target the link target, not the whole document');
+
   const lensDoc: MinimalDocument = {
     uri: 'file:///nova-lsp-codelens.md',
     getText: () => ['# CodeLens', 'nova_mcp_capabilities', 'nova://mcp/transport-readiness', 'lsp-v1-1-source-derived-metadata'].join('\n'),

@@ -4,6 +4,7 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 import type { NovaMetadataIndex } from './metadata.js';
 import { EXPECTED_SCRIPTS, LSP_COMMANDS } from './metadata.js';
+import { deniedReason } from './policy.js';
 
 function rangeFromIndex(text: string, index: number, length: number): Range {
   const before = text.slice(0, index).split(/\r?\n/);
@@ -40,6 +41,19 @@ function packageScriptsFromText(text: string): string[] | undefined {
     return Object.keys(parsed.scripts as Record<string, unknown>);
   } catch {
     return undefined;
+  }
+}
+
+function pushMarkdownDeniedLinkDiagnostics(out: Diagnostic[], text: string): void {
+  const markdownLinkPattern = /\[[^\]\r\n]+\]\(([^)\r\n]+)\)/g;
+  for (const match of text.matchAll(markdownLinkPattern)) {
+    const target = match[1]?.trim();
+    if (!target || /^https?:\/\//i.test(target) || target.startsWith('#')) continue;
+    const reason = deniedReason(target);
+    if (!reason || typeof match.index !== 'number') continue;
+    const targetOffset = match[0].indexOf(target);
+    if (targetOffset < 0) continue;
+    out.push({ range: rangeFromIndex(text, match.index + targetOffset, target.length), severity: DiagnosticSeverity.Warning, source: 'nova-lsp', message: `Denied Markdown link target: ${reason}` });
   }
 }
 
@@ -81,6 +95,7 @@ export function computeDiagnostics(document: TextDocument, metadata: NovaMetadat
   pushMatchDiagnostics(diagnostics, text, /(?:^|[\s`'\"])(?:\.env(?:\.[\w-]+)?)(?=$|[\s`'\".,;:])/g, 'Sensitive .env paths must not be exposed through LSP metadata or docs.');
   pushMatchDiagnostics(diagnostics, text, /\.nova[\\/](?:traces|evals|reports)[^\s`'\"]*/gi, 'Raw .nova traces/evals/reports are denied; expose only sanitized metadata or summaries.');
   pushMatchDiagnostics(diagnostics, text, /(?:BEGIN (?:OPENSSH |RSA |EC |DSA )?PRIVATE KEY|api[_-]?key\s*[:=]|authorization\s*[:=]|password\s*[:=])/gi, 'Secret-like content mention detected; verify it is synthetic, redacted, or removed.', DiagnosticSeverity.Error);
+  if (/\.md$/i.test(document.uri)) pushMarkdownDeniedLinkDiagnostics(diagnostics, text);
 
   for (const command of LSP_COMMANDS) {
     if (!metadata.byId.has(`command:${command}`)) {

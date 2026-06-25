@@ -13,6 +13,7 @@ Verified checks:
 - Opened document receives diagnostics for `.env` and raw `.nova/evals` mentions.
 - Package diagnostics target the `scripts` object for missing expected scripts and individual `lsp:*` keys for LSP script metadata.
 - Duplicate metadata label diagnostics target every source/docs occurrence instead of only the first match.
+- Markdown denied-link diagnostics target unsafe local link targets while ignoring HTTP links for local denylist purposes.
 - Hover, completion, document symbols, workspace symbols, and read-only policy command return Nova metadata.
 - `nova.lsp.showSetupGuide` returns stdio-only VS Code/Neovim setup guidance and validation commands.
 - `nova.lsp.showTelemetrySummary` returns aggregate metadata only and omits document content, raw diagnostics, URIs, root paths, and secrets.

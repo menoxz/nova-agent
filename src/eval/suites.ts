@@ -8,7 +8,7 @@ export const evalSuites = {
   policy: ['policy-core-v1'],
   profiles: ['profiles-v1-foundation'],
   mcp: ['mcp-readonly-denylist', 'mcp-v1-1-curated-metadata', 'mcp-v1-1-path-denial-matrix', 'mcp-v1-1-redaction-output-caps', 'mcp-v1-1-disabled-tools-curated-surface', 'mcp-v1-1-sanitized-observability-resources', 'mcp-v1-1-resource-schema-versioning', 'mcp-v1-1-release-readiness-compatibility', 'mcp-v1-1-gated-tools-policy', 'mcp-v1-1-transport-readiness-policy'],
-  lsp: ['lsp-readonly-metadata', 'lsp-v1-1-client-setup-policy', 'lsp-v1-1-policy-metadata-helper-smoke', 'lsp-v1-1-telemetry-summary-policy', 'lsp-v1-1-source-derived-metadata', 'lsp-v1-1-readonly-codelens-policy', 'lsp-v1-1-precise-package-diagnostics', 'lsp-v1-1-precise-duplicate-metadata-diagnostics'],
+  lsp: ['lsp-readonly-metadata', 'lsp-v1-1-client-setup-policy', 'lsp-v1-1-policy-metadata-helper-smoke', 'lsp-v1-1-telemetry-summary-policy', 'lsp-v1-1-source-derived-metadata', 'lsp-v1-1-readonly-codelens-policy', 'lsp-v1-1-precise-package-diagnostics', 'lsp-v1-1-precise-duplicate-metadata-diagnostics', 'lsp-v1-1-structural-markdown-denied-link-diagnostics'],
   subagents: ['subagents-v1-safety-values'],
   memory: ['memory-v1-foundation'],
   context: ['context-builder-v1'],

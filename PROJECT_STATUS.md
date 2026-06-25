@@ -1,5 +1,22 @@
 # Project Status
 
+## LSP V1.1 structural Markdown denied-link diagnostics — 2026-06-25
+
+Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
+
+### Delivered
+
+- Markdown diagnostics now inspect local link targets and warn on denied paths such as `.env` and raw `.nova/evals` links.
+- Diagnostics target the unsafe link target range, not the whole document.
+- HTTP links and same-document anchors stay outside local denylist scope.
+- Added policy-smoke assertions and expanded `eval:lsp` with `lsp-v1-1-structural-markdown-denied-link-diagnostics`.
+- Updated LSP diagnostics/smoke docs, V1.1 backlog, roadmap, changelog, and project status.
+
+### Verification run
+
+- `npm run typecheck`, `npm run lsp:policy-smoke`, `npm run lsp:smoke`, and `npm run eval:lsp` exit 0.
+- `npm run build && npm run check` exits 0.
+
 ## LSP V1.1 precise duplicate metadata diagnostics — 2026-06-25
 
 Status: implemented locally (diagnostics only; no code actions, edits, write/shell, or WorkspaceEdit capability); targeted and full validation passing locally.
